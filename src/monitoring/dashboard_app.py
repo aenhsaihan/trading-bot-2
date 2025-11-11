@@ -516,14 +516,24 @@ def render_backtest_view(bot, exchange, config):
                                             st.write(f"- MACD: {sell_indicators.get('macd_line', 0):.4f}")
                                         
                                         reason = sell_trade.get('reason', 'unknown')
-                                        if reason == 'strategy':
-                                            st.info("📉 **Strategy Signal:** Death cross or RSI overbought")
+                                        # Get strategy config from results or use default
+                                        rsi_threshold = results.get('strategy_config', {}).get('rsi_overbought', 70) if isinstance(results, dict) else 70
+                                        
+                                        if reason == 'death_cross':
+                                            st.info("📉 **Death Cross:** Short MA crossed below Long MA (bearish signal)")
+                                        elif reason == 'rsi_overbought':
+                                            rsi_val = sell_indicators.get('rsi', 0) if sell_indicators else 0
+                                            st.warning(f"⚠️ **RSI Overbought:** RSI {rsi_val:.1f} > {rsi_threshold} (selling at peak)")
+                                        elif reason == 'strategy':
+                                            st.info("📉 **Strategy Signal:** General strategy sell condition")
                                         elif reason == 'stop_loss':
                                             st.error("🛑 **Stop Loss:** Price dropped below stop loss threshold")
                                         elif reason == 'trailing_stop':
                                             st.warning("📊 **Trailing Stop:** Price reversed from peak")
                                         elif reason == 'end_of_backtest':
                                             st.info("📅 **End of Backtest:** Position closed at end of period")
+                                        else:
+                                            st.info(f"📉 **Sell Reason:** {reason.replace('_', ' ').title()}")
                                         
                                         # Calculate duration
                                         duration = sell_time - buy_time

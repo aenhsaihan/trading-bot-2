@@ -112,8 +112,19 @@ class BacktestEngine:
                 
                 # Check strategy sell signal
                 if self.strategy.should_sell(market_data, current_position):
-                    self.logger.info(f"Strategy sell signal at {current_price}")
-                    self._close_position(symbol, current_price, 'strategy', timestamp, sell_indicators)
+                    # Determine specific reason for sell
+                    sell_reason = 'strategy'
+                    if sell_indicators:
+                        # Check for death cross
+                        crossover = self.strategy._check_crossover(sell_indicators, symbol) if hasattr(self.strategy, '_check_crossover') else None
+                        if crossover == 'bearish':
+                            sell_reason = 'death_cross'
+                        # Check for RSI overbought
+                        elif sell_indicators.get('rsi', 0) > self.strategy.config.get('rsi_overbought', 70):
+                            sell_reason = 'rsi_overbought'
+                    
+                    self.logger.info(f"Strategy sell signal at {current_price}: {sell_reason}")
+                    self._close_position(symbol, current_price, sell_reason, timestamp, sell_indicators)
                     current_position = None
                     position_id = None
                     continue
