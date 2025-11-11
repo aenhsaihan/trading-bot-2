@@ -98,6 +98,38 @@ def render_backtest_view(bot, exchange, config):
             # Use the manual input value
             pass
     
+    # Strategy parameters
+    with st.expander("⚙️ Strategy Parameters (Advanced)"):
+        st.write("**Current:** 50/200 MA (very conservative - few signals)")
+        st.write("**Tip:** Shorter MA periods = more frequent signals but potentially more false signals")
+        
+        ma_preset = st.selectbox(
+            "MA Period Preset",
+            ["Conservative (50/200)", "Moderate (20/50)", "Aggressive (10/20)", "Custom"],
+            key="ma_preset"
+        )
+        
+        if ma_preset == "Custom":
+            short_ma = st.number_input("Short MA Period", min_value=5, max_value=100, value=50, key="custom_short_ma")
+            long_ma = st.number_input("Long MA Period", min_value=10, max_value=300, value=200, key="custom_long_ma")
+        elif ma_preset == "Moderate (20/50)":
+            short_ma = 20
+            long_ma = 50
+        elif ma_preset == "Aggressive (10/20)":
+            short_ma = 10
+            long_ma = 20
+        else:  # Conservative
+            short_ma = 50
+            long_ma = 200
+        
+        rsi_threshold = st.slider("RSI Overbought Threshold", min_value=60, max_value=85, value=70, key="rsi_threshold")
+        st.caption(f"Signals rejected if RSI ≥ {rsi_threshold}")
+        
+        # Store in session state for use in backtest
+        st.session_state['backtest_short_ma'] = short_ma
+        st.session_state['backtest_long_ma'] = long_ma
+        st.session_state['backtest_rsi_threshold'] = rsi_threshold
+    
     if st.button("🚀 Run Backtest", width='stretch'):
         with st.spinner(f"Fetching {limit} candles (this may take a moment for large datasets)..."):
             # Fetch historical data
@@ -115,8 +147,17 @@ def render_backtest_view(bot, exchange, config):
                 st.error("Failed to fetch historical data")
                 return
             
-            # Run backtest
-            strategy_config = config.get_strategy_config()
+            # Run backtest with custom strategy parameters if set
+            strategy_config = config.get_strategy_config().copy()
+            
+            # Override with user-selected parameters if available
+            if 'backtest_short_ma' in st.session_state:
+                strategy_config['short_ma_period'] = st.session_state['backtest_short_ma']
+            if 'backtest_long_ma' in st.session_state:
+                strategy_config['long_ma_period'] = st.session_state['backtest_long_ma']
+            if 'backtest_rsi_threshold' in st.session_state:
+                strategy_config['rsi_overbought'] = st.session_state['backtest_rsi_threshold']
+            
             strategy = TrendFollowingStrategy(config=strategy_config)
             
             risk_config = config.get_risk_config()
@@ -163,6 +204,17 @@ def render_backtest_view(bot, exchange, config):
                 st.info("ℹ️ No trades were executed during this backtest period. The strategy didn't find any buy signals.")
                 st.metric("Total Trades", results.get('total_trades', 0))
                 st.metric("Total P&L", f"${results.get('total_pnl', 0):,.2f}")
+                
+                # Show signal analysis if available
+                signal_analysis = results.get('signal_analysis', {})
+                if signal_analysis.get('potential_buys', 0) > 0:
+                    st.warning(f"⚠️ Found {signal_analysis['potential_buys']} golden cross events, but all were rejected due to RSI being overbought (>70)")
+                    if signal_analysis.get('rejected_buys'):
+                        with st.expander("View rejected signals"):
+                            rejected_df = pd.DataFrame(signal_analysis['rejected_buys'])
+                            if 'timestamp' in rejected_df.columns:
+                                rejected_df['timestamp'] = pd.to_datetime(rejected_df['timestamp'], unit='ms', errors='coerce')
+                            st.dataframe(rejected_df.head(10), width='stretch')
                 return
             
             # Performance metrics
@@ -187,6 +239,30 @@ def render_backtest_view(bot, exchange, config):
                 total_pnl = results.get('total_pnl', 0)
                 pnl_color = "🟢" if total_pnl > 0 else "🔴"
                 st.metric("Total P&L", f"{pnl_color} ${total_pnl:,.2f}")
+            
+            # Signal analysis
+            signal_analysis = results.get('signal_analysis', {})
+            if signal_analysis:
+                st.divider()
+                st.subheader("📊 Signal Analysis")
+                col1, col2 = st.columns(2)
+                with col1:
+                    potential_buys = signal_analysis.get('potential_buys', 0)
+                    actual_buys = len([t for t in results.get('trades', []) if t.get('type') == 'buy'])
+                    st.metric("Golden Crosses Detected", potential_buys)
+                    if potential_buys > 0:
+                        conversion_rate = (actual_buys / potential_buys) * 100
+                        st.metric("Conversion Rate", f"{conversion_rate:.1f}%")
+                        st.caption(f"{actual_buys} trades executed out of {potential_buys} potential signals")
+                with col2:
+                    rejected = len(signal_analysis.get('rejected_buys', []))
+                    if rejected > 0:
+                        st.warning(f"⚠️ {rejected} signals rejected (RSI overbought)")
+                        with st.expander("Why were signals rejected?"):
+                            st.write("Signals were rejected because RSI was ≥ 70 (overbought) at the time of the golden cross.")
+                            st.write("**Tip:** Consider using shorter MA periods (e.g., 20/50 instead of 50/200) for more frequent signals.")
+                    else:
+                        st.info("All golden crosses met RSI criteria")
             
             # Animated chart
             st.subheader("📈 Animated Execution")

@@ -38,6 +38,12 @@ class BacktestEngine:
         
         self.trades = []
         self.equity_curve = []
+        self.signal_analysis = {
+            'potential_buys': 0,
+            'potential_sells': 0,
+            'rejected_buys': [],
+            'rejected_sells': []
+        }
     
     def run(
         self,
@@ -110,41 +116,57 @@ class BacktestEngine:
                     continue
             
             # Check for buy signal
-            if not current_position and self.strategy.should_buy(market_data):
-                balance = self.paper_trading.get_balance()
-                position_size = self.strategy.calculate_position_size(
-                    balance,
-                    current_price,
-                    position_size_percent
-                )
+            if not current_position:
+                # Analyze potential buy signals
+                indicators = self.strategy._calculate_indicators(historical_data) if hasattr(self.strategy, '_calculate_indicators') else {}
+                crossover = self.strategy._check_crossover(indicators, symbol) if hasattr(self.strategy, '_check_crossover') else None
                 
-                if self.paper_trading.can_afford(position_size, current_price):
-                    result = self.paper_trading.buy(symbol, position_size, current_price)
-                    
-                    if result['success']:
-                        position_id = f"{symbol}_{timestamp}"
-                        current_position = {
-                            'symbol': symbol,
-                            'amount': position_size,
-                            'entry_price': current_price,
-                            'entry_time': timestamp,
-                            'side': 'long'
-                        }
-                        
-                        # Initialize trailing stop
-                        self.trailing_stop.initialize_position(
-                            position_id,
-                            current_price,
-                            'long'
-                        )
-                        
-                        self.trades.append({
-                            'type': 'buy',
-                            'symbol': symbol,
-                            'price': current_price,
-                            'amount': position_size,
-                            'timestamp': timestamp
+                if crossover == 'bullish':
+                    self.signal_analysis['potential_buys'] += 1
+                    rsi = indicators.get('rsi', 0) if indicators else 0
+                    if rsi >= self.strategy.config.get('rsi_overbought', 70):
+                        self.signal_analysis['rejected_buys'].append({
+                            'timestamp': timestamp,
+                            'reason': f'RSI too high ({rsi:.1f} >= 70)',
+                            'rsi': rsi,
+                            'price': float(current_price)
                         })
+                
+                if self.strategy.should_buy(market_data):
+                    balance = self.paper_trading.get_balance()
+                    position_size = self.strategy.calculate_position_size(
+                        balance,
+                        current_price,
+                        position_size_percent
+                    )
+                    
+                    if self.paper_trading.can_afford(position_size, current_price):
+                        result = self.paper_trading.buy(symbol, position_size, current_price)
+                        
+                        if result['success']:
+                            position_id = f"{symbol}_{timestamp}"
+                            current_position = {
+                                'symbol': symbol,
+                                'amount': position_size,
+                                'entry_price': current_price,
+                                'entry_time': timestamp,
+                                'side': 'long'
+                            }
+                            
+                            # Initialize trailing stop
+                            self.trailing_stop.initialize_position(
+                                position_id,
+                                current_price,
+                                'long'
+                            )
+                            
+                            self.trades.append({
+                                'type': 'buy',
+                                'symbol': symbol,
+                                'price': current_price,
+                                'timestamp': timestamp,
+                                'amount': position_size
+                            })
             
             # Record equity
             current_prices = {symbol: current_price}
@@ -238,7 +260,7 @@ class BacktestEngine:
         final_balance = self.paper_trading.get_balance()
         total_return = ((final_balance - self.initial_balance) / self.initial_balance) * 100
         
-        return {
+        result = {
             'symbol': symbol,
             'initial_balance': float(self.initial_balance),
             'final_balance': float(final_balance),
@@ -250,6 +272,9 @@ class BacktestEngine:
             'win_rate': win_rate,
             'sharpe_ratio': sharpe_ratio,
             'trades': self.trades,
-            'equity_curve': self.equity_curve
+            'equity_curve': self.equity_curve,
+            'signal_analysis': self.signal_analysis
         }
+        
+        return result
 
