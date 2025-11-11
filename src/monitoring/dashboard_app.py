@@ -441,11 +441,27 @@ def render_backtest_view(bot, exchange, config):
                         if 'type' in display_df.columns:
                             display_df['type'] = display_df['type'].str.upper()
                         
-                        # Format reason column
+                        # Format reason column with clearer descriptions
                         if 'reason' in display_df.columns:
-                            display_df['reason'] = display_df['reason'].apply(
-                                lambda x: x.replace('_', ' ').title() if pd.notna(x) and str(x) != 'None' else "—"
-                            )
+                            def format_reason(x):
+                                if pd.isna(x) or str(x) == 'None':
+                                    return "—"
+                                reason_str = str(x).replace('_', ' ').title()
+                                # Make specific reasons clearer
+                                if 'death cross' in reason_str.lower():
+                                    return "Death Cross"
+                                elif 'rsi overbought' in reason_str.lower():
+                                    return "RSI Overbought"
+                                elif 'stop loss' in reason_str.lower():
+                                    return "Stop Loss ⛔"
+                                elif 'trailing stop' in reason_str.lower():
+                                    return "Trailing Stop 📊"
+                                elif 'end of backtest' in reason_str.lower():
+                                    return "End of Backtest"
+                                elif 'golden cross' in reason_str.lower():
+                                    return "Golden Cross"
+                                return reason_str
+                            display_df['reason'] = display_df['reason'].apply(format_reason)
                         
                         # Rename columns for clarity
                         display_df = display_df.rename(columns={
