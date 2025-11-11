@@ -142,58 +142,58 @@ def render_backtest_view(bot, exchange, config):
             del st.session_state['last_rendered_results_id']
         
         with st.spinner(f"Fetching {limit} candles (this may take a moment for large datasets)..."):
-                # Fetch historical data
-                data_loader = DataLoader()
-                ohlcv_data = data_loader.fetch_and_save(
-                    exchange, 
-                    backtest_symbol, 
-                    timeframe, 
-                    limit, 
-                    since=None,  # Start from earliest available
-                    save=False
+            # Fetch historical data
+            data_loader = DataLoader()
+            ohlcv_data = data_loader.fetch_and_save(
+                exchange, 
+                backtest_symbol, 
+                timeframe, 
+                limit, 
+                since=None,  # Start from earliest available
+                save=False
+            )
+            
+            if not ohlcv_data:
+                st.error("Failed to fetch historical data")
+                return
+            
+            # Run backtest with custom strategy parameters if set
+            strategy_config = config.get_strategy_config().copy()
+            
+            # Override with user-selected parameters if available
+            if 'backtest_short_ma' in st.session_state:
+                strategy_config['short_ma_period'] = st.session_state['backtest_short_ma']
+            if 'backtest_long_ma' in st.session_state:
+                strategy_config['long_ma_period'] = st.session_state['backtest_long_ma']
+            if 'backtest_rsi_threshold' in st.session_state:
+                strategy_config['rsi_overbought'] = st.session_state['backtest_rsi_threshold']
+            
+            strategy = TrendFollowingStrategy(config=strategy_config)
+            
+            risk_config = config.get_risk_config()
+            backtest_engine = BacktestEngine(
+                strategy=strategy,
+                initial_balance=Decimal('10000'),
+                stop_loss_percent=risk_config.get('stop_loss_percent', 0.03),
+                trailing_stop_percent=risk_config.get('trailing_stop_percent', 0.025)
+            )
+            
+            try:
+                results = backtest_engine.run(
+                    ohlcv_data,
+                    backtest_symbol,
+                    position_size_percent=risk_config.get('position_size_percent', 0.01)
                 )
                 
-                if not ohlcv_data:
-                    st.error("Failed to fetch historical data")
-                    return
-                
-                # Run backtest with custom strategy parameters if set
-                strategy_config = config.get_strategy_config().copy()
-                
-                # Override with user-selected parameters if available
-                if 'backtest_short_ma' in st.session_state:
-                    strategy_config['short_ma_period'] = st.session_state['backtest_short_ma']
-                if 'backtest_long_ma' in st.session_state:
-                    strategy_config['long_ma_period'] = st.session_state['backtest_long_ma']
-                if 'backtest_rsi_threshold' in st.session_state:
-                    strategy_config['rsi_overbought'] = st.session_state['backtest_rsi_threshold']
-                
-                strategy = TrendFollowingStrategy(config=strategy_config)
-                
-                risk_config = config.get_risk_config()
-                backtest_engine = BacktestEngine(
-                    strategy=strategy,
-                    initial_balance=Decimal('10000'),
-                    stop_loss_percent=risk_config.get('stop_loss_percent', 0.03),
-                    trailing_stop_percent=risk_config.get('trailing_stop_percent', 0.025)
-                )
-                
-                try:
-                    results = backtest_engine.run(
-                        ohlcv_data,
-                        backtest_symbol,
-                        position_size_percent=risk_config.get('position_size_percent', 0.01)
-                    )
-                    
-                    # Store results in session state for animation (use different keys to avoid widget conflicts)
-                    st.session_state['backtest_results'] = results
-                    st.session_state['backtest_ohlcv'] = ohlcv_data
-                    st.session_state['backtest_result_symbol'] = backtest_symbol  # Different key to avoid widget conflict
-                    st.success("✅ Backtest completed!")
-                except Exception as e:
-                    st.error(f"Error running backtest: {e}")
-                    import traceback
-                    st.code(traceback.format_exc())
+                # Store results in session state for animation (use different keys to avoid widget conflicts)
+                st.session_state['backtest_results'] = results
+                st.session_state['backtest_ohlcv'] = ohlcv_data
+                st.session_state['backtest_result_symbol'] = backtest_symbol  # Different key to avoid widget conflict
+                st.success("✅ Backtest completed!")
+            except Exception as e:
+                st.error(f"Error running backtest: {e}")
+                import traceback
+                st.code(traceback.format_exc())
     
     # Display results if available
     if 'backtest_results' in st.session_state and st.session_state.get('backtest_results'):
