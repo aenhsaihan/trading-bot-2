@@ -87,10 +87,13 @@ class BacktestEngine:
             if current_position:
                 self.trailing_stop.update(position_id, current_price)
                 
+                # Calculate indicators for sell decisions
+                sell_indicators = self.strategy._calculate_indicators(historical_data) if hasattr(self.strategy, '_calculate_indicators') else {}
+                
                 # Check trailing stop
                 if self.trailing_stop.should_trigger(position_id, current_price):
                     self.logger.info(f"Trailing stop triggered at {current_price}")
-                    self._close_position(symbol, current_price, 'trailing_stop', timestamp)
+                    self._close_position(symbol, current_price, 'trailing_stop', timestamp, sell_indicators)
                     current_position = None
                     position_id = None
                     continue
@@ -102,7 +105,7 @@ class BacktestEngine:
                     'long'
                 ):
                     self.logger.info(f"Stop loss triggered at {current_price}")
-                    self._close_position(symbol, current_price, 'stop_loss', timestamp)
+                    self._close_position(symbol, current_price, 'stop_loss', timestamp, sell_indicators)
                     current_position = None
                     position_id = None
                     continue
@@ -110,7 +113,7 @@ class BacktestEngine:
                 # Check strategy sell signal
                 if self.strategy.should_sell(market_data, current_position):
                     self.logger.info(f"Strategy sell signal at {current_price}")
-                    self._close_position(symbol, current_price, 'strategy', timestamp)
+                    self._close_position(symbol, current_price, 'strategy', timestamp, sell_indicators)
                     current_position = None
                     position_id = None
                     continue
@@ -160,12 +163,25 @@ class BacktestEngine:
                                 'long'
                             )
                             
+                            # Capture indicator values for trade reasoning
+                            trade_indicators = {}
+                            if indicators:
+                                trade_indicators = {
+                                    'short_ma': float(indicators.get('short_ma', 0)),
+                                    'long_ma': float(indicators.get('long_ma', 0)),
+                                    'rsi': float(indicators.get('rsi', 0)),
+                                    'macd_line': float(indicators.get('macd_line', 0)),
+                                    'macd_signal': float(indicators.get('macd_signal', 0))
+                                }
+                            
                             self.trades.append({
                                 'type': 'buy',
                                 'symbol': symbol,
                                 'price': current_price,
                                 'timestamp': timestamp,
-                                'amount': position_size
+                                'amount': position_size,
+                                'indicators': trade_indicators,
+                                'reason': 'golden_cross' if crossover == 'bullish' else 'strategy_signal'
                             })
             
             # Record equity
@@ -181,17 +197,29 @@ class BacktestEngine:
         if current_position:
             final_price = ohlcv_data[-1]['close']
             final_timestamp = ohlcv_data[-1]['timestamp']
-            self._close_position(symbol, final_price, 'end_of_backtest', final_timestamp)
+            final_indicators = self.strategy._calculate_indicators(ohlcv_data) if hasattr(self.strategy, '_calculate_indicators') else {}
+            self._close_position(symbol, final_price, 'end_of_backtest', final_timestamp, final_indicators)
         
         return self._calculate_results(symbol)
     
-    def _close_position(self, symbol: str, price: Decimal, reason: str, timestamp: int):
+    def _close_position(self, symbol: str, price: Decimal, reason: str, timestamp: int, indicators: Optional[Dict] = None):
         """Close current position"""
         position = self.paper_trading.get_position(symbol)
         if position:
             result = self.paper_trading.sell(symbol, position['amount'], price)
             
             if result['success']:
+                # Capture indicator values for trade reasoning
+                trade_indicators = {}
+                if indicators:
+                    trade_indicators = {
+                        'short_ma': float(indicators.get('short_ma', 0)),
+                        'long_ma': float(indicators.get('long_ma', 0)),
+                        'rsi': float(indicators.get('rsi', 0)),
+                        'macd_line': float(indicators.get('macd_line', 0)),
+                        'macd_signal': float(indicators.get('macd_signal', 0))
+                    }
+                
                 self.trades.append({
                     'type': 'sell',
                     'symbol': symbol,
@@ -199,7 +227,8 @@ class BacktestEngine:
                     'timestamp': timestamp,
                     'amount': position['amount'],
                     'reason': reason,
-                    'profit': result['trade'].get('profit', Decimal('0'))
+                    'profit': result['trade'].get('profit', Decimal('0')),
+                    'indicators': trade_indicators
                 })
     
     def _calculate_results(self, symbol: str) -> Dict:

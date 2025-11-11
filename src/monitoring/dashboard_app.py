@@ -443,6 +443,108 @@ def render_backtest_view(bot, exchange, config):
                         display_df = display_df[available_columns]
                         
                         st.dataframe(display_df, width='stretch', hide_index=True)
+                        
+                        # Detailed Trade Reasoning Section
+                        st.divider()
+                        st.subheader("🔍 Trade Reasoning & Analysis")
+                        st.write("**Understand why each trade was executed or rejected**")
+                        
+                        # Group trades into buy-sell pairs for better analysis
+                        buy_trades = [t for t in trades if t.get('type') == 'buy']
+                        sell_trades = [t for t in trades if t.get('type') == 'sell']
+                        
+                        for i, buy_trade in enumerate(buy_trades):
+                            # Find corresponding sell trade
+                            sell_trade = None
+                            for sell in sell_trades:
+                                if sell.get('timestamp', 0) > buy_trade.get('timestamp', 0):
+                                    sell_trade = sell
+                                    break
+                            
+                            buy_price_str = f"${float(buy_trade.get('price', 0)):,.2f}"
+                            sell_price_str = f"SELL @ ${float(sell_trade.get('price', 0)):,.2f}" if sell_trade else "Still Open"
+                            with st.expander(f"📊 Trade #{i+1}: {buy_trade.get('type', '').upper()} @ {buy_price_str} → {sell_price_str}", expanded=False):
+                                col1, col2 = st.columns(2)
+                                
+                                with col1:
+                                    st.markdown("**🟢 BUY Signal**")
+                                    buy_time = pd.to_datetime(buy_trade.get('timestamp', 0), unit='ms')
+                                    st.write(f"**Time:** {buy_time.strftime('%Y-%m-%d %H:%M:%S')}")
+                                    st.write(f"**Price:** ${float(buy_trade.get('price', 0)):,.2f}")
+                                    st.write(f"**Amount:** {float(buy_trade.get('amount', 0)):.6f}")
+                                    
+                                    buy_indicators = buy_trade.get('indicators', {})
+                                    if buy_indicators:
+                                        st.markdown("**Indicators at Entry:**")
+                                        st.write(f"- Short MA: ${buy_indicators.get('short_ma', 0):,.2f}")
+                                        st.write(f"- Long MA: ${buy_indicators.get('long_ma', 0):,.2f}")
+                                        st.write(f"- RSI: {buy_indicators.get('rsi', 0):.1f}")
+                                        st.write(f"- MACD: {buy_indicators.get('macd_line', 0):.4f}")
+                                        
+                                        # Explain why buy was triggered
+                                        reason = buy_trade.get('reason', 'strategy_signal')
+                                        if reason == 'golden_cross':
+                                            st.success("✅ **Golden Cross Detected:** Short MA crossed above Long MA")
+                                            if buy_indicators.get('rsi', 0) < 70:
+                                                st.success(f"✅ **RSI Check:** {buy_indicators.get('rsi', 0):.1f} < 70 (not overbought)")
+                                            else:
+                                                st.warning(f"⚠️ **RSI Check:** {buy_indicators.get('rsi', 0):.1f} ≥ 70 (overbought, but trade executed)")
+                                        else:
+                                            st.info("✅ **Strategy Signal:** Buy conditions met")
+                                    
+                                if sell_trade:
+                                    with col2:
+                                        st.markdown("**🔴 SELL Signal**")
+                                        sell_time = pd.to_datetime(sell_trade.get('timestamp', 0), unit='ms')
+                                        st.write(f"**Time:** {sell_time.strftime('%Y-%m-%d %H:%M:%S')}")
+                                        st.write(f"**Price:** ${float(sell_trade.get('price', 0)):,.2f}")
+                                        
+                                        profit = float(sell_trade.get('profit', 0))
+                                        profit_color = "🟢" if profit > 0 else "🔴"
+                                        st.write(f"**P&L:** {profit_color} ${profit:,.2f}")
+                                        
+                                        sell_indicators = sell_trade.get('indicators', {})
+                                        if sell_indicators:
+                                            st.markdown("**Indicators at Exit:**")
+                                            st.write(f"- Short MA: ${sell_indicators.get('short_ma', 0):,.2f}")
+                                            st.write(f"- Long MA: ${sell_indicators.get('long_ma', 0):,.2f}")
+                                            st.write(f"- RSI: {sell_indicators.get('rsi', 0):.1f}")
+                                            st.write(f"- MACD: {sell_indicators.get('macd_line', 0):.4f}")
+                                        
+                                        reason = sell_trade.get('reason', 'unknown')
+                                        if reason == 'strategy':
+                                            st.info("📉 **Strategy Signal:** Death cross or RSI overbought")
+                                        elif reason == 'stop_loss':
+                                            st.error("🛑 **Stop Loss:** Price dropped below stop loss threshold")
+                                        elif reason == 'trailing_stop':
+                                            st.warning("📊 **Trailing Stop:** Price reversed from peak")
+                                        elif reason == 'end_of_backtest':
+                                            st.info("📅 **End of Backtest:** Position closed at end of period")
+                                        
+                                        # Calculate duration
+                                        duration = sell_time - buy_time
+                                        st.write(f"**Duration:** {duration.days} days, {duration.seconds // 3600} hours")
+                        
+                        # Show rejected signals
+                        signal_analysis = results.get('signal_analysis', {})
+                        rejected_buys = signal_analysis.get('rejected_buys', [])
+                        if rejected_buys:
+                            st.divider()
+                            st.subheader("❌ Rejected Buy Signals")
+                            st.write(f"**{len(rejected_buys)} golden crosses were rejected due to RSI being overbought**")
+                            
+                            # Show first 5 rejected signals
+                            for i, rejected in enumerate(rejected_buys[:5]):
+                                with st.expander(f"Rejected Signal #{i+1}: RSI {rejected.get('rsi', 0):.1f} @ ${rejected.get('price', 0):,.2f}", expanded=False):
+                                    reject_time = pd.to_datetime(rejected.get('timestamp', 0), unit='ms')
+                                    st.write(f"**Time:** {reject_time.strftime('%Y-%m-%d %H:%M:%S')}")
+                                    st.write(f"**Price:** ${rejected.get('price', 0):,.2f}")
+                                    st.write(f"**RSI:** {rejected.get('rsi', 0):.1f}")
+                                    st.warning(f"**Reason:** {rejected.get('reason', 'RSI too high')}")
+                                    st.write("**Why rejected:** Golden cross occurred, but RSI was ≥ 70 (overbought threshold), so buy signal was rejected to avoid buying at peak.")
+                            
+                            if len(rejected_buys) > 5:
+                                st.caption(f"... and {len(rejected_buys) - 5} more rejected signals")
                     else:
                         st.info("No trades executed during backtest")
         except Exception as e:
