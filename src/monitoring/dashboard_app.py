@@ -16,6 +16,8 @@ from src.monitoring.metrics import MetricsCollector
 from src.monitoring.streaming import DataStreamer
 from src.analytics.trade_db import TradeDB
 from src.analytics.export import DataExporter
+from src.backtesting.engine import BacktestEngine
+from src.backtesting.data_loader import DataLoader
 from src.monitoring.dashboard import (
     render_mode_toggle,
     render_signal_alert,
@@ -28,6 +30,7 @@ from src.monitoring.dashboard import (
     get_pnl_color
 )
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 import pandas as pd
 from decimal import Decimal
 from datetime import datetime
@@ -64,11 +67,192 @@ def initialize_bot():
     return bot, exchange, config
 
 
+def render_backtest_view(bot, exchange, config):
+    """Render backtesting view with animated execution"""
+    st.header("📊 Backtesting - Historical Performance")
+    
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        backtest_symbol = st.selectbox("Symbol", ["BTC/USDT", "ETH/USDT", "BNB/USDT"], key="backtest_symbol")
+    with col2:
+        timeframe = st.selectbox("Timeframe", ["1h", "4h", "1d"], index=0, key="backtest_timeframe")
+    with col3:
+        limit = st.number_input("Candles", min_value=100, max_value=2000, value=500, step=100, key="backtest_limit")
+    
+    if st.button("🚀 Run Backtest", width='stretch'):
+        with st.spinner("Running backtest..."):
+            # Fetch historical data
+            data_loader = DataLoader()
+            ohlcv_data = data_loader.fetch_and_save(
+                exchange, 
+                backtest_symbol, 
+                timeframe, 
+                limit, 
+                save=False
+            )
+            
+            if not ohlcv_data:
+                st.error("Failed to fetch historical data")
+                return
+            
+            # Run backtest
+            strategy_config = config.get_strategy_config()
+            strategy = TrendFollowingStrategy(config=strategy_config)
+            
+            risk_config = config.get_risk_config()
+            backtest_engine = BacktestEngine(
+                strategy=strategy,
+                initial_balance=Decimal('10000'),
+                stop_loss_percent=risk_config.get('stop_loss_percent', 0.03),
+                trailing_stop_percent=risk_config.get('trailing_stop_percent', 0.025)
+            )
+            
+            results = backtest_engine.run(
+                ohlcv_data,
+                backtest_symbol,
+                position_size_percent=risk_config.get('position_size_percent', 0.01)
+            )
+            
+            # Store results in session state for animation
+            st.session_state.backtest_results = results
+            st.session_state.backtest_ohlcv = ohlcv_data
+            st.session_state.backtest_symbol = backtest_symbol
+    
+    # Display results if available
+    if 'backtest_results' in st.session_state and st.session_state.backtest_results:
+        results = st.session_state.backtest_results
+        ohlcv_data = st.session_state.backtest_ohlcv
+        symbol = st.session_state.backtest_symbol
+        
+        # Performance metrics
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Initial Balance", f"${results['initial_balance']:,.2f}")
+        with col2:
+            st.metric("Final Balance", f"${results['final_balance']:,.2f}")
+        with col3:
+            return_pct = results['total_return']
+            st.metric("Total Return", f"{return_pct:.2f}%", delta=f"{return_pct:.2f}%")
+        with col4:
+            st.metric("Total Trades", results['total_trades'])
+        
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Win Rate", f"{results['win_rate']:.1%}")
+        with col2:
+            st.metric("Sharpe Ratio", f"{results['sharpe_ratio']:.2f}")
+        with col3:
+            pnl_color = "🟢" if results['total_pnl'] > 0 else "🔴"
+            st.metric("Total P&L", f"{pnl_color} ${results['total_pnl']:,.2f}")
+        
+        # Animated chart
+        st.subheader("📈 Animated Execution")
+        
+        # Prepare data for animation
+        df = pd.DataFrame(ohlcv_data)
+        df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+        
+        # Create figure with subplots
+        fig = make_subplots(
+            rows=2,
+            cols=1,
+            shared_xaxes=True,
+            vertical_spacing=0.1,
+            row_heights=[0.7, 0.3],
+            subplot_titles=('Price & Trades', 'Equity Curve')
+        )
+        
+        # Price candlestick
+        fig.add_trace(
+            go.Candlestick(
+                x=df['timestamp'],
+                open=df['open'],
+                high=df['high'],
+                low=df['low'],
+                close=df['close'],
+                name='Price'
+            ),
+            row=1, col=1
+        )
+        
+        # Mark buy trades
+        buy_trades = [t for t in results['trades'] if t['type'] == 'buy']
+        if buy_trades:
+            buy_times = [pd.to_datetime(t['timestamp'], unit='ms') for t in buy_trades]
+            buy_prices = [float(t['price']) for t in buy_trades]
+            fig.add_trace(
+                go.Scatter(
+                    x=buy_times,
+                    y=buy_prices,
+                    mode='markers',
+                    marker=dict(symbol='triangle-up', size=15, color='green'),
+                    name='Buy',
+                    showlegend=True
+                ),
+                row=1, col=1
+            )
+        
+        # Mark sell trades
+        sell_trades = [t for t in results['trades'] if t['type'] == 'sell']
+        if sell_trades:
+            sell_times = [pd.to_datetime(t.get('timestamp', 0), unit='ms') if t.get('timestamp') else df['timestamp'].iloc[-1] for t in sell_trades]
+            sell_prices = [float(t['price']) for t in sell_trades]
+            fig.add_trace(
+                go.Scatter(
+                    x=sell_times,
+                    y=sell_prices,
+                    mode='markers',
+                    marker=dict(symbol='triangle-down', size=15, color='red'),
+                    name='Sell',
+                    showlegend=True
+                ),
+                row=1, col=1
+            )
+        
+        # Equity curve
+        if results['equity_curve']:
+            equity_df = pd.DataFrame(results['equity_curve'])
+            equity_df['timestamp'] = pd.to_datetime(equity_df['timestamp'], unit='ms')
+            fig.add_trace(
+                go.Scatter(
+                    x=equity_df['timestamp'],
+                    y=equity_df['equity'],
+                    mode='lines',
+                    name='Equity',
+                    line=dict(color='blue', width=2)
+                ),
+                row=2, col=1
+            )
+        
+        fig.update_layout(
+            height=800,
+            xaxis_rangeslider_visible=False,
+            showlegend=True,
+            title=f"Backtest Results: {symbol}"
+        )
+        
+        st.plotly_chart(fig, width='stretch')
+        
+        # Trade history table
+        st.subheader("📋 Trade History")
+        if results['trades']:
+            trades_df = pd.DataFrame(results['trades'])
+            # Format timestamp
+            if 'timestamp' in trades_df.columns:
+                trades_df['timestamp'] = pd.to_datetime(trades_df['timestamp'], unit='ms')
+            st.dataframe(trades_df, width='stretch')
+        else:
+            st.info("No trades executed during backtest")
+
+
 def main():
     """Main dashboard application"""
     st.set_page_config(page_title="Crypto Trading Bot", layout="wide", initial_sidebar_state="expanded")
     
     st.title("🤖 Crypto Trading Bot Dashboard")
+    
+    # Add tabs for Live Trading and Backtesting
+    tab1, tab2 = st.tabs(["📈 Live Trading", "📊 Backtesting"])
     
     # Initialize components
     try:
@@ -179,27 +363,29 @@ def main():
         else:
             st.info("⚪ Bot is stopped")
     
-    # Sync bot state with session state (for UI)
-    st.session_state.bot_running = bot.running
-    
-    # Update metrics from bot positions (read from main thread)
-    if bot.running:
-        positions = bot.positions
-        for pos_symbol, pos_data in positions.items():
-            st.session_state.metrics_collector.update_position({
-                'symbol': pos_symbol,
-                'entry_price': float(pos_data.get('entry_price', 0)),
-                'amount': float(pos_data.get('amount', 0))
-            })
-    
-    # Main content
-    # Mode indicator at top
-    mode_emoji = "📄" if bot.is_paper_trading else "💸"
-    mode_text = "Paper Trading" if bot.is_paper_trading else "Live Trading"
-    st.info(f"{mode_emoji} **{mode_text}** Mode | Exchange: {exchange.name}")
-    
-    # Get latest data
-    latest_data = st.session_state.streamer.get_latest_data(symbol)
+    # Tab content
+    with tab1:
+        # Sync bot state with session state (for UI)
+        st.session_state.bot_running = bot.running
+        
+        # Update metrics from bot positions (read from main thread)
+        if bot.running:
+            positions = bot.positions
+            for pos_symbol, pos_data in positions.items():
+                st.session_state.metrics_collector.update_position({
+                    'symbol': pos_symbol,
+                    'entry_price': float(pos_data.get('entry_price', 0)),
+                    'amount': float(pos_data.get('amount', 0))
+                })
+        
+        # Main content
+        # Mode indicator at top
+        mode_emoji = "📄" if bot.is_paper_trading else "💸"
+        mode_text = "Paper Trading" if bot.is_paper_trading else "Live Trading"
+        st.info(f"{mode_emoji} **{mode_text}** Mode | Exchange: {exchange.name}")
+        
+        # Get latest data
+        latest_data = st.session_state.streamer.get_latest_data(symbol)
     
     # Main columns
     col1, col2 = st.columns([2, 1])
@@ -326,13 +512,17 @@ def main():
         else:
             st.info("No signals yet")
     
-    # Trade history
-    st.divider()
-    render_trade_history(st.session_state.metrics_collector.get_recent_trades(20))
+        # Trade history
+        st.divider()
+        render_trade_history(st.session_state.metrics_collector.get_recent_trades(20))
+        
+        # Export section
+        st.divider()
+        render_export_section(st.session_state.exporter, symbol)
     
-    # Export section
-    st.divider()
-    render_export_section(st.session_state.exporter, symbol)
+    with tab2:
+        # Backtesting view
+        render_backtest_view(bot, exchange, config)
     
     # Auto-refresh (with error handling for graceful shutdown)
     try:
