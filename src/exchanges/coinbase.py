@@ -18,11 +18,16 @@ class CoinbaseExchange(ExchangeBase):
     def connect(self) -> bool:
         """Connect to Coinbase Pro"""
         try:
+            # For paper trading, API keys are optional (public data access)
             config = {
-                'apiKey': self.api_key,
-                'secret': self.api_secret,
                 'enableRateLimit': True,
             }
+            
+            # Only add API keys if provided
+            if self.api_key:
+                config['apiKey'] = self.api_key
+            if self.api_secret:
+                config['secret'] = self.api_secret
             
             if self.sandbox:
                 # Coinbase Pro uses different endpoint for sandbox
@@ -36,7 +41,9 @@ class CoinbaseExchange(ExchangeBase):
             self.exchange = ccxt.coinbasepro(config)
             self.exchange.load_markets()
             self._connected = True
-            self.logger.info(f"Connected to Coinbase Pro ({'sandbox' if self.sandbox else 'live'})")
+            mode = 'sandbox' if self.sandbox else 'live'
+            key_status = 'with API keys' if self.api_key else 'public data only'
+            self.logger.info(f"Connected to Coinbase Pro ({mode}, {key_status})")
             return True
         except Exception as e:
             self.logger.error(f"Failed to connect to Coinbase Pro: {e}")
