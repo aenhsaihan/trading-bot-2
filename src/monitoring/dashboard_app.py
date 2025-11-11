@@ -107,142 +107,165 @@ def render_backtest_view(bot, exchange, config):
                 trailing_stop_percent=risk_config.get('trailing_stop_percent', 0.025)
             )
             
-            results = backtest_engine.run(
-                ohlcv_data,
-                backtest_symbol,
-                position_size_percent=risk_config.get('position_size_percent', 0.01)
-            )
-            
-            # Store results in session state for animation (use different keys to avoid widget conflicts)
-            st.session_state['backtest_results'] = results
-            st.session_state['backtest_ohlcv'] = ohlcv_data
-            st.session_state['backtest_result_symbol'] = backtest_symbol  # Different key to avoid widget conflict
+            try:
+                results = backtest_engine.run(
+                    ohlcv_data,
+                    backtest_symbol,
+                    position_size_percent=risk_config.get('position_size_percent', 0.01)
+                )
+                
+                # Store results in session state for animation (use different keys to avoid widget conflicts)
+                st.session_state['backtest_results'] = results
+                st.session_state['backtest_ohlcv'] = ohlcv_data
+                st.session_state['backtest_result_symbol'] = backtest_symbol  # Different key to avoid widget conflict
+                st.success("✅ Backtest completed!")
+            except Exception as e:
+                st.error(f"Error running backtest: {e}")
+                import traceback
+                st.code(traceback.format_exc())
     
     # Display results if available
     if 'backtest_results' in st.session_state and st.session_state.get('backtest_results'):
-        results = st.session_state['backtest_results']
-        ohlcv_data = st.session_state['backtest_ohlcv']
-        symbol = st.session_state.get('backtest_result_symbol', backtest_symbol)
-        
-        # Performance metrics
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.metric("Initial Balance", f"${results['initial_balance']:,.2f}")
-        with col2:
-            st.metric("Final Balance", f"${results['final_balance']:,.2f}")
-        with col3:
-            return_pct = results['total_return']
-            st.metric("Total Return", f"{return_pct:.2f}%", delta=f"{return_pct:.2f}%")
-        with col4:
-            st.metric("Total Trades", results['total_trades'])
-        
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("Win Rate", f"{results['win_rate']:.1%}")
-        with col2:
-            st.metric("Sharpe Ratio", f"{results['sharpe_ratio']:.2f}")
-        with col3:
-            pnl_color = "🟢" if results['total_pnl'] > 0 else "🔴"
-            st.metric("Total P&L", f"{pnl_color} ${results['total_pnl']:,.2f}")
-        
-        # Animated chart
-        st.subheader("📈 Animated Execution")
-        
-        # Prepare data for animation
-        df = pd.DataFrame(ohlcv_data)
-        df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
-        
-        # Create figure with subplots
-        fig = make_subplots(
-            rows=2,
-            cols=1,
-            shared_xaxes=True,
-            vertical_spacing=0.1,
-            row_heights=[0.7, 0.3],
-            subplot_titles=('Price & Trades', 'Equity Curve')
-        )
-        
-        # Price candlestick
-        fig.add_trace(
-            go.Candlestick(
-                x=df['timestamp'],
-                open=df['open'],
-                high=df['high'],
-                low=df['low'],
-                close=df['close'],
-                name='Price'
-            ),
-            row=1, col=1
-        )
-        
-        # Mark buy trades
-        buy_trades = [t for t in results['trades'] if t['type'] == 'buy']
-        if buy_trades:
-            buy_times = [pd.to_datetime(t['timestamp'], unit='ms') for t in buy_trades]
-            buy_prices = [float(t['price']) for t in buy_trades]
+        try:
+            results = st.session_state['backtest_results']
+            ohlcv_data = st.session_state['backtest_ohlcv']
+            symbol = st.session_state.get('backtest_result_symbol', backtest_symbol)
+            
+            # Validate results structure
+            if not isinstance(results, dict) or 'initial_balance' not in results:
+                st.error(f"Invalid backtest results format. Got: {type(results)}")
+                st.json(results if isinstance(results, dict) else {})
+                return
+            
+            # Performance metrics
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("Initial Balance", f"${results.get('initial_balance', 0):,.2f}")
+            with col2:
+                st.metric("Final Balance", f"${results.get('final_balance', 0):,.2f}")
+            with col3:
+                return_pct = results.get('total_return', 0)
+                st.metric("Total Return", f"{return_pct:.2f}%", delta=f"{return_pct:.2f}%")
+            with col4:
+                st.metric("Total Trades", results.get('total_trades', 0))
+            
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                win_rate = results.get('win_rate', 0)
+                st.metric("Win Rate", f"{win_rate:.1%}")
+            with col2:
+                st.metric("Sharpe Ratio", f"{results.get('sharpe_ratio', 0):.2f}")
+            with col3:
+                total_pnl = results.get('total_pnl', 0)
+                pnl_color = "🟢" if total_pnl > 0 else "🔴"
+                st.metric("Total P&L", f"{pnl_color} ${total_pnl:,.2f}")
+            
+            # Animated chart
+            st.subheader("📈 Animated Execution")
+            
+            # Prepare data for animation
+            df = pd.DataFrame(ohlcv_data)
+            df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+            
+            # Create figure with subplots
+            fig = make_subplots(
+                rows=2,
+                cols=1,
+                shared_xaxes=True,
+                vertical_spacing=0.1,
+                row_heights=[0.7, 0.3],
+                subplot_titles=('Price & Trades', 'Equity Curve')
+            )
+            
+            # Price candlestick
             fig.add_trace(
-                go.Scatter(
-                    x=buy_times,
-                    y=buy_prices,
-                    mode='markers',
-                    marker=dict(symbol='triangle-up', size=15, color='green'),
-                    name='Buy',
-                    showlegend=True
+                go.Candlestick(
+                    x=df['timestamp'],
+                    open=df['open'],
+                    high=df['high'],
+                    low=df['low'],
+                    close=df['close'],
+                    name='Price'
                 ),
                 row=1, col=1
             )
-        
-        # Mark sell trades
-        sell_trades = [t for t in results['trades'] if t['type'] == 'sell']
-        if sell_trades:
-            sell_times = [pd.to_datetime(t.get('timestamp', 0), unit='ms') if t.get('timestamp') else df['timestamp'].iloc[-1] for t in sell_trades]
-            sell_prices = [float(t['price']) for t in sell_trades]
-            fig.add_trace(
-                go.Scatter(
-                    x=sell_times,
-                    y=sell_prices,
-                    mode='markers',
-                    marker=dict(symbol='triangle-down', size=15, color='red'),
-                    name='Sell',
-                    showlegend=True
-                ),
-                row=1, col=1
+            
+            # Mark buy trades
+            buy_trades = [t for t in results.get('trades', []) if t.get('type') == 'buy']
+            if buy_trades:
+                buy_times = [pd.to_datetime(t['timestamp'], unit='ms') for t in buy_trades if t.get('timestamp')]
+                buy_prices = [float(t['price']) for t in buy_trades]
+                if buy_times:
+                    fig.add_trace(
+                        go.Scatter(
+                            x=buy_times,
+                            y=buy_prices,
+                            mode='markers',
+                            marker=dict(symbol='triangle-up', size=15, color='green'),
+                            name='Buy',
+                            showlegend=True
+                        ),
+                        row=1, col=1
+                    )
+            
+            # Mark sell trades
+            sell_trades = [t for t in results.get('trades', []) if t.get('type') == 'sell']
+            if sell_trades:
+                sell_times = [pd.to_datetime(t.get('timestamp', 0), unit='ms') if t.get('timestamp') else df['timestamp'].iloc[-1] for t in sell_trades]
+                sell_prices = [float(t['price']) for t in sell_trades]
+                if sell_times:
+                    fig.add_trace(
+                        go.Scatter(
+                            x=sell_times,
+                            y=sell_prices,
+                            mode='markers',
+                            marker=dict(symbol='triangle-down', size=15, color='red'),
+                            name='Sell',
+                            showlegend=True
+                        ),
+                        row=1, col=1
+                    )
+            
+            # Equity curve
+            equity_curve = results.get('equity_curve', [])
+            if equity_curve:
+                equity_df = pd.DataFrame(equity_curve)
+                equity_df['timestamp'] = pd.to_datetime(equity_df['timestamp'], unit='ms')
+                fig.add_trace(
+                    go.Scatter(
+                        x=equity_df['timestamp'],
+                        y=equity_df['equity'],
+                        mode='lines',
+                        name='Equity',
+                        line=dict(color='blue', width=2)
+                    ),
+                    row=2, col=1
+                )
+            
+            fig.update_layout(
+                height=800,
+                xaxis_rangeslider_visible=False,
+                showlegend=True,
+                title=f"Backtest Results: {symbol}"
             )
-        
-        # Equity curve
-        if results['equity_curve']:
-            equity_df = pd.DataFrame(results['equity_curve'])
-            equity_df['timestamp'] = pd.to_datetime(equity_df['timestamp'], unit='ms')
-            fig.add_trace(
-                go.Scatter(
-                    x=equity_df['timestamp'],
-                    y=equity_df['equity'],
-                    mode='lines',
-                    name='Equity',
-                    line=dict(color='blue', width=2)
-                ),
-                row=2, col=1
-            )
-        
-        fig.update_layout(
-            height=800,
-            xaxis_rangeslider_visible=False,
-            showlegend=True,
-            title=f"Backtest Results: {symbol}"
-        )
-        
-        st.plotly_chart(fig, width='stretch')
-        
-        # Trade history table
-        st.subheader("📋 Trade History")
-        if results['trades']:
-            trades_df = pd.DataFrame(results['trades'])
-            # Format timestamp
-            if 'timestamp' in trades_df.columns:
-                trades_df['timestamp'] = pd.to_datetime(trades_df['timestamp'], unit='ms')
-            st.dataframe(trades_df, width='stretch')
-        else:
-            st.info("No trades executed during backtest")
+            
+            st.plotly_chart(fig, width='stretch')
+            
+            # Trade history table
+            st.subheader("📋 Trade History")
+            trades = results.get('trades', [])
+            if trades:
+                trades_df = pd.DataFrame(trades)
+                # Format timestamp
+                if 'timestamp' in trades_df.columns:
+                    trades_df['timestamp'] = pd.to_datetime(trades_df['timestamp'], unit='ms', errors='coerce')
+                st.dataframe(trades_df, width='stretch')
+            else:
+                st.info("No trades executed during backtest")
+        except Exception as e:
+            st.error(f"Error displaying backtest results: {e}")
+            import traceback
+            st.code(traceback.format_exc())
 
 
 def main():
