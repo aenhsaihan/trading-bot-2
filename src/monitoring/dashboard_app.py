@@ -493,6 +493,18 @@ def render_backtest_view(bot, exchange, config):
                         st.subheader("🔍 Trade Reasoning & Analysis")
                         st.write("**Understand why each trade was executed or rejected**")
                         
+                        # Debug: Show all reasons found
+                        sell_trades_debug = [t for t in trades if t.get('type') == 'sell']
+                        if sell_trades_debug:
+                            reasons_found = [str(t.get('reason', 'NO_REASON')) for t in sell_trades_debug]
+                            unique_reasons = sorted(set(reasons_found))
+                            with st.expander("🔍 Debug: All Sell Reasons Found", expanded=False):
+                                st.write(f"**Total sell trades:** {len(sell_trades_debug)}")
+                                st.write(f"**Unique reasons:** {unique_reasons}")
+                                for reason in unique_reasons:
+                                    count = reasons_found.count(reason)
+                                    st.write(f"- `{reason}`: {count} trade(s)")
+                        
                         # Group trades into buy-sell pairs for better analysis
                         buy_trades = [t for t in trades if t.get('type') == 'buy']
                         sell_trades = [t for t in trades if t.get('type') == 'sell']
