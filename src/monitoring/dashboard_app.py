@@ -41,12 +41,16 @@ def initialize_bot():
     # Initialize exchange (using Binance as default)
     api_key = config.get_exchange_api_key("binance")
     api_secret = config.get_exchange_api_secret("binance")
-    exchange = BinanceExchange(api_key=api_key, api_secret=api_secret, sandbox=is_paper)
+    # For paper trading without API keys, don't use sandbox (use public API)
+    use_sandbox = is_paper and api_key is not None
+    exchange = BinanceExchange(api_key=api_key, api_secret=api_secret, sandbox=use_sandbox)
     
     if not exchange.connect():
-        st.error("Failed to connect to exchange. Using paper trading mode.")
-        exchange = BinanceExchange(api_key=None, api_secret=None, sandbox=True)
-        exchange.connect()
+        st.error("Failed to connect to exchange. Trying public API without sandbox...")
+        exchange = BinanceExchange(api_key=None, api_secret=None, sandbox=False)
+        if not exchange.connect():
+            st.error("Failed to connect to Binance. Please check your internet connection.")
+            st.stop()
     
     # Initialize strategy
     strategy_config = config.get_strategy_config()

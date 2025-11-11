@@ -32,13 +32,15 @@ class BinanceExchange(ExchangeBase):
             if self.api_secret:
                 config['secret'] = self.api_secret
             
-            if self.sandbox:
+            # Only use sandbox if API keys are provided (sandbox requires auth)
+            # For paper trading without keys, use public API
+            if self.sandbox and self.api_key:
                 config['sandbox'] = True
             
             self.exchange = ccxt.binance(config)
             self.exchange.load_markets()
             self._connected = True
-            mode = 'sandbox' if self.sandbox else 'live'
+            mode = 'sandbox' if (self.sandbox and self.api_key) else 'live'
             key_status = 'with API keys' if self.api_key else 'public data only'
             self.logger.info(f"Connected to Binance ({mode}, {key_status})")
             return True
