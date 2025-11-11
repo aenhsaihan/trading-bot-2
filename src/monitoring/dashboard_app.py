@@ -356,19 +356,29 @@ def render_backtest_view(bot, exchange, config):
             st.plotly_chart(fig, width='stretch')
             
             # Trade history table (only show once)
-            st.divider()
-            st.subheader("📋 Trade History")
-            trades = results.get('trades', [])
-            if trades:
-                trades_df = pd.DataFrame(trades)
-                # Format timestamp
-                if 'timestamp' in trades_df.columns:
-                    trades_df['timestamp'] = pd.to_datetime(trades_df['timestamp'], unit='ms', errors='coerce')
-                # Show only unique trades (in case of duplicates)
-                trades_df = trades_df.drop_duplicates(subset=['timestamp', 'type', 'price'], keep='first')
-                st.dataframe(trades_df, width='stretch')
-            else:
-                st.info("No trades executed during backtest")
+            # Use a unique key based on results to prevent duplicate rendering
+            results_hash = hash(str(results.get('trades', [])))
+            trade_history_key = f'trade_history_{results_hash}'
+            
+            # Only render if we haven't rendered this exact trade history yet
+            if 'rendered_trade_history_keys' not in st.session_state:
+                st.session_state['rendered_trade_history_keys'] = set()
+            
+            if trade_history_key not in st.session_state['rendered_trade_history_keys']:
+                st.session_state['rendered_trade_history_keys'].add(trade_history_key)
+                st.divider()
+                st.subheader("📋 Trade History")
+                trades = results.get('trades', [])
+                if trades:
+                    trades_df = pd.DataFrame(trades)
+                    # Format timestamp
+                    if 'timestamp' in trades_df.columns:
+                        trades_df['timestamp'] = pd.to_datetime(trades_df['timestamp'], unit='ms', errors='coerce')
+                    # Show only unique trades (in case of duplicates)
+                    trades_df = trades_df.drop_duplicates(subset=['timestamp', 'type', 'price'], keep='first')
+                    st.dataframe(trades_df, width='stretch')
+                else:
+                    st.info("No trades executed during backtest")
         except Exception as e:
             st.error(f"Error displaying backtest results: {e}")
             import traceback
