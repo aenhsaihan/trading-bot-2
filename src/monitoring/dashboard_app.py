@@ -89,6 +89,13 @@ def main():
     if 'exporter' not in st.session_state:
         st.session_state.exporter = DataExporter(st.session_state.trade_db)
     
+    # Register cleanup handler for graceful shutdown
+    import atexit
+    def cleanup():
+        if 'streamer' in st.session_state:
+            st.session_state.streamer.stop()
+    atexit.register(cleanup)
+    
     # Sidebar
     with st.sidebar:
         st.header("⚙️ Settings")
@@ -180,9 +187,15 @@ def main():
     st.divider()
     render_export_section(st.session_state.exporter, symbol)
     
-    # Auto-refresh
-    time.sleep(2)
-    st.rerun()
+    # Auto-refresh (with error handling for graceful shutdown)
+    try:
+        time.sleep(2)
+        st.rerun()
+    except (KeyboardInterrupt, SystemExit):
+        # Clean shutdown
+        if 'streamer' in st.session_state:
+            st.session_state.streamer.stop()
+        raise
 
 
 if __name__ == "__main__":
