@@ -71,16 +71,33 @@ def render_backtest_view(bot, exchange, config):
     """Render backtesting view with animated execution"""
     st.header("📊 Backtesting - Historical Performance")
     
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
     with col1:
         backtest_symbol = st.selectbox("Symbol", ["BTC/USDT", "ETH/USDT", "BNB/USDT"], key="backtest_symbol")
     with col2:
-        timeframe = st.selectbox("Timeframe", ["1h", "4h", "1d"], index=0, key="backtest_timeframe")
+        timeframe = st.selectbox("Timeframe", ["1h", "4h", "1d"], index=2, key="backtest_timeframe")
     with col3:
-        limit = st.number_input("Candles", min_value=100, max_value=2000, value=500, step=100, key="backtest_limit")
+        # Calculate approximate date range based on candles
+        timeframe_days = {"1h": 1/24, "4h": 1/6, "1d": 1}.get(timeframe, 1)
+        max_candles = 10000
+        max_days = int(max_candles * timeframe_days)
+        limit = st.number_input("Candles", min_value=100, max_value=max_candles, value=1000, step=100, key="backtest_limit")
+        st.caption(f"~{int(limit * timeframe_days)} days of data")
+    with col4:
+        # Quick presets
+        preset = st.selectbox("Quick Preset", ["Custom", "1 Year", "2 Years", "5 Years", "Max"], key="backtest_preset")
+        if preset != "Custom":
+            preset_days = {"1 Year": 365, "2 Years": 730, "5 Years": 1825, "Max": 3650}.get(preset, 365)
+            preset_candles = int(preset_days / timeframe_days)
+            if preset_candles > max_candles:
+                preset_candles = max_candles
+            # Update limit via session state
+            if 'backtest_limit' in st.session_state and preset != "Custom":
+                st.session_state.backtest_limit = preset_candles
+                limit = preset_candles
     
     if st.button("🚀 Run Backtest", width='stretch'):
-        with st.spinner("Running backtest..."):
+        with st.spinner(f"Fetching {limit} candles (this may take a moment for large datasets)..."):
             # Fetch historical data
             data_loader = DataLoader()
             ohlcv_data = data_loader.fetch_and_save(
@@ -88,6 +105,7 @@ def render_backtest_view(bot, exchange, config):
                 backtest_symbol, 
                 timeframe, 
                 limit, 
+                since=None,  # Start from earliest available
                 save=False
             )
             

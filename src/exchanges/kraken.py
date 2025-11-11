@@ -111,10 +111,13 @@ class KrakenExchange(ExchangeBase):
             self.logger.error(f"Error fetching ticker for {symbol}: {e}")
             raise
     
-    def get_ohlcv(self, symbol: str, timeframe: str = "1h", limit: int = 100) -> List[Dict[str, Any]]:
+    def get_ohlcv(self, symbol: str, timeframe: str = "1h", limit: int = 100, since: Optional[int] = None) -> List[Dict[str, Any]]:
         """Get OHLCV data"""
         try:
-            ohlcv = self.exchange.fetch_ohlcv(symbol, timeframe, limit=limit)
+            params = {}
+            if since:
+                params['since'] = since
+            ohlcv = self.exchange.fetch_ohlcv(symbol, timeframe, limit=limit, **params)
             return [
                 {
                     'timestamp': candle[0],

@@ -5,6 +5,8 @@ import json
 from pathlib import Path
 from typing import List, Dict, Optional
 from decimal import Decimal
+from datetime import datetime, timedelta
+import time
 from src.exchanges.base import ExchangeBase
 from src.utils.logger import setup_logger
 
@@ -29,6 +31,7 @@ class DataLoader:
         symbol: str,
         timeframe: str = "1h",
         limit: int = 1000,
+        since: Optional[int] = None,
         save: bool = True
     ) -> List[Dict]:
         """
@@ -38,23 +41,78 @@ class DataLoader:
             exchange: Exchange instance
             symbol: Trading pair symbol
             timeframe: Timeframe (e.g., '1h', '1d')
-            limit: Number of candles to fetch
+            limit: Number of candles to fetch (max 10000 per request)
+            since: Start timestamp in milliseconds (optional)
             save: Whether to save data to file
             
         Returns:
             List of OHLCV data dictionaries
         """
         try:
-            self.logger.info(f"Fetching {limit} candles of {symbol} {timeframe} from {exchange.name}")
-            ohlcv_data = exchange.get_ohlcv(symbol, timeframe, limit)
+            all_data = []
+            max_per_request = 1000  # Most exchanges limit to 1000 per request
             
-            if save:
-                self.save_data(symbol, timeframe, ohlcv_data)
+            if limit <= max_per_request:
+                # Single request
+                self.logger.info(f"Fetching {limit} candles of {symbol} {timeframe} from {exchange.name}")
+                ohlcv_data = exchange.get_ohlcv(symbol, timeframe, limit, since=since)
+                all_data = ohlcv_data
+            else:
+                # Multiple requests needed
+                self.logger.info(f"Fetching {limit} candles of {symbol} {timeframe} (will make multiple requests)")
+                
+                remaining = limit
+                current_since = since
+                
+                while remaining > 0 and len(all_data) < limit:
+                    request_size = min(remaining, max_per_request)
+                    
+                    # Fetch batch
+                    batch = exchange.get_ohlcv(symbol, timeframe, request_size, since=current_since)
+                    
+                    if not batch:
+                        break
+                    
+                    all_data.extend(batch)
+                    
+                    # Update for next request - use last candle timestamp
+                    if batch:
+                        last_timestamp = batch[-1]['timestamp']
+                        # Add one timeframe duration to avoid overlap
+                        timeframe_ms = self._get_timeframe_ms(timeframe)
+                        current_since = last_timestamp + timeframe_ms
+                    
+                    remaining -= len(batch)
+                    
+                    # Small delay to avoid rate limits
+                    time.sleep(0.1)
+                
+                # Trim to exact limit if needed
+                all_data = all_data[:limit]
             
-            return ohlcv_data
+            self.logger.info(f"Fetched {len(all_data)} candles total")
+            
+            if save and all_data:
+                self.save_data(symbol, timeframe, all_data)
+            
+            return all_data
         except Exception as e:
             self.logger.error(f"Error fetching data: {e}")
             return []
+    
+    def _get_timeframe_ms(self, timeframe: str) -> int:
+        """Convert timeframe string to milliseconds"""
+        timeframe_map = {
+            '1m': 60 * 1000,
+            '5m': 5 * 60 * 1000,
+            '15m': 15 * 60 * 1000,
+            '30m': 30 * 60 * 1000,
+            '1h': 60 * 60 * 1000,
+            '4h': 4 * 60 * 60 * 1000,
+            '1d': 24 * 60 * 60 * 1000,
+            '1w': 7 * 24 * 60 * 60 * 1000,
+        }
+        return timeframe_map.get(timeframe, 60 * 60 * 1000)
     
     def save_data(self, symbol: str, timeframe: str, data: List[Dict]):
         """

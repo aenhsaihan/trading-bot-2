@@ -61,7 +61,7 @@ class ExchangeBase(ABC):
         pass
     
     @abstractmethod
-    def get_ohlcv(self, symbol: str, timeframe: str = "1h", limit: int = 100) -> List[Dict[str, Any]]:
+    def get_ohlcv(self, symbol: str, timeframe: str = "1h", limit: int = 100, since: Optional[int] = None) -> List[Dict[str, Any]]:
         """
         Get OHLCV (candlestick) data.
         
@@ -69,6 +69,7 @@ class ExchangeBase(ABC):
             symbol: Trading pair symbol
             timeframe: Timeframe (e.g., '1m', '5m', '1h', '1d')
             limit: Number of candles to retrieve
+            since: Start timestamp in milliseconds (optional)
             
         Returns:
             List of OHLCV data dictionaries with 'timestamp', 'open', 'high', 'low', 'close', 'volume'
