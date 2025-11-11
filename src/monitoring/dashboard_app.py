@@ -505,8 +505,12 @@ def render_backtest_view(bot, exchange, config):
                             
                             # Get risk config
                             risk_config = config.get_risk_config() if hasattr(config, 'get_risk_config') else {}
-                            stop_loss_pct = risk_config.get('stop_loss_percent', 0.03) * 100
-                            trailing_stop_pct = risk_config.get('trailing_stop_percent', 0.025) * 100
+                            # Handle both decimal (0.03) and percentage (3.0) formats
+                            stop_loss_raw = risk_config.get('stop_loss_percent', 0.03)
+                            stop_loss_pct = stop_loss_raw if stop_loss_raw >= 1 else stop_loss_raw * 100
+                            
+                            trailing_stop_raw = risk_config.get('trailing_stop_percent', 0.025)
+                            trailing_stop_pct = trailing_stop_raw if trailing_stop_raw >= 1 else trailing_stop_raw * 100
                             
                             # Show risk management status
                             st.info("🛡️ **Risk Management Status:**")
@@ -638,14 +642,25 @@ def render_backtest_view(bot, exchange, config):
                                         # Display reason with clear indicators
                                         st.markdown("**Exit Reason:**")
                                         
+                                        # Get risk config for display (reuse from above if available, otherwise recalculate)
+                                        if 'risk_config' not in locals():
+                                            risk_config = config.get_risk_config() if hasattr(config, 'get_risk_config') else {}
+                                            stop_loss_raw = risk_config.get('stop_loss_percent', 0.03)
+                                            stop_loss_pct_display = stop_loss_raw if stop_loss_raw >= 1 else stop_loss_raw * 100
+                                            trailing_stop_raw = risk_config.get('trailing_stop_percent', 0.025)
+                                            trailing_stop_pct_display = trailing_stop_raw if trailing_stop_raw >= 1 else trailing_stop_raw * 100
+                                        else:
+                                            stop_loss_pct_display = stop_loss_pct_config
+                                            trailing_stop_pct_display = trailing_stop_pct_config
+                                        
                                         # Check for stop_loss and trailing_stop FIRST (priority order)
                                         if reason_str == 'stop_loss' or 'stop_loss' in reason_str:
-                                            st.error(f"🛑 **Stop Loss Triggered:** Price dropped below stop loss threshold ({stop_loss_pct_config:.1f}% loss protection)")
+                                            st.error(f"🛑 **Stop Loss Triggered:** Price dropped below stop loss threshold ({stop_loss_pct_display:.1f}% loss protection)")
                                             # Show stop loss details
                                             actual_loss_pct = ((entry_price - exit_price) / entry_price) * 100
                                             st.caption(f"Actual Loss: {actual_loss_pct:.2f}% (stopped at ${exit_price:,.2f} from entry ${entry_price:,.2f})")
                                         elif reason_str == 'trailing_stop' or 'trailing_stop' in reason_str:
-                                            st.warning(f"📊 **Trailing Stop Triggered:** Price reversed from peak ({trailing_stop_pct_config:.1f}% trailing stop)")
+                                            st.warning(f"📊 **Trailing Stop Triggered:** Price reversed from peak ({trailing_stop_pct_display:.1f}% trailing stop)")
                                             # Show trailing stop details
                                             if profit_pct > 0:
                                                 st.caption(f"✅ Captured {profit_pct:.2f}% profit before reversal")
