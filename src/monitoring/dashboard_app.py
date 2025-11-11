@@ -385,7 +385,64 @@ def render_backtest_view(bot, exchange, config):
                             trades_df['timestamp'] = pd.to_datetime(trades_df['timestamp'], unit='ms', errors='coerce')
                         # Show only unique trades (in case of duplicates)
                         trades_df = trades_df.drop_duplicates(subset=['timestamp', 'type', 'price'], keep='first')
-                        st.dataframe(trades_df, width='stretch')
+                        
+                        # Create a more intuitive display
+                        display_df = trades_df.copy()
+                        
+                        # Format columns for better readability
+                        if 'price' in display_df.columns:
+                            display_df['price'] = display_df['price'].apply(
+                                lambda x: f"${float(x):,.2f}" if pd.notna(x) and str(x) != 'None' else ""
+                            )
+                        
+                        if 'amount' in display_df.columns:
+                            display_df['amount'] = display_df['amount'].apply(
+                                lambda x: f"{float(x):.6f}" if pd.notna(x) and str(x) != 'None' and float(x) > 0 else ""
+                            )
+                        
+                        if 'profit' in display_df.columns:
+                            def format_profit(x):
+                                if pd.isna(x) or str(x) == 'None' or str(x) == '':
+                                    return "—"
+                                try:
+                                    val = float(x)
+                                    if val == 0:
+                                        return "—"
+                                    return f"${val:,.2f}"
+                                except:
+                                    return "—"
+                            display_df['profit'] = display_df['profit'].apply(format_profit)
+                        
+                        if 'timestamp' in display_df.columns:
+                            display_df['timestamp'] = display_df['timestamp'].dt.strftime('%Y-%m-%d %H:%M:%S')
+                        
+                        # Format type column
+                        if 'type' in display_df.columns:
+                            display_df['type'] = display_df['type'].str.upper()
+                        
+                        # Format reason column
+                        if 'reason' in display_df.columns:
+                            display_df['reason'] = display_df['reason'].apply(
+                                lambda x: x.replace('_', ' ').title() if pd.notna(x) and str(x) != 'None' else "—"
+                            )
+                        
+                        # Rename columns for clarity
+                        display_df = display_df.rename(columns={
+                            'type': 'Action',
+                            'symbol': 'Symbol',
+                            'price': 'Price',
+                            'timestamp': 'Date & Time',
+                            'amount': 'Amount',
+                            'reason': 'Reason',
+                            'profit': 'P&L'
+                        })
+                        
+                        # Reorder columns for better flow
+                        column_order = ['Action', 'Symbol', 'Date & Time', 'Price', 'Amount', 'P&L', 'Reason']
+                        available_columns = [col for col in column_order if col in display_df.columns]
+                        display_df = display_df[available_columns]
+                        
+                        st.dataframe(display_df, width='stretch', hide_index=True)
                     else:
                         st.info("No trades executed during backtest")
         except Exception as e:
