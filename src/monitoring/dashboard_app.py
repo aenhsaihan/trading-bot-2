@@ -453,12 +453,16 @@ def render_backtest_view(bot, exchange, config):
                         buy_trades = [t for t in trades if t.get('type') == 'buy']
                         sell_trades = [t for t in trades if t.get('type') == 'sell']
                         
+                        # Track which sell trades have been matched
+                        matched_sells = set()
+                        
                         for i, buy_trade in enumerate(buy_trades):
-                            # Find corresponding sell trade
+                            # Find corresponding sell trade (first unmatched sell after this buy)
                             sell_trade = None
-                            for sell in sell_trades:
-                                if sell.get('timestamp', 0) > buy_trade.get('timestamp', 0):
+                            for j, sell in enumerate(sell_trades):
+                                if j not in matched_sells and sell.get('timestamp', 0) > buy_trade.get('timestamp', 0):
                                     sell_trade = sell
+                                    matched_sells.add(j)
                                     break
                             
                             buy_price_str = f"${float(buy_trade.get('price', 0)):,.2f}"
