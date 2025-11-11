@@ -379,6 +379,13 @@ def render_backtest_view(bot, exchange, config):
                     st.subheader("📋 Trade History")
                     trades = results.get('trades', [])
                     if trades:
+                        # Debug: Show all sell reasons
+                        sell_trades_debug = [t for t in trades if t.get('type') == 'sell']
+                        if sell_trades_debug:
+                            reasons_found = [t.get('reason', 'NO_REASON') for t in sell_trades_debug]
+                            unique_reasons = set(reasons_found)
+                            # st.caption(f"Debug: Found {len(sell_trades_debug)} sell trades with reasons: {unique_reasons}")
+                        
                         trades_df = pd.DataFrame(trades)
                         # Format timestamp
                         if 'timestamp' in trades_df.columns:
