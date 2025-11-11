@@ -112,15 +112,25 @@ class BacktestEngine:
                 
                 # Check strategy sell signal
                 if self.strategy.should_sell(market_data, current_position):
-                    # Determine specific reason for sell
+                    # Determine specific reason for sell by checking indicators directly
                     sell_reason = 'strategy'
                     if sell_indicators:
-                        # Check for death cross
-                        crossover = self.strategy._check_crossover(sell_indicators, symbol) if hasattr(self.strategy, '_check_crossover') else None
-                        if crossover == 'bearish':
-                            sell_reason = 'death_cross'
-                        # Check for RSI overbought
-                        elif sell_indicators.get('rsi', 0) > self.strategy.config.get('rsi_overbought', 70):
+                        short_ma = sell_indicators.get('short_ma')
+                        long_ma = sell_indicators.get('long_ma')
+                        rsi = sell_indicators.get('rsi', 0)
+                        
+                        # Check for death cross: short MA below long MA (and was above before)
+                        # We check if short MA < long MA, which indicates bearish crossover
+                        if short_ma and long_ma and short_ma < long_ma:
+                            # Check previous state to confirm it was a crossover
+                            last_signal = self.strategy.last_signals.get(symbol, {})
+                            prev_short_ma = last_signal.get('short_ma')
+                            prev_long_ma = last_signal.get('long_ma')
+                            if prev_short_ma and prev_long_ma and prev_short_ma >= prev_long_ma:
+                                sell_reason = 'death_cross'
+                        
+                        # Check for RSI overbought (only if not death cross)
+                        if sell_reason == 'strategy' and rsi > self.strategy.config.get('rsi_overbought', 70):
                             sell_reason = 'rsi_overbought'
                     
                     self.logger.info(f"Strategy sell signal at {current_price}: {sell_reason}")
