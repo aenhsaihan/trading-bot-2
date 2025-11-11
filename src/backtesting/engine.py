@@ -167,11 +167,11 @@ class BacktestEngine:
                             trade_indicators = {}
                             if indicators:
                                 trade_indicators = {
-                                    'short_ma': float(indicators.get('short_ma', 0)),
-                                    'long_ma': float(indicators.get('long_ma', 0)),
-                                    'rsi': float(indicators.get('rsi', 0)),
-                                    'macd_line': float(indicators.get('macd_line', 0)),
-                                    'macd_signal': float(indicators.get('macd_signal', 0))
+                                    'short_ma': float(indicators.get('short_ma', 0)) if indicators.get('short_ma') is not None else 0,
+                                    'long_ma': float(indicators.get('long_ma', 0)) if indicators.get('long_ma') is not None else 0,
+                                    'rsi': float(indicators.get('rsi', 0)) if indicators.get('rsi') is not None else 0,
+                                    'macd_line': float(indicators.get('macd', 0)) if indicators.get('macd') is not None else 0,
+                                    'macd_signal': float(indicators.get('macd_signal', 0)) if indicators.get('macd_signal') is not None else 0
                                 }
                             
                             self.trades.append({
@@ -213,11 +213,11 @@ class BacktestEngine:
                 trade_indicators = {}
                 if indicators:
                     trade_indicators = {
-                        'short_ma': float(indicators.get('short_ma', 0)),
-                        'long_ma': float(indicators.get('long_ma', 0)),
-                        'rsi': float(indicators.get('rsi', 0)),
-                        'macd_line': float(indicators.get('macd_line', 0)),
-                        'macd_signal': float(indicators.get('macd_signal', 0))
+                        'short_ma': float(indicators.get('short_ma', 0)) if indicators.get('short_ma') is not None else 0,
+                        'long_ma': float(indicators.get('long_ma', 0)) if indicators.get('long_ma') is not None else 0,
+                        'rsi': float(indicators.get('rsi', 0)) if indicators.get('rsi') is not None else 0,
+                        'macd_line': float(indicators.get('macd', 0)) if indicators.get('macd') is not None else 0,
+                        'macd_signal': float(indicators.get('macd_signal', 0)) if indicators.get('macd_signal') is not None else 0
                     }
                 
                 self.trades.append({
