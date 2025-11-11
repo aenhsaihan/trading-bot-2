@@ -565,8 +565,6 @@ def render_backtest_view(bot, exchange, config):
                                             st.write(f"- MACD: {sell_indicators.get('macd_line', 0):.4f}")
                                         
                                         reason = sell_trade.get('reason', 'unknown')
-                                        # Debug: show raw reason value
-                                        # st.caption(f"Debug: reason='{reason}', type={type(reason)}")
                                         
                                         # Get config values from results
                                         rsi_threshold = results.get('strategy_config', {}).get('rsi_overbought', 70) if isinstance(results, dict) else 70
@@ -574,10 +572,14 @@ def render_backtest_view(bot, exchange, config):
                                         stop_loss_pct_config = risk_config.get('stop_loss_percent', 0.03) * 100
                                         trailing_stop_pct_config = risk_config.get('trailing_stop_percent', 0.025) * 100
                                         
-                                        # Normalize reason string for comparison
-                                        reason_str = str(reason).lower().strip() if reason else 'unknown'
+                                        # Normalize reason string for comparison (handle None, empty strings, etc.)
+                                        if reason is None:
+                                            reason_str = 'unknown'
+                                        else:
+                                            reason_str = str(reason).lower().strip()
                                         
                                         # Display reason with clear indicators
+                                        st.markdown("**Exit Reason:**")
                                         if reason_str == 'death_cross':
                                             st.info("📉 **Death Cross:** Short MA crossed below Long MA (bearish signal)")
                                         elif reason_str == 'rsi_overbought':
@@ -600,9 +602,11 @@ def render_backtest_view(bot, exchange, config):
                                         elif reason_str == 'end_of_backtest':
                                             st.info("📅 **End of Backtest:** Position closed at end of period")
                                         else:
-                                            # Show raw reason for debugging
-                                            st.info(f"📉 **Sell Reason:** {reason} ({reason_str})")
-                                            st.caption(f"Note: Reason value is '{reason}' (type: {type(reason).__name__})")
+                                            # Show what we actually got for debugging
+                                            st.warning(f"⚠️ **Unknown Reason:** '{reason}' (normalized: '{reason_str}')")
+                                            st.caption(f"Debug info: reason type={type(reason).__name__}, value={repr(reason)}")
+                                            # Try to display it anyway
+                                            st.info(f"📉 **Sell Reason:** {str(reason).replace('_', ' ').title() if reason else 'Unknown'}")
                                         
                                         # Calculate duration
                                         duration = sell_time - buy_time
