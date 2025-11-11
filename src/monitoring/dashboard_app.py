@@ -106,42 +106,42 @@ def render_backtest_view(bot, exchange, config):
     
     # Strategy parameters
     with st.expander("⚙️ Strategy Parameters (Advanced)"):
-            st.write("**Current:** 50/200 MA (very conservative - few signals)")
-            st.write("**Tip:** Shorter MA periods = more frequent signals but potentially more false signals")
-            
-            ma_preset = st.selectbox(
-                "MA Period Preset",
-                ["Conservative (50/200)", "Moderate (20/50)", "Aggressive (10/20)", "Custom"],
-                key="ma_preset"
-            )
-            
-            if ma_preset == "Custom":
-                short_ma = st.number_input("Short MA Period", min_value=5, max_value=100, value=50, key="custom_short_ma")
-                long_ma = st.number_input("Long MA Period", min_value=10, max_value=300, value=200, key="custom_long_ma")
-            elif ma_preset == "Moderate (20/50)":
-                short_ma = 20
-                long_ma = 50
-            elif ma_preset == "Aggressive (10/20)":
-                short_ma = 10
-                long_ma = 20
-            else:  # Conservative
-                short_ma = 50
-                long_ma = 200
-            
-            rsi_threshold = st.slider("RSI Overbought Threshold", min_value=60, max_value=85, value=70, key="rsi_threshold")
-            st.caption(f"Signals rejected if RSI ≥ {rsi_threshold}")
-            
+        st.write("**Current:** 50/200 MA (very conservative - few signals)")
+        st.write("**Tip:** Shorter MA periods = more frequent signals but potentially more false signals")
+        
+        ma_preset = st.selectbox(
+            "MA Period Preset",
+            ["Conservative (50/200)", "Moderate (20/50)", "Aggressive (10/20)", "Custom"],
+            key="ma_preset"
+        )
+        
+        if ma_preset == "Custom":
+            short_ma = st.number_input("Short MA Period", min_value=5, max_value=100, value=50, key="custom_short_ma")
+            long_ma = st.number_input("Long MA Period", min_value=10, max_value=300, value=200, key="custom_long_ma")
+        elif ma_preset == "Moderate (20/50)":
+            short_ma = 20
+            long_ma = 50
+        elif ma_preset == "Aggressive (10/20)":
+            short_ma = 10
+            long_ma = 20
+        else:  # Conservative
+            short_ma = 50
+            long_ma = 200
+        
+        rsi_threshold = st.slider("RSI Overbought Threshold", min_value=60, max_value=85, value=70, key="rsi_threshold")
+        st.caption(f"Signals rejected if RSI ≥ {rsi_threshold}")
+        
         # Store in session state for use in backtest
         st.session_state['backtest_short_ma'] = short_ma
         st.session_state['backtest_long_ma'] = long_ma
         st.session_state['backtest_rsi_threshold'] = rsi_threshold
     
     if st.button("🚀 Run Backtest", width='stretch'):
-            # Clear previous rendered results ID when starting new backtest
-            if 'last_rendered_results_id' in st.session_state:
-                del st.session_state['last_rendered_results_id']
-            
-            with st.spinner(f"Fetching {limit} candles (this may take a moment for large datasets)..."):
+        # Clear previous rendered results ID when starting new backtest
+        if 'last_rendered_results_id' in st.session_state:
+            del st.session_state['last_rendered_results_id']
+        
+        with st.spinner(f"Fetching {limit} candles (this may take a moment for large datasets)..."):
                 # Fetch historical data
                 data_loader = DataLoader()
                 ohlcv_data = data_loader.fetch_and_save(
