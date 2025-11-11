@@ -132,9 +132,17 @@ def render_backtest_view(bot, exchange, config):
             symbol = st.session_state.get('backtest_result_symbol', backtest_symbol)
             
             # Validate results structure
-            if not isinstance(results, dict) or 'initial_balance' not in results:
+            if not isinstance(results, dict):
                 st.error(f"Invalid backtest results format. Got: {type(results)}")
-                st.json(results if isinstance(results, dict) else {})
+                st.json({})
+                return
+            
+            # Handle case where no trades were executed (backtest returns minimal dict)
+            if 'initial_balance' not in results:
+                # This happens when no trades were executed - show message and basic info
+                st.info("ℹ️ No trades were executed during this backtest period. The strategy didn't find any buy signals.")
+                st.metric("Total Trades", results.get('total_trades', 0))
+                st.metric("Total P&L", f"${results.get('total_pnl', 0):,.2f}")
                 return
             
             # Performance metrics
