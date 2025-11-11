@@ -131,6 +131,10 @@ def render_backtest_view(bot, exchange, config):
         st.session_state['backtest_rsi_threshold'] = rsi_threshold
     
     if st.button("🚀 Run Backtest", width='stretch'):
+        # Clear previous rendered trade history keys when starting new backtest
+        if 'rendered_trade_history_keys' in st.session_state:
+            st.session_state['rendered_trade_history_keys'] = set()
+        
         with st.spinner(f"Fetching {limit} candles (this may take a moment for large datasets)..."):
             # Fetch historical data
             data_loader = DataLoader()
