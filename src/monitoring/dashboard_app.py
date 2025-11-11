@@ -366,7 +366,7 @@ def render_backtest_view(bot, exchange, config):
                     trades_df['timestamp'] = pd.to_datetime(trades_df['timestamp'], unit='ms', errors='coerce')
                 # Show only unique trades (in case of duplicates)
                 trades_df = trades_df.drop_duplicates(subset=['timestamp', 'type', 'price'], keep='first')
-                st.dataframe(trades_df, width='stretch', use_container_width=True)
+                st.dataframe(trades_df, width='stretch')
             else:
                 st.info("No trades executed during backtest")
         except Exception as e:
