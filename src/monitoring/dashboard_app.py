@@ -2,6 +2,7 @@
 
 import streamlit as st
 import sys
+import threading
 from pathlib import Path
 
 # Add parent directory to path
@@ -29,6 +30,7 @@ from src.monitoring.dashboard import (
 import plotly.graph_objects as go
 import pandas as pd
 from decimal import Decimal
+from datetime import datetime
 import time
 
 
@@ -89,11 +91,21 @@ def main():
     if 'exporter' not in st.session_state:
         st.session_state.exporter = DataExporter(st.session_state.trade_db)
     
+    # Initialize bot_running state
+    if 'bot_running' not in st.session_state:
+        st.session_state.bot_running = False
+    
+    # Initialize bot thread
+    if 'bot_thread' not in st.session_state:
+        st.session_state.bot_thread = None
+    
     # Register cleanup handler for graceful shutdown
     import atexit
     def cleanup():
         if 'streamer' in st.session_state:
             st.session_state.streamer.stop()
+        if 'bot' in st.session_state:
+            bot.stop()
     atexit.register(cleanup)
     
     # Sidebar
@@ -122,11 +134,52 @@ def main():
         st.subheader("Bot Controls")
         col1, col2 = st.columns(2)
         with col1:
-            if st.button("▶️ Start", width='stretch'):
+            if st.button("▶️ Start", width='stretch', disabled=st.session_state.bot_running):
                 st.session_state.bot_running = True
+                bot.running = True
+                # Start bot thread if not already running
+                if st.session_state.bot_thread is None or not st.session_state.bot_thread.is_alive():
+                    def run_bot_loop():
+                        """Run bot trading loop in background"""
+                        check_interval = 30  # Check every 30 seconds
+                        while st.session_state.bot_running and bot.running:
+                            try:
+                                # Run one iteration of trading loop (this handles all signal detection and trading)
+                                bot._trading_loop(symbol)
+                                
+                                # Update metrics with current positions
+                                positions = bot.positions
+                                for pos_symbol, pos_data in positions.items():
+                                    st.session_state.metrics_collector.update_position({
+                                        'symbol': pos_symbol,
+                                        'entry_price': float(pos_data.get('entry_price', 0)),
+                                        'amount': float(pos_data.get('amount', 0))
+                                    })
+                                
+                                time.sleep(check_interval)
+                            except Exception as e:
+                                import traceback
+                                error_msg = f"Error in bot loop: {e}\n{traceback.format_exc()}"
+                                print(error_msg)  # Print to console for debugging
+                                time.sleep(check_interval)
+                    
+                    st.session_state.bot_thread = threading.Thread(target=run_bot_loop, daemon=True)
+                    st.session_state.bot_thread.start()
+                    st.success("✅ Bot started!")
+                    st.rerun()
         with col2:
-            if st.button("⏸️ Stop", width='stretch'):
+            if st.button("⏸️ Stop", width='stretch', disabled=not st.session_state.bot_running):
                 st.session_state.bot_running = False
+                bot.running = False
+                bot.stop()
+                st.warning("⏸️ Bot stopped")
+                st.rerun()
+        
+        # Bot status indicator
+        if st.session_state.bot_running:
+            st.success("🟢 Bot is running")
+        else:
+            st.info("⚪ Bot is stopped")
     
     # Main content
     # Mode indicator at top
