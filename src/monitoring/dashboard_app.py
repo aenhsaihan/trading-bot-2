@@ -355,7 +355,8 @@ def render_backtest_view(bot, exchange, config):
             
             st.plotly_chart(fig, width='stretch')
             
-            # Trade history table
+            # Trade history table (only show once)
+            st.divider()
             st.subheader("📋 Trade History")
             trades = results.get('trades', [])
             if trades:
@@ -363,7 +364,9 @@ def render_backtest_view(bot, exchange, config):
                 # Format timestamp
                 if 'timestamp' in trades_df.columns:
                     trades_df['timestamp'] = pd.to_datetime(trades_df['timestamp'], unit='ms', errors='coerce')
-                st.dataframe(trades_df, width='stretch')
+                # Show only unique trades (in case of duplicates)
+                trades_df = trades_df.drop_duplicates(subset=['timestamp', 'type', 'price'], keep='first')
+                st.dataframe(trades_df, width='stretch', use_container_width=True)
             else:
                 st.info("No trades executed during backtest")
         except Exception as e:
