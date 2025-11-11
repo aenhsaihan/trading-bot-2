@@ -1,0 +1,16 @@
+exchanges:
+  binance:
+    enabled: true
+    sandbox: false
+    rate_limit: 1200
+    
+  coinbase:
+    enabled: true
+    sandbox: false
+    rate_limit: 10
+    
+  kraken:
+    enabled: true
+    sandbox: false
+    rate_limit: 1
+

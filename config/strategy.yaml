@@ -1,0 +1,13 @@
+trend_following:
+  short_ma_period: 50
+  long_ma_period: 200
+  rsi_period: 14
+  rsi_overbought: 70
+  rsi_oversold: 30
+  
+risk_management:
+  stop_loss_percent: 3.0
+  trailing_stop_percent: 2.5
+  position_size_percent: 1.0
+  max_positions: 5
+
