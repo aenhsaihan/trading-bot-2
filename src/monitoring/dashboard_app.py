@@ -565,36 +565,44 @@ def render_backtest_view(bot, exchange, config):
                                             st.write(f"- MACD: {sell_indicators.get('macd_line', 0):.4f}")
                                         
                                         reason = sell_trade.get('reason', 'unknown')
+                                        # Debug: show raw reason value
+                                        # st.caption(f"Debug: reason='{reason}', type={type(reason)}")
+                                        
                                         # Get config values from results
                                         rsi_threshold = results.get('strategy_config', {}).get('rsi_overbought', 70) if isinstance(results, dict) else 70
                                         risk_config = config.get_risk_config() if hasattr(config, 'get_risk_config') else {}
                                         stop_loss_pct_config = risk_config.get('stop_loss_percent', 0.03) * 100
                                         trailing_stop_pct_config = risk_config.get('trailing_stop_percent', 0.025) * 100
                                         
+                                        # Normalize reason string for comparison
+                                        reason_str = str(reason).lower().strip() if reason else 'unknown'
+                                        
                                         # Display reason with clear indicators
-                                        if reason == 'death_cross':
+                                        if reason_str == 'death_cross':
                                             st.info("📉 **Death Cross:** Short MA crossed below Long MA (bearish signal)")
-                                        elif reason == 'rsi_overbought':
+                                        elif reason_str == 'rsi_overbought':
                                             rsi_val = sell_indicators.get('rsi', 0) if sell_indicators else 0
                                             st.warning(f"⚠️ **RSI Overbought:** RSI {rsi_val:.1f} > {rsi_threshold} (selling at peak)")
-                                        elif reason == 'strategy':
+                                        elif reason_str == 'strategy':
                                             st.info("📉 **Strategy Signal:** General strategy sell condition")
-                                        elif reason == 'stop_loss':
+                                        elif reason_str == 'stop_loss':
                                             st.error(f"🛑 **Stop Loss Triggered:** Price dropped below stop loss threshold ({stop_loss_pct_config:.1f}% loss protection)")
                                             # Show stop loss details
                                             actual_loss_pct = ((entry_price - exit_price) / entry_price) * 100
                                             st.caption(f"Actual Loss: {actual_loss_pct:.2f}% (stopped at ${exit_price:,.2f} from entry ${entry_price:,.2f})")
-                                        elif reason == 'trailing_stop':
+                                        elif reason_str == 'trailing_stop':
                                             st.warning(f"📊 **Trailing Stop Triggered:** Price reversed from peak ({trailing_stop_pct_config:.1f}% trailing stop)")
                                             # Show trailing stop details
                                             if profit_pct > 0:
                                                 st.caption(f"✅ Captured {profit_pct:.2f}% profit before reversal")
                                             else:
                                                 st.caption(f"⚠️ Limited loss to {abs(profit_pct):.2f}%")
-                                        elif reason == 'end_of_backtest':
+                                        elif reason_str == 'end_of_backtest':
                                             st.info("📅 **End of Backtest:** Position closed at end of period")
                                         else:
-                                            st.info(f"📉 **Sell Reason:** {reason.replace('_', ' ').title()}")
+                                            # Show raw reason for debugging
+                                            st.info(f"📉 **Sell Reason:** {reason} ({reason_str})")
+                                            st.caption(f"Note: Reason value is '{reason}' (type: {type(reason).__name__})")
                                         
                                         # Calculate duration
                                         duration = sell_time - buy_time
