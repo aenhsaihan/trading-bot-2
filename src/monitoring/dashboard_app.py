@@ -116,13 +116,13 @@ def render_backtest_view(bot, exchange, config):
             # Store results in session state for animation (use different keys to avoid widget conflicts)
             st.session_state['backtest_results'] = results
             st.session_state['backtest_ohlcv'] = ohlcv_data
-            st.session_state['backtest_symbol'] = backtest_symbol
+            st.session_state['backtest_result_symbol'] = backtest_symbol  # Different key to avoid widget conflict
     
     # Display results if available
     if 'backtest_results' in st.session_state and st.session_state.get('backtest_results'):
         results = st.session_state['backtest_results']
         ohlcv_data = st.session_state['backtest_ohlcv']
-        symbol = st.session_state.get('backtest_symbol', backtest_symbol)
+        symbol = st.session_state.get('backtest_result_symbol', backtest_symbol)
         
         # Performance metrics
         col1, col2, col3, col4 = st.columns(4)
