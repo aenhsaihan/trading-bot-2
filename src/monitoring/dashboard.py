@@ -158,7 +158,7 @@ def render_price_chart(ohlcv_data: list, indicators: Optional[Dict] = None):
         showlegend=True
     )
     
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width='stretch')
 
 
 def render_positions(positions: list, current_prices: Dict[str, float]):
@@ -200,7 +200,7 @@ def render_trade_history(trades: list):
         return
     
     df = pd.DataFrame(trades)
-    st.dataframe(df, use_container_width=True)
+    st.dataframe(df, width='stretch')
 
 
 def render_export_section(exporter, symbol: Optional[str] = None):

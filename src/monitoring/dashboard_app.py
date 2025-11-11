@@ -115,10 +115,10 @@ def main():
         st.subheader("Bot Controls")
         col1, col2 = st.columns(2)
         with col1:
-            if st.button("▶️ Start", use_container_width=True):
+            if st.button("▶️ Start", width='stretch'):
                 st.session_state.bot_running = True
         with col2:
-            if st.button("⏸️ Stop", use_container_width=True):
+            if st.button("⏸️ Stop", width='stretch'):
                 st.session_state.bot_running = False
     
     # Main content
