@@ -493,11 +493,39 @@ def render_backtest_view(bot, exchange, config):
                         st.subheader("🔍 Trade Reasoning & Analysis")
                         st.write("**Understand why each trade was executed or rejected**")
                         
-                        # Debug: Show all reasons found
+                        # Show risk management summary
                         sell_trades_debug = [t for t in trades if t.get('type') == 'sell']
                         if sell_trades_debug:
                             reasons_found = [str(t.get('reason', 'NO_REASON')) for t in sell_trades_debug]
                             unique_reasons = sorted(set(reasons_found))
+                            
+                            # Check if stop loss or trailing stop were triggered
+                            stop_loss_triggered = any('stop_loss' in str(r).lower() for r in reasons_found)
+                            trailing_stop_triggered = any('trailing_stop' in str(r).lower() for r in reasons_found)
+                            
+                            # Get risk config
+                            risk_config = config.get_risk_config() if hasattr(config, 'get_risk_config') else {}
+                            stop_loss_pct = risk_config.get('stop_loss_percent', 0.03) * 100
+                            trailing_stop_pct = risk_config.get('trailing_stop_percent', 0.025) * 100
+                            
+                            # Show risk management status
+                            st.info("🛡️ **Risk Management Status:**")
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                if stop_loss_triggered:
+                                    st.success(f"✅ **Stop Loss:** Triggered ({stop_loss_pct:.1f}% protection)")
+                                else:
+                                    st.caption(f"⚪ **Stop Loss:** Active but not triggered ({stop_loss_pct:.1f}% protection)")
+                            with col2:
+                                if trailing_stop_triggered:
+                                    st.success(f"✅ **Trailing Stop:** Triggered ({trailing_stop_pct:.1f}% trailing)")
+                                else:
+                                    st.caption(f"⚪ **Trailing Stop:** Active but not triggered ({trailing_stop_pct:.1f}% trailing)")
+                            
+                            if not stop_loss_triggered and not trailing_stop_triggered:
+                                st.caption("💡 **Note:** Stop loss and trailing stop are active on all positions, but strategy signals (death cross, RSI overbought) fired first in this backtest.")
+                            
+                            # Debug expander
                             with st.expander("🔍 Debug: All Sell Reasons Found", expanded=False):
                                 st.write(f"**Total sell trades:** {len(sell_trades_debug)}")
                                 st.write(f"**Unique reasons:** {unique_reasons}")
@@ -575,6 +603,19 @@ def render_backtest_view(bot, exchange, config):
                                         profit_symbol = "+" if profit > 0 else ""
                                         st.write(f"**P&L:** {profit_color} {profit_symbol}${profit:,.2f} ({profit_symbol}{profit_pct:.2f}%)")
                                         
+                                        # Show risk management status for this trade
+                                        risk_config = config.get_risk_config() if hasattr(config, 'get_risk_config') else {}
+                                        stop_loss_pct_config = risk_config.get('stop_loss_percent', 0.03) * 100
+                                        trailing_stop_pct_config = risk_config.get('trailing_stop_percent', 0.025) * 100
+                                        
+                                        # Calculate what stop loss and trailing stop levels would have been
+                                        stop_loss_price = entry_price * (1 - risk_config.get('stop_loss_percent', 0.03))
+                                        max_price_during_trade = exit_price  # Approximate - we don't track this exactly
+                                        # For trailing stop, show what it would have been at exit
+                                        trailing_stop_at_exit = exit_price * (1 - risk_config.get('trailing_stop_percent', 0.025))
+                                        
+                                        st.caption(f"🛡️ **Risk Protection:** Stop Loss @ ${stop_loss_price:,.2f} ({stop_loss_pct_config:.1f}%), Trailing Stop @ {trailing_stop_pct_config:.1f}%")
+                                        
                                         sell_indicators = sell_trade.get('indicators', {})
                                         if sell_indicators:
                                             st.markdown("**Indicators at Exit:**")
@@ -587,9 +628,6 @@ def render_backtest_view(bot, exchange, config):
                                         
                                         # Get config values from results
                                         rsi_threshold = results.get('strategy_config', {}).get('rsi_overbought', 70) if isinstance(results, dict) else 70
-                                        risk_config = config.get_risk_config() if hasattr(config, 'get_risk_config') else {}
-                                        stop_loss_pct_config = risk_config.get('stop_loss_percent', 0.03) * 100
-                                        trailing_stop_pct_config = risk_config.get('trailing_stop_percent', 0.025) * 100
                                         
                                         # Normalize reason string for comparison (handle None, empty strings, etc.)
                                         if reason is None:
