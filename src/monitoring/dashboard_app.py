@@ -386,131 +386,131 @@ def main():
         
         # Get latest data
         latest_data = st.session_state.streamer.get_latest_data(symbol)
-    
-    # Main columns
-    col1, col2 = st.columns([2, 1])
-    
-    with col1:
-        # Price chart
-        if latest_data and latest_data.get('ohlcv'):
-            render_price_chart(latest_data['ohlcv'])
-        else:
-            st.warning("Loading price data...")
         
-        # Current price display
-        if latest_data:
-            current_price = latest_data.get('price', 0)
-            col_price1, col_price2, col_price3 = st.columns(3)
-            with col_price1:
-                st.metric("Current Price", f"${current_price:.2f}")
-            with col_price2:
-                st.metric("Bid", f"${latest_data.get('bid', 0):.2f}")
-            with col_price3:
-                st.metric("Ask", f"${latest_data.get('ask', 0):.2f}")
+        # Main columns
+        col1, col2 = st.columns([2, 1])
     
-    with col2:
-        # Current Signal Analysis (real-time)
-        st.subheader("🔍 Current Signal Analysis")
-        if latest_data and latest_data.get('ohlcv'):
-            try:
-                # Get current indicators
-                ohlcv_data = latest_data['ohlcv']
-                market_data = {
-                    'symbol': symbol,
-                    'ohlcv': ohlcv_data,
-                    'current_price': Decimal(str(latest_data.get('price', 0))),
-                    'ticker': latest_data
-                }
-                
-                indicators = bot.strategy._calculate_indicators(ohlcv_data)
-                position = bot._get_position(symbol)
-                
-                if indicators:
-                    # Display current indicator values
-                    short_ma = indicators.get('short_ma', 0)
-                    long_ma = indicators.get('long_ma', 0)
-                    rsi = indicators.get('rsi', 0)
-                    macd_line = indicators.get('macd_line', 0)
-                    macd_signal = indicators.get('macd_signal', 0)
+        with col1:
+            # Price chart
+            if latest_data and latest_data.get('ohlcv'):
+                render_price_chart(latest_data['ohlcv'])
+            else:
+                st.warning("Loading price data...")
+            
+            # Current price display
+            if latest_data:
+                current_price = latest_data.get('price', 0)
+                col_price1, col_price2, col_price3 = st.columns(3)
+                with col_price1:
+                    st.metric("Current Price", f"${current_price:.2f}")
+                with col_price2:
+                    st.metric("Bid", f"${latest_data.get('bid', 0):.2f}")
+                with col_price3:
+                    st.metric("Ask", f"${latest_data.get('ask', 0):.2f}")
+        
+        with col2:
+            # Current Signal Analysis (real-time)
+            st.subheader("🔍 Current Signal Analysis")
+            if latest_data and latest_data.get('ohlcv'):
+                try:
+                    # Get current indicators
+                    ohlcv_data = latest_data['ohlcv']
+                    market_data = {
+                        'symbol': symbol,
+                        'ohlcv': ohlcv_data,
+                        'current_price': Decimal(str(latest_data.get('price', 0))),
+                        'ticker': latest_data
+                    }
                     
-                    # Determine current signal
-                    if position:
-                        should_sell = bot.strategy.should_sell(market_data, position)
-                        current_signal = "SELL" if should_sell else "HOLD"
-                        signal_color = "🔴" if should_sell else "🟡"
-                    else:
-                        should_buy = bot.strategy.should_buy(market_data)
-                        current_signal = "BUY" if should_buy else "HOLD"
-                        signal_color = "🟢" if should_buy else "🟡"
+                    indicators = bot.strategy._calculate_indicators(ohlcv_data)
+                    position = bot._get_position(symbol)
                     
-                    st.markdown(f"### {signal_color} **{current_signal}**")
-                    
-                    # Show indicator values
-                    col_ind1, col_ind2 = st.columns(2)
-                    with col_ind1:
-                        st.metric("Short MA", f"${short_ma:.2f}")
-                        st.metric("RSI", f"{rsi:.1f}")
-                    with col_ind2:
-                        st.metric("Long MA", f"${long_ma:.2f}")
-                        st.metric("MACD", f"{macd_line:.4f}")
-                    
-                    # Show why it's holding (if not trading)
-                    if current_signal == "HOLD":
-                        reasons = []
-                        if position:
-                            if short_ma >= long_ma:
-                                reasons.append("✓ Short MA above Long MA (bullish)")
-                            else:
-                                reasons.append("✗ Short MA below Long MA (bearish)")
-                            if rsi < 70:
-                                reasons.append("✓ RSI not overbought")
-                            else:
-                                reasons.append("✗ RSI overbought")
-                        else:
-                            if short_ma > long_ma:
-                                reasons.append("✓ Short MA above Long MA")
-                            else:
-                                reasons.append("✗ Waiting for golden cross (Short MA > Long MA)")
-                            if rsi < 70:
-                                reasons.append("✓ RSI not overbought")
-                            else:
-                                reasons.append("✗ RSI too high")
-                            if macd_line > macd_signal:
-                                reasons.append("✓ MACD bullish")
-                            else:
-                                reasons.append("✗ MACD not bullish")
+                    if indicators:
+                        # Display current indicator values
+                        short_ma = indicators.get('short_ma', 0)
+                        long_ma = indicators.get('long_ma', 0)
+                        rsi = indicators.get('rsi', 0)
+                        macd_line = indicators.get('macd_line', 0)
+                        macd_signal = indicators.get('macd_signal', 0)
                         
-                        with st.expander("Why HOLD?"):
-                            for reason in reasons:
-                                st.write(reason)
-                    
-                    # Show next check time
-                    if bot.running:
-                        st.caption(f"⏱️ Next check in ~30 seconds")
-                else:
-                    st.info("Calculating indicators...")
-            except Exception as e:
-                st.warning(f"Error analyzing signals: {e}")
-        
-        # Performance metrics
-        metrics = st.session_state.metrics_collector.get_metrics()
-        render_performance_metrics(metrics.get('performance', {}))
-        
-        # Open positions
-        positions = st.session_state.metrics_collector.get_open_positions()
-        current_prices = {symbol: latest_data.get('price', 0)} if latest_data else {}
-        render_positions(positions, current_prices)
-        
-        # Recent signals
-        st.subheader("📡 Recent Signals")
-        signals = st.session_state.metrics_collector.get_recent_signals(5)
-        if signals:
-            for signal in reversed(signals[-5:]):
-                signal_type = signal.get('signal_type', 'hold')
-                color = get_signal_color(signal_type)
-                st.write(f"{color} **{signal_type.upper()}** - {signal.get('symbol', '')} @ ${signal.get('price', 0):.2f}")
-        else:
-            st.info("No signals yet")
+                        # Determine current signal
+                        if position:
+                            should_sell = bot.strategy.should_sell(market_data, position)
+                            current_signal = "SELL" if should_sell else "HOLD"
+                            signal_color = "🔴" if should_sell else "🟡"
+                        else:
+                            should_buy = bot.strategy.should_buy(market_data)
+                            current_signal = "BUY" if should_buy else "HOLD"
+                            signal_color = "🟢" if should_buy else "🟡"
+                        
+                        st.markdown(f"### {signal_color} **{current_signal}**")
+                        
+                        # Show indicator values
+                        col_ind1, col_ind2 = st.columns(2)
+                        with col_ind1:
+                            st.metric("Short MA", f"${short_ma:.2f}")
+                            st.metric("RSI", f"{rsi:.1f}")
+                        with col_ind2:
+                            st.metric("Long MA", f"${long_ma:.2f}")
+                            st.metric("MACD", f"{macd_line:.4f}")
+                        
+                        # Show why it's holding (if not trading)
+                        if current_signal == "HOLD":
+                            reasons = []
+                            if position:
+                                if short_ma >= long_ma:
+                                    reasons.append("✓ Short MA above Long MA (bullish)")
+                                else:
+                                    reasons.append("✗ Short MA below Long MA (bearish)")
+                                if rsi < 70:
+                                    reasons.append("✓ RSI not overbought")
+                                else:
+                                    reasons.append("✗ RSI overbought")
+                            else:
+                                if short_ma > long_ma:
+                                    reasons.append("✓ Short MA above Long MA")
+                                else:
+                                    reasons.append("✗ Waiting for golden cross (Short MA > Long MA)")
+                                if rsi < 70:
+                                    reasons.append("✓ RSI not overbought")
+                                else:
+                                    reasons.append("✗ RSI too high")
+                                if macd_line > macd_signal:
+                                    reasons.append("✓ MACD bullish")
+                                else:
+                                    reasons.append("✗ MACD not bullish")
+                            
+                            with st.expander("Why HOLD?"):
+                                for reason in reasons:
+                                    st.write(reason)
+                        
+                        # Show next check time
+                        if bot.running:
+                            st.caption(f"⏱️ Next check in ~30 seconds")
+                    else:
+                        st.info("Calculating indicators...")
+                except Exception as e:
+                    st.warning(f"Error analyzing signals: {e}")
+            
+            # Performance metrics
+            metrics = st.session_state.metrics_collector.get_metrics()
+            render_performance_metrics(metrics.get('performance', {}))
+            
+            # Open positions
+            positions = st.session_state.metrics_collector.get_open_positions()
+            current_prices = {symbol: latest_data.get('price', 0)} if latest_data else {}
+            render_positions(positions, current_prices)
+            
+            # Recent signals
+            st.subheader("📡 Recent Signals")
+            signals = st.session_state.metrics_collector.get_recent_signals(5)
+            if signals:
+                for signal in reversed(signals[-5:]):
+                    signal_type = signal.get('signal_type', 'hold')
+                    color = get_signal_color(signal_type)
+                    st.write(f"{color} **{signal_type.upper()}** - {signal.get('symbol', '')} @ ${signal.get('price', 0):.2f}")
+            else:
+                st.info("No signals yet")
     
         # Trade history
         st.divider()
