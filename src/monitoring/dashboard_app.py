@@ -91,10 +91,12 @@ def render_backtest_view(bot, exchange, config):
             preset_candles = int(preset_days / timeframe_days)
             if preset_candles > max_candles:
                 preset_candles = max_candles
-            # Update limit via session state
-            if 'backtest_limit' in st.session_state and preset != "Custom":
-                st.session_state.backtest_limit = preset_candles
-                limit = preset_candles
+            # Use preset value instead of manual input
+            limit = preset_candles
+            st.info(f"📅 {preset}: {preset_candles} candles")
+        else:
+            # Use the manual input value
+            pass
     
     if st.button("🚀 Run Backtest", width='stretch'):
         with st.spinner(f"Fetching {limit} candles (this may take a moment for large datasets)..."):
