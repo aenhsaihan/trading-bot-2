@@ -565,8 +565,11 @@ def render_backtest_view(bot, exchange, config):
                                             st.write(f"- MACD: {sell_indicators.get('macd_line', 0):.4f}")
                                         
                                         reason = sell_trade.get('reason', 'unknown')
-                                        # Get strategy config from results or use default
+                                        # Get config values from results
                                         rsi_threshold = results.get('strategy_config', {}).get('rsi_overbought', 70) if isinstance(results, dict) else 70
+                                        risk_config = config.get_risk_config() if hasattr(config, 'get_risk_config') else {}
+                                        stop_loss_pct_config = risk_config.get('stop_loss_percent', 0.03) * 100
+                                        trailing_stop_pct_config = risk_config.get('trailing_stop_percent', 0.025) * 100
                                         
                                         # Display reason with clear indicators
                                         if reason == 'death_cross':
@@ -577,17 +580,17 @@ def render_backtest_view(bot, exchange, config):
                                         elif reason == 'strategy':
                                             st.info("📉 **Strategy Signal:** General strategy sell condition")
                                         elif reason == 'stop_loss':
-                                            st.error("🛑 **Stop Loss Triggered:** Price dropped below stop loss threshold (3% loss protection)")
+                                            st.error(f"🛑 **Stop Loss Triggered:** Price dropped below stop loss threshold ({stop_loss_pct_config:.1f}% loss protection)")
                                             # Show stop loss details
-                                            stop_loss_pct = ((entry_price - exit_price) / entry_price) * 100
-                                            st.caption(f"Loss: {stop_loss_pct:.2f}% (stopped at ${exit_price:,.2f} from entry ${entry_price:,.2f})")
+                                            actual_loss_pct = ((entry_price - exit_price) / entry_price) * 100
+                                            st.caption(f"Actual Loss: {actual_loss_pct:.2f}% (stopped at ${exit_price:,.2f} from entry ${entry_price:,.2f})")
                                         elif reason == 'trailing_stop':
-                                            st.warning("📊 **Trailing Stop Triggered:** Price reversed from peak (2.5% trailing stop)")
+                                            st.warning(f"📊 **Trailing Stop Triggered:** Price reversed from peak ({trailing_stop_pct_config:.1f}% trailing stop)")
                                             # Show trailing stop details
                                             if profit_pct > 0:
-                                                st.caption(f"Captured {profit_pct:.2f}% profit before reversal")
+                                                st.caption(f"✅ Captured {profit_pct:.2f}% profit before reversal")
                                             else:
-                                                st.caption(f"Limited loss to {abs(profit_pct):.2f}%")
+                                                st.caption(f"⚠️ Limited loss to {abs(profit_pct):.2f}%")
                                         elif reason == 'end_of_backtest':
                                             st.info("📅 **End of Backtest:** Position closed at end of period")
                                         else:
