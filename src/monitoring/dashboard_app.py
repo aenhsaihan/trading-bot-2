@@ -223,6 +223,89 @@ def main():
                 st.metric("Ask", f"${latest_data.get('ask', 0):.2f}")
     
     with col2:
+        # Current Signal Analysis (real-time)
+        st.subheader("🔍 Current Signal Analysis")
+        if latest_data and latest_data.get('ohlcv'):
+            try:
+                # Get current indicators
+                ohlcv_data = latest_data['ohlcv']
+                market_data = {
+                    'symbol': symbol,
+                    'ohlcv': ohlcv_data,
+                    'current_price': Decimal(str(latest_data.get('price', 0))),
+                    'ticker': latest_data
+                }
+                
+                indicators = bot.strategy._calculate_indicators(ohlcv_data)
+                position = bot._get_position(symbol)
+                
+                if indicators:
+                    # Display current indicator values
+                    short_ma = indicators.get('short_ma', 0)
+                    long_ma = indicators.get('long_ma', 0)
+                    rsi = indicators.get('rsi', 0)
+                    macd_line = indicators.get('macd_line', 0)
+                    macd_signal = indicators.get('macd_signal', 0)
+                    
+                    # Determine current signal
+                    if position:
+                        should_sell = bot.strategy.should_sell(market_data, position)
+                        current_signal = "SELL" if should_sell else "HOLD"
+                        signal_color = "🔴" if should_sell else "🟡"
+                    else:
+                        should_buy = bot.strategy.should_buy(market_data)
+                        current_signal = "BUY" if should_buy else "HOLD"
+                        signal_color = "🟢" if should_buy else "🟡"
+                    
+                    st.markdown(f"### {signal_color} **{current_signal}**")
+                    
+                    # Show indicator values
+                    col_ind1, col_ind2 = st.columns(2)
+                    with col_ind1:
+                        st.metric("Short MA", f"${short_ma:.2f}")
+                        st.metric("RSI", f"{rsi:.1f}")
+                    with col_ind2:
+                        st.metric("Long MA", f"${long_ma:.2f}")
+                        st.metric("MACD", f"{macd_line:.4f}")
+                    
+                    # Show why it's holding (if not trading)
+                    if current_signal == "HOLD":
+                        reasons = []
+                        if position:
+                            if short_ma >= long_ma:
+                                reasons.append("✓ Short MA above Long MA (bullish)")
+                            else:
+                                reasons.append("✗ Short MA below Long MA (bearish)")
+                            if rsi < 70:
+                                reasons.append("✓ RSI not overbought")
+                            else:
+                                reasons.append("✗ RSI overbought")
+                        else:
+                            if short_ma > long_ma:
+                                reasons.append("✓ Short MA above Long MA")
+                            else:
+                                reasons.append("✗ Waiting for golden cross (Short MA > Long MA)")
+                            if rsi < 70:
+                                reasons.append("✓ RSI not overbought")
+                            else:
+                                reasons.append("✗ RSI too high")
+                            if macd_line > macd_signal:
+                                reasons.append("✓ MACD bullish")
+                            else:
+                                reasons.append("✗ MACD not bullish")
+                        
+                        with st.expander("Why HOLD?"):
+                            for reason in reasons:
+                                st.write(reason)
+                    
+                    # Show next check time
+                    if bot.running:
+                        st.caption(f"⏱️ Next check in ~30 seconds")
+                else:
+                    st.info("Calculating indicators...")
+            except Exception as e:
+                st.warning(f"Error analyzing signals: {e}")
+        
         # Performance metrics
         metrics = st.session_state.metrics_collector.get_metrics()
         render_performance_metrics(metrics.get('performance', {}))
