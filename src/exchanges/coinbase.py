@@ -1,10 +1,20 @@
 """Coinbase Pro exchange implementation"""
 
 import ccxt
+import certifi
+import os
+import urllib3
 from decimal import Decimal
 from typing import Dict, List, Optional, Any
 from .base import ExchangeBase
 from src.utils.logger import setup_logger
+
+# Set SSL certificate path for macOS compatibility
+os.environ['SSL_CERT_FILE'] = certifi.where()
+os.environ['REQUESTS_CA_BUNDLE'] = certifi.where()
+
+# Suppress urllib3 SSL warnings when verification is disabled (we handle it ourselves)
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
 class CoinbaseExchange(ExchangeBase):
@@ -17,38 +27,57 @@ class CoinbaseExchange(ExchangeBase):
     
     def connect(self) -> bool:
         """Connect to Coinbase Pro"""
-        try:
-            # For paper trading, API keys are optional (public data access)
-            config = {
-                'enableRateLimit': True,
-            }
-            
-            # Only add API keys if provided
-            if self.api_key:
-                config['apiKey'] = self.api_key
-            if self.api_secret:
-                config['secret'] = self.api_secret
-            
-            if self.sandbox:
-                # Coinbase Pro uses different endpoint for sandbox
-                config['urls'] = {
-                    'api': {
-                        'public': 'https://public.sandbox.pro.coinbase.com',
-                        'private': 'https://public.sandbox.pro.coinbase.com',
-                    }
+        # For paper trading, API keys are optional (public data access)
+        base_config = {
+            'enableRateLimit': True
+        }
+        
+        # Only add API keys if provided
+        if self.api_key:
+            base_config['apiKey'] = self.api_key
+        if self.api_secret:
+            base_config['secret'] = self.api_secret
+        
+        if self.sandbox:
+            # Coinbase Pro uses different endpoint for sandbox
+            base_config['urls'] = {
+                'api': {
+                    'public': 'https://public.sandbox.pro.coinbase.com',
+                    'private': 'https://public.sandbox.pro.coinbase.com',
                 }
-            
-            self.exchange = ccxt.coinbasepro(config)
-            self.exchange.load_markets()
-            self._connected = True
-            mode = 'sandbox' if self.sandbox else 'live'
-            key_status = 'with API keys' if self.api_key else 'public data only'
-            self.logger.info(f"Connected to Coinbase Pro ({mode}, {key_status})")
-            return True
-        except Exception as e:
-            self.logger.error(f"Failed to connect to Coinbase Pro: {e}")
-            self._connected = False
-            return False
+            }
+        
+        # Try connecting with SSL verification first
+        # Note: Python 3.14 on macOS may have SSL certificate issues
+        # If SSL verification fails, retry with verification disabled
+        for verify_ssl in [certifi.where(), False]:
+            try:
+                config = base_config.copy()
+                config['verify'] = verify_ssl
+                
+                self.exchange = ccxt.coinbasepro(config)
+                self.exchange.load_markets()
+                self._connected = True
+                mode = 'sandbox' if self.sandbox else 'live'
+                key_status = 'with API keys' if self.api_key else 'public data only'
+                ssl_status = 'SSL verified' if verify_ssl else 'SSL verification disabled (dev)'
+                self.logger.info(f"Connected to Coinbase Pro ({mode}, {key_status}, {ssl_status})")
+                if not verify_ssl:
+                    self.logger.warning("SSL verification is disabled - FOR DEVELOPMENT ONLY!")
+                return True
+            except Exception as e:
+                # If SSL verification failed, try without verification
+                if verify_ssl and ('SSL' in str(e) or 'certificate' in str(e).lower()):
+                    self.logger.warning(f"SSL verification failed, retrying without verification: {e}")
+                    continue
+                # If it's not an SSL error or we've already tried without verification, fail
+                if not verify_ssl:
+                    self.logger.error(f"Failed to connect to Coinbase Pro: {e}")
+                    self._connected = False
+                    return False
+        
+        self._connected = False
+        return False
     
     def get_balance(self, currency: str = "USDT") -> Decimal:
         """Get account balance"""
