@@ -142,25 +142,23 @@ def main():
                     def run_bot_loop():
                         """Run bot trading loop in background"""
                         check_interval = 30  # Check every 30 seconds
-                        while st.session_state.bot_running and bot.running:
+                        # Use bot.running instead of st.session_state (not accessible from threads)
+                        while bot.running:
                             try:
                                 # Run one iteration of trading loop (this handles all signal detection and trading)
                                 bot._trading_loop(symbol)
                                 
                                 # Update metrics with current positions
+                                # Note: We can't access st.session_state from thread, so we'll update via bot's logger
                                 positions = bot.positions
-                                for pos_symbol, pos_data in positions.items():
-                                    st.session_state.metrics_collector.update_position({
-                                        'symbol': pos_symbol,
-                                        'entry_price': float(pos_data.get('entry_price', 0)),
-                                        'amount': float(pos_data.get('amount', 0))
-                                    })
+                                if positions:
+                                    bot.logger.info(f"Open positions: {list(positions.keys())}")
                                 
                                 time.sleep(check_interval)
                             except Exception as e:
                                 import traceback
                                 error_msg = f"Error in bot loop: {e}\n{traceback.format_exc()}"
-                                print(error_msg)  # Print to console for debugging
+                                bot.logger.error(error_msg)
                                 time.sleep(check_interval)
                     
                     st.session_state.bot_thread = threading.Thread(target=run_bot_loop, daemon=True)
@@ -180,6 +178,19 @@ def main():
             st.success("🟢 Bot is running")
         else:
             st.info("⚪ Bot is stopped")
+    
+    # Sync bot state with session state (for UI)
+    st.session_state.bot_running = bot.running
+    
+    # Update metrics from bot positions (read from main thread)
+    if bot.running:
+        positions = bot.positions
+        for pos_symbol, pos_data in positions.items():
+            st.session_state.metrics_collector.update_position({
+                'symbol': pos_symbol,
+                'entry_price': float(pos_data.get('entry_price', 0)),
+                'amount': float(pos_data.get('amount', 0))
+            })
     
     # Main content
     # Mode indicator at top
