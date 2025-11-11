@@ -113,16 +113,16 @@ def render_backtest_view(bot, exchange, config):
                 position_size_percent=risk_config.get('position_size_percent', 0.01)
             )
             
-            # Store results in session state for animation
-            st.session_state.backtest_results = results
-            st.session_state.backtest_ohlcv = ohlcv_data
-            st.session_state.backtest_symbol = backtest_symbol
+            # Store results in session state for animation (use different keys to avoid widget conflicts)
+            st.session_state['backtest_results'] = results
+            st.session_state['backtest_ohlcv'] = ohlcv_data
+            st.session_state['backtest_symbol'] = backtest_symbol
     
     # Display results if available
-    if 'backtest_results' in st.session_state and st.session_state.backtest_results:
-        results = st.session_state.backtest_results
-        ohlcv_data = st.session_state.backtest_ohlcv
-        symbol = st.session_state.backtest_symbol
+    if 'backtest_results' in st.session_state and st.session_state.get('backtest_results'):
+        results = st.session_state['backtest_results']
+        ohlcv_data = st.session_state['backtest_ohlcv']
+        symbol = st.session_state.get('backtest_symbol', backtest_symbol)
         
         # Performance metrics
         col1, col2, col3, col4 = st.columns(4)
