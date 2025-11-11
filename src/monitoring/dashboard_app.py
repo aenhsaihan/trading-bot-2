@@ -109,7 +109,7 @@ def render_backtest_view(bot, exchange, config):
                 pass
         
         # Strategy parameters
-        with st.expander("⚙️ Strategy Parameters (Advanced)", key="strategy_params_expander"):
+        with st.expander("⚙️ Strategy Parameters (Advanced)"):
             st.write("**Current:** 50/200 MA (very conservative - few signals)")
             st.write("**Tip:** Shorter MA periods = more frequent signals but potentially more false signals")
             
