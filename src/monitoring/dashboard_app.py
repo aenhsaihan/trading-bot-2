@@ -609,14 +609,21 @@ def render_backtest_view(bot, exchange, config):
                                         
                                         # Show risk management status for this trade
                                         risk_config = config.get_risk_config() if hasattr(config, 'get_risk_config') else {}
-                                        stop_loss_pct_config = risk_config.get('stop_loss_percent', 0.03) * 100
-                                        trailing_stop_pct_config = risk_config.get('trailing_stop_percent', 0.025) * 100
+                                        
+                                        # Handle both decimal (0.03) and percentage (3.0) formats
+                                        stop_loss_raw = risk_config.get('stop_loss_percent', 0.03)
+                                        stop_loss_pct_config = stop_loss_raw if stop_loss_raw >= 1 else stop_loss_raw * 100
+                                        stop_loss_decimal = stop_loss_raw / 100 if stop_loss_raw >= 1 else stop_loss_raw
+                                        
+                                        trailing_stop_raw = risk_config.get('trailing_stop_percent', 0.025)
+                                        trailing_stop_pct_config = trailing_stop_raw if trailing_stop_raw >= 1 else trailing_stop_raw * 100
+                                        trailing_stop_decimal = trailing_stop_raw / 100 if trailing_stop_raw >= 1 else trailing_stop_raw
                                         
                                         # Calculate what stop loss and trailing stop levels would have been
-                                        stop_loss_price = entry_price * (1 - risk_config.get('stop_loss_percent', 0.03))
+                                        stop_loss_price = entry_price * (1 - stop_loss_decimal)
                                         max_price_during_trade = exit_price  # Approximate - we don't track this exactly
                                         # For trailing stop, show what it would have been at exit
-                                        trailing_stop_at_exit = exit_price * (1 - risk_config.get('trailing_stop_percent', 0.025))
+                                        trailing_stop_at_exit = exit_price * (1 - trailing_stop_decimal)
                                         
                                         st.caption(f"🛡️ **Risk Protection:** Stop Loss @ ${stop_loss_price:,.2f} ({stop_loss_pct_config:.1f}%), Trailing Stop @ {trailing_stop_pct_config:.1f}%")
                                         
