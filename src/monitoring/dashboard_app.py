@@ -401,17 +401,38 @@ def render_backtest_view(bot, exchange, config):
                             )
                         
                         if 'profit' in display_df.columns:
-                            def format_profit(x):
-                                if pd.isna(x) or str(x) == 'None' or str(x) == '':
+                            def format_profit_with_pct(row):
+                                profit_val = row.get('profit', 0) if isinstance(row, dict) else row
+                                
+                                if pd.isna(profit_val) or str(profit_val) == 'None' or str(profit_val) == '':
                                     return "—"
                                 try:
-                                    val = float(x)
-                                    if val == 0:
+                                    profit_float = float(profit_val)
+                                    if profit_float == 0:
                                         return "—"
-                                    return f"${val:,.2f}"
+                                    
+                                    # Add percentage if available
+                                    pct_str = ""
+                                    if 'profit_pct' in display_df.columns:
+                                        pct_val = row.get('profit_pct', 0) if isinstance(row, dict) else display_df.loc[display_df.index[display_df.index.get_loc(row.name) if hasattr(row, 'name') else 0], 'profit_pct']
+                                        if isinstance(pct_val, (int, float)) and pct_val != 0:
+                                            pct_str = f" ({'+' if pct_val > 0 else ''}{pct_val:.2f}%)"
+                                    
+                                    return f"${profit_float:,.2f}{pct_str}"
                                 except:
                                     return "—"
-                            display_df['profit'] = display_df['profit'].apply(format_profit)
+                            
+                            # Format profit with percentage
+                            if 'profit_pct' in display_df.columns:
+                                display_df['profit'] = display_df.apply(
+                                    lambda row: f"${float(row['profit']):,.2f} ({'+' if row['profit_pct'] > 0 else ''}{row['profit_pct']:.2f}%)" 
+                                    if pd.notna(row['profit']) and str(row['profit']) != 'None' and float(row['profit']) != 0 else "—",
+                                    axis=1
+                                )
+                            else:
+                                display_df['profit'] = display_df['profit'].apply(
+                                    lambda x: f"${float(x):,.2f}" if pd.notna(x) and str(x) != 'None' and float(x) != 0 else "—"
+                                )
                         
                         if 'timestamp' in display_df.columns:
                             display_df['timestamp'] = display_df['timestamp'].dt.strftime('%Y-%m-%d %H:%M:%S')
@@ -501,11 +522,23 @@ def render_backtest_view(bot, exchange, config):
                                         st.markdown("**🔴 SELL Signal**")
                                         sell_time = pd.to_datetime(sell_trade.get('timestamp', 0), unit='ms')
                                         st.write(f"**Time:** {sell_time.strftime('%Y-%m-%d %H:%M:%S')}")
-                                        st.write(f"**Price:** ${float(sell_trade.get('price', 0)):,.2f}")
                                         
+                                        # Entry and exit prices
+                                        entry_price = float(buy_trade.get('price', 0))
+                                        exit_price = float(sell_trade.get('price', 0))
+                                        st.write(f"**Entry Price:** ${entry_price:,.2f}")
+                                        st.write(f"**Exit Price:** ${exit_price:,.2f}")
+                                        
+                                        # P&L in dollars and percentage
                                         profit = float(sell_trade.get('profit', 0))
+                                        profit_pct = sell_trade.get('profit_pct', 0)
+                                        if profit_pct == 0 and entry_price > 0:
+                                            # Calculate if not stored
+                                            profit_pct = ((exit_price - entry_price) / entry_price) * 100
+                                        
                                         profit_color = "🟢" if profit > 0 else "🔴"
-                                        st.write(f"**P&L:** {profit_color} ${profit:,.2f}")
+                                        profit_symbol = "+" if profit > 0 else ""
+                                        st.write(f"**P&L:** {profit_color} {profit_symbol}${profit:,.2f} ({profit_symbol}{profit_pct:.2f}%)")
                                         
                                         sell_indicators = sell_trade.get('indicators', {})
                                         if sell_indicators:
@@ -519,6 +552,7 @@ def render_backtest_view(bot, exchange, config):
                                         # Get strategy config from results or use default
                                         rsi_threshold = results.get('strategy_config', {}).get('rsi_overbought', 70) if isinstance(results, dict) else 70
                                         
+                                        # Display reason with clear indicators
                                         if reason == 'death_cross':
                                             st.info("📉 **Death Cross:** Short MA crossed below Long MA (bearish signal)")
                                         elif reason == 'rsi_overbought':
@@ -527,9 +561,17 @@ def render_backtest_view(bot, exchange, config):
                                         elif reason == 'strategy':
                                             st.info("📉 **Strategy Signal:** General strategy sell condition")
                                         elif reason == 'stop_loss':
-                                            st.error("🛑 **Stop Loss:** Price dropped below stop loss threshold")
+                                            st.error("🛑 **Stop Loss Triggered:** Price dropped below stop loss threshold (3% loss protection)")
+                                            # Show stop loss details
+                                            stop_loss_pct = ((entry_price - exit_price) / entry_price) * 100
+                                            st.caption(f"Loss: {stop_loss_pct:.2f}% (stopped at ${exit_price:,.2f} from entry ${entry_price:,.2f})")
                                         elif reason == 'trailing_stop':
-                                            st.warning("📊 **Trailing Stop:** Price reversed from peak")
+                                            st.warning("📊 **Trailing Stop Triggered:** Price reversed from peak (2.5% trailing stop)")
+                                            # Show trailing stop details
+                                            if profit_pct > 0:
+                                                st.caption(f"Captured {profit_pct:.2f}% profit before reversal")
+                                            else:
+                                                st.caption(f"Limited loss to {abs(profit_pct):.2f}%")
                                         elif reason == 'end_of_backtest':
                                             st.info("📅 **End of Backtest:** Position closed at end of period")
                                         else:

@@ -241,14 +241,23 @@ class BacktestEngine:
                         'macd_signal': float(indicators.get('macd_signal', 0)) if indicators.get('macd_signal') is not None else 0
                     }
                 
+                # Calculate percentage return
+                entry_price = position.get('entry_price', Decimal('0'))
+                exit_price = price
+                profit_pct = 0
+                if entry_price > 0:
+                    profit_pct = float((exit_price - entry_price) / entry_price * 100)
+                
                 self.trades.append({
                     'type': 'sell',
                     'symbol': symbol,
                     'price': price,
+                    'entry_price': entry_price,  # Store entry price for percentage calculation
                     'timestamp': timestamp,
                     'amount': position['amount'],
                     'reason': reason,
                     'profit': result['trade'].get('profit', Decimal('0')),
+                    'profit_pct': profit_pct,
                     'indicators': trade_indicators
                 })
     
