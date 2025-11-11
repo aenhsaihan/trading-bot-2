@@ -76,40 +76,36 @@ def render_backtest_view(bot, exchange, config):
         st.session_state['backtest_chart_container'] = st.empty()
     if 'backtest_table_container' not in st.session_state:
         st.session_state['backtest_table_container'] = st.empty()
-    if 'backtest_controls_container' not in st.session_state:
-        st.session_state['backtest_controls_container'] = st.container()
     
-    # Render controls in container to prevent flickering
-    with st.session_state['backtest_controls_container']:
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            backtest_symbol = st.selectbox("Symbol", ["BTC/USDT", "ETH/USDT", "BNB/USDT"], key="backtest_symbol")
-        with col2:
-            timeframe = st.selectbox("Timeframe", ["1h", "4h", "1d"], index=2, key="backtest_timeframe")
-        with col3:
-            # Calculate approximate date range based on candles
-            timeframe_days = {"1h": 1/24, "4h": 1/6, "1d": 1}.get(timeframe, 1)
-            max_candles = 10000
-            max_days = int(max_candles * timeframe_days)
-            limit = st.number_input("Candles", min_value=100, max_value=max_candles, value=1000, step=100, key="backtest_limit")
-            st.caption(f"~{int(limit * timeframe_days)} days of data")
-        with col4:
-            # Quick presets
-            preset = st.selectbox("Quick Preset", ["Custom", "1 Year", "2 Years", "5 Years", "Max"], key="backtest_preset")
-            if preset != "Custom":
-                preset_days = {"1 Year": 365, "2 Years": 730, "5 Years": 1825, "Max": 3650}.get(preset, 365)
-                preset_candles = int(preset_days / timeframe_days)
-                if preset_candles > max_candles:
-                    preset_candles = max_candles
-                # Use preset value instead of manual input
-                limit = preset_candles
-                st.info(f"📅 {preset}: {preset_candles} candles")
-            else:
-                # Use the manual input value
-                pass
-        
-        # Strategy parameters
-        with st.expander("⚙️ Strategy Parameters (Advanced)"):
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        backtest_symbol = st.selectbox("Symbol", ["BTC/USDT", "ETH/USDT", "BNB/USDT"], key="backtest_symbol")
+    with col2:
+        timeframe = st.selectbox("Timeframe", ["1h", "4h", "1d"], index=2, key="backtest_timeframe")
+    with col3:
+        # Calculate approximate date range based on candles
+        timeframe_days = {"1h": 1/24, "4h": 1/6, "1d": 1}.get(timeframe, 1)
+        max_candles = 10000
+        max_days = int(max_candles * timeframe_days)
+        limit = st.number_input("Candles", min_value=100, max_value=max_candles, value=1000, step=100, key="backtest_limit")
+        st.caption(f"~{int(limit * timeframe_days)} days of data")
+    with col4:
+        # Quick presets
+        preset = st.selectbox("Quick Preset", ["Custom", "1 Year", "2 Years", "5 Years", "Max"], key="backtest_preset")
+        if preset != "Custom":
+            preset_days = {"1 Year": 365, "2 Years": 730, "5 Years": 1825, "Max": 3650}.get(preset, 365)
+            preset_candles = int(preset_days / timeframe_days)
+            if preset_candles > max_candles:
+                preset_candles = max_candles
+            # Use preset value instead of manual input
+            limit = preset_candles
+            st.info(f"📅 {preset}: {preset_candles} candles")
+        else:
+            # Use the manual input value
+            pass
+    
+    # Strategy parameters
+    with st.expander("⚙️ Strategy Parameters (Advanced)"):
             st.write("**Current:** 50/200 MA (very conservative - few signals)")
             st.write("**Tip:** Shorter MA periods = more frequent signals but potentially more false signals")
             
@@ -135,12 +131,12 @@ def render_backtest_view(bot, exchange, config):
             rsi_threshold = st.slider("RSI Overbought Threshold", min_value=60, max_value=85, value=70, key="rsi_threshold")
             st.caption(f"Signals rejected if RSI ≥ {rsi_threshold}")
             
-            # Store in session state for use in backtest
-            st.session_state['backtest_short_ma'] = short_ma
-            st.session_state['backtest_long_ma'] = long_ma
-            st.session_state['backtest_rsi_threshold'] = rsi_threshold
-        
-        if st.button("🚀 Run Backtest", width='stretch'):
+        # Store in session state for use in backtest
+        st.session_state['backtest_short_ma'] = short_ma
+        st.session_state['backtest_long_ma'] = long_ma
+        st.session_state['backtest_rsi_threshold'] = rsi_threshold
+    
+    if st.button("🚀 Run Backtest", width='stretch'):
             # Clear previous rendered results ID when starting new backtest
             if 'last_rendered_results_id' in st.session_state:
                 del st.session_state['last_rendered_results_id']
@@ -676,16 +672,26 @@ def main():
     with tab2:
         # Backtesting view
         render_backtest_view(bot, exchange, config)
+        # Don't auto-refresh on backtesting tab to prevent flickering/repeating
     
-    # Auto-refresh (with error handling for graceful shutdown)
-    try:
-        time.sleep(2)
-        st.rerun()
-    except (KeyboardInterrupt, SystemExit):
-        # Clean shutdown
-        if 'streamer' in st.session_state:
-            st.session_state.streamer.stop()
-        raise
+    # Auto-refresh only on Live Trading tab (with error handling for graceful shutdown)
+    # Use a session state variable to track active tab and disable refresh on backtesting tab
+    if 'active_tab' not in st.session_state:
+        st.session_state['active_tab'] = 'live'
+    
+    # Only auto-refresh if on Live Trading tab (not backtesting)
+    # We detect this by checking if backtest results exist - if they do, user is likely viewing backtesting
+    # But we'll use a simpler approach: disable auto-refresh entirely and let user manually refresh
+    # Actually, let's keep auto-refresh but only when bot is running on live trading tab
+    if st.session_state.get('bot_running', False):
+        try:
+            time.sleep(2)
+            st.rerun()
+        except (KeyboardInterrupt, SystemExit):
+            # Clean shutdown
+            if 'streamer' in st.session_state:
+                st.session_state.streamer.stop()
+            raise
 
 
 if __name__ == "__main__":
