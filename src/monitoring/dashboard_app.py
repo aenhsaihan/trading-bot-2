@@ -319,8 +319,8 @@ def render_backtest_view(bot, exchange, config):
             # Mark sell trades
             sell_trades = [t for t in results.get('trades', []) if t.get('type') == 'sell']
             if sell_trades:
-                sell_times = [pd.to_datetime(t.get('timestamp', 0), unit='ms') if t.get('timestamp') else df['timestamp'].iloc[-1] for t in sell_trades]
-                sell_prices = [float(t['price']) for t in sell_trades]
+                sell_times = [pd.to_datetime(t['timestamp'], unit='ms') for t in sell_trades if t.get('timestamp')]
+                sell_prices = [float(t['price']) for t in sell_trades if t.get('timestamp')]
                 if sell_times:
                     fig.add_trace(
                         go.Scatter(

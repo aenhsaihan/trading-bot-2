@@ -90,7 +90,7 @@ class BacktestEngine:
                 # Check trailing stop
                 if self.trailing_stop.should_trigger(position_id, current_price):
                     self.logger.info(f"Trailing stop triggered at {current_price}")
-                    self._close_position(symbol, current_price, 'trailing_stop')
+                    self._close_position(symbol, current_price, 'trailing_stop', timestamp)
                     current_position = None
                     position_id = None
                     continue
@@ -102,7 +102,7 @@ class BacktestEngine:
                     'long'
                 ):
                     self.logger.info(f"Stop loss triggered at {current_price}")
-                    self._close_position(symbol, current_price, 'stop_loss')
+                    self._close_position(symbol, current_price, 'stop_loss', timestamp)
                     current_position = None
                     position_id = None
                     continue
@@ -110,7 +110,7 @@ class BacktestEngine:
                 # Check strategy sell signal
                 if self.strategy.should_sell(market_data, current_position):
                     self.logger.info(f"Strategy sell signal at {current_price}")
-                    self._close_position(symbol, current_price, 'strategy')
+                    self._close_position(symbol, current_price, 'strategy', timestamp)
                     current_position = None
                     position_id = None
                     continue
@@ -180,11 +180,12 @@ class BacktestEngine:
         # Close any remaining positions
         if current_position:
             final_price = ohlcv_data[-1]['close']
-            self._close_position(symbol, final_price, 'end_of_backtest')
+            final_timestamp = ohlcv_data[-1]['timestamp']
+            self._close_position(symbol, final_price, 'end_of_backtest', final_timestamp)
         
         return self._calculate_results(symbol)
     
-    def _close_position(self, symbol: str, price: Decimal, reason: str):
+    def _close_position(self, symbol: str, price: Decimal, reason: str, timestamp: int):
         """Close current position"""
         position = self.paper_trading.get_position(symbol)
         if position:
@@ -195,6 +196,7 @@ class BacktestEngine:
                     'type': 'sell',
                     'symbol': symbol,
                     'price': price,
+                    'timestamp': timestamp,
                     'amount': position['amount'],
                     'reason': reason,
                     'profit': result['trade'].get('profit', Decimal('0'))
