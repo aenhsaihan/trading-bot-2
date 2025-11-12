@@ -44,32 +44,32 @@ class NotificationService:
         """Add a WebSocket client for real-time updates"""
         if websocket not in NotificationService._websocket_clients:
             NotificationService._websocket_clients.append(websocket)
-            print(f"WebSocket client added. Total clients: {len(NotificationService._websocket_clients)}")
+            print(f"[NotificationService] WebSocket client added. Total clients: {len(NotificationService._websocket_clients)}")
     
     def remove_websocket_client(self, websocket):
         """Remove a WebSocket client"""
         if websocket in NotificationService._websocket_clients:
             NotificationService._websocket_clients.remove(websocket)
-            print(f"WebSocket client removed. Total clients: {len(NotificationService._websocket_clients)}")
+            print(f"[NotificationService] WebSocket client removed. Total clients: {len(NotificationService._websocket_clients)}")
     
     async def broadcast_notification(self, notification):
         """Broadcast notification to all WebSocket clients"""
         if not NotificationService._websocket_clients:
-            print("No WebSocket clients connected, skipping broadcast")
+            print("[NotificationService] No WebSocket clients connected, skipping broadcast")
             return
         
         notification_dict = notification.to_dict()
-        print(f"Broadcasting notification to {len(NotificationService._websocket_clients)} client(s): {notification_dict.get('title', 'N/A')}")
+        print(f"[NotificationService] Broadcasting notification to {len(NotificationService._websocket_clients)} client(s): {notification_dict.get('title', 'N/A')}")
         
         # Send to all connected clients
         disconnected = []
         for client in NotificationService._websocket_clients:
             try:
                 await client.send_json(notification_dict)
-                print(f"Sent notification to client successfully")
+                print(f"[NotificationService] Sent notification to client successfully")
             except Exception as e:
                 # Client disconnected, mark for removal
-                print(f"Error sending to client: {e}")
+                print(f"[NotificationService] Error sending to client: {e}")
                 disconnected.append(client)
         
         # Remove disconnected clients
