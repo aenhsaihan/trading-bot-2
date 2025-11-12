@@ -145,7 +145,7 @@ def render_multiple_bots_view(config):
                     key="new_bot_strategy"
                 )
             
-            if st.form_submit_button("Create Bot", use_container_width=True):
+            if st.form_submit_button("Create Bot", width='stretch'):
                 try:
                     # Get strategy name from display name
                     strategy_display_names = {name: StrategyRegistry.get_display_name(name) for name in StrategyRegistry.get_strategy_names()}
@@ -227,7 +227,7 @@ def render_multiple_bots_view(config):
                 'positions': 'Positions'
             })
             
-            st.dataframe(display_df, use_container_width=True, hide_index=True)
+            st.dataframe(display_df, width='stretch', hide_index=True)
             
             # Bot controls
             st.subheader("🎮 Bot Controls")
@@ -258,18 +258,18 @@ def render_multiple_bots_view(config):
                     col1, col2, col3 = st.columns(3)
                     with col1:
                         if bot.running:
-                            if st.button("⏸️ Stop", key=f"stop_{bot.bot_id}", use_container_width=True):
+                            if st.button("⏸️ Stop", key=f"stop_{bot.bot_id}", width='stretch'):
                                 bot_manager.stop_bot(bot.bot_id)
                                 st.success(f"✅ {bot.name} stopped")
                                 st.rerun()
                         else:
-                            if st.button("▶️ Start", key=f"start_{bot.bot_id}", use_container_width=True):
+                            if st.button("▶️ Start", key=f"start_{bot.bot_id}", width='stretch'):
                                 bot_manager.start_bot(bot.bot_id)
                                 st.success(f"✅ {bot.name} started")
                                 st.rerun()
                     
                     with col2:
-                        if st.button("🔄 Restart", key=f"restart_{bot.bot_id}", use_container_width=True):
+                        if st.button("🔄 Restart", key=f"restart_{bot.bot_id}", width='stretch'):
                             bot_manager.stop_bot(bot.bot_id)
                             time.sleep(0.5)  # Brief pause
                             bot_manager.start_bot(bot.bot_id)
@@ -277,7 +277,7 @@ def render_multiple_bots_view(config):
                             st.rerun()
                     
                     with col3:
-                        if st.button("🗑️ Delete", key=f"delete_{bot.bot_id}", use_container_width=True):
+                        if st.button("🗑️ Delete", key=f"delete_{bot.bot_id}", width='stretch'):
                             bot_manager.delete_bot(bot.bot_id)
                             st.success(f"✅ {bot.name} deleted")
                             st.rerun()
@@ -287,19 +287,19 @@ def render_multiple_bots_view(config):
         st.subheader("⚡ Bulk Actions")
         col1, col2, col3 = st.columns(3)
         with col1:
-            if st.button("▶️ Start All", use_container_width=True):
+            if st.button("▶️ Start All", width='stretch'):
                 for bot in all_bots:
                     if not bot.running:
                         bot_manager.start_bot(bot.bot_id)
                 st.success("✅ All bots started")
                 st.rerun()
         with col2:
-            if st.button("⏸️ Stop All", use_container_width=True):
+            if st.button("⏸️ Stop All", width='stretch'):
                 bot_manager.stop_all()
                 st.success("✅ All bots stopped")
                 st.rerun()
         with col3:
-            if st.button("🗑️ Delete All", use_container_width=True, type="secondary"):
+            if st.button("🗑️ Delete All", width='stretch', type="secondary"):
                 if st.session_state.get('confirm_delete_all', False):
                     for bot in all_bots:
                         bot_manager.delete_bot(bot.bot_id)
@@ -476,7 +476,7 @@ def render_backtest_view(bot, exchange, config):
                     st.caption(f"Signals rejected if RSI ≥ {rsi_threshold}")
                     
                     # Submit button to apply changes
-                    form_submitted = st.form_submit_button("Apply Parameters", use_container_width=True)
+                    form_submitted = st.form_submit_button("Apply Parameters", width='stretch')
                     
                     if form_submitted:
                         st.session_state.ma_preset = ma_preset
@@ -522,7 +522,7 @@ def render_backtest_view(bot, exchange, config):
                     st.caption(f"Standard deviation multiplier for band width")
                     
                     # Submit button
-                    form_submitted = st.form_submit_button("Apply Parameters", use_container_width=True)
+                    form_submitted = st.form_submit_button("Apply Parameters", width='stretch')
                     
                     if form_submitted:
                         st.session_state.mr_rsi_oversold = rsi_oversold
@@ -560,7 +560,7 @@ def render_backtest_view(bot, exchange, config):
                     st.caption(f"Volume must be {volume_mult}x average for confirmation")
                     
                     # Submit button
-                    form_submitted = st.form_submit_button("Apply Parameters", use_container_width=True)
+                    form_submitted = st.form_submit_button("Apply Parameters", width='stretch')
                     
                     if form_submitted:
                         st.session_state.mom_rsi_buy = rsi_buy
@@ -791,7 +791,7 @@ def render_backtest_view(bot, exchange, config):
             axis=1
         )
         
-        st.dataframe(styled_df, use_container_width=True, height=200)
+        st.dataframe(styled_df, width='stretch', height=200)
         
         # Find best performer
         best_strategy = comparison_df.iloc[0]['Strategy']
@@ -831,7 +831,7 @@ def render_backtest_view(bot, exchange, config):
             height=500
         )
         
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
         
         # Individual strategy details in expanders
         st.subheader("📋 Detailed Results")
