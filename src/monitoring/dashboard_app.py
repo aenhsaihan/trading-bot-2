@@ -4,11 +4,16 @@ import streamlit as st
 import sys
 import threading
 from pathlib import Path
+from datetime import datetime
 
 # Add parent directory to path for imports
 project_root = Path(__file__).parent.parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
+
+# App version - update this when deploying major changes
+APP_VERSION = "1.0.0"
+APP_BUILD_DATE = "2025-11-12"
 
 from src.utils.config import Config
 from src.exchanges.binance import BinanceExchange
@@ -741,6 +746,12 @@ def main():
     st.set_page_config(page_title="Crypto Trading Bot", layout="wide", initial_sidebar_state="expanded")
     
     st.title("🤖 Crypto Trading Bot Dashboard")
+    
+    # Display version info in sidebar
+    with st.sidebar:
+        st.caption(f"📦 Version {APP_VERSION}")
+        st.caption(f"🔨 Build: {APP_BUILD_DATE}")
+        st.divider()
     
     # Show connection status at the top (before tabs)
     with st.spinner("🔄 Connecting to exchange..."):
