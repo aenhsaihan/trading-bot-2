@@ -225,10 +225,12 @@ def render_toast_notification(notification: Notification, duration: int = 5000):
         meta_html += f'<span><strong>Confidence:</strong> <span style="color: #4CAF50 !important;">{notification.confidence_score:.0f}%</span></span>'
     
     # HTML for the toast notification - use single-line format to avoid Streamlit parsing issues
-    # Event handlers are attached via global event delegation in the injected script
-    # Auto-dismiss script runs immediately after toast is created
-    auto_dismiss_script = f'<script>(function() {{ var toastId = \'{toast_id}\'; setTimeout(function() {{ var toast = document.getElementById(toastId); if (toast && toast.parentElement) {{ toast.classList.add(\'toast-slide-out\'); setTimeout(function() {{ if (toast && toast.parentElement) {{ toast.remove(); }} }}, 300); }} }}, {duration}); }})();</script>'
-    toast_html = f'<div id="{toast_id}" class="toast-container" style="--priority-color: {priority_color};" data-toast-id="{toast_id}"><div class="toast-notification" style="border-left-color: {priority_color} !important;"><div class="toast-header"><div class="toast-title"><span style="font-size: 20px;">{priority_emoji}</span><span style="font-size: 18px;">{type_emoji}</span><span style="color: #ffffff !important;">{safe_title}</span></div><button class="toast-close" data-toast-id="{toast_id}" type="button">×</button></div><div class="toast-message">{safe_message}</div><div class="toast-meta">{meta_html}</div></div></div>{auto_dismiss_script}'
+    # Use inline event handlers and immediate script execution for reliability
+    close_handler = f"var c=document.getElementById('{toast_id}');if(c){{c.classList.add('toast-slide-out');setTimeout(function(){{if(c.parentElement)c.remove();}},300);}}"
+    card_click_handler = f"var c=document.getElementById('{toast_id}');if(c){{c.classList.add('toast-slide-out');setTimeout(function(){{if(c.parentElement)c.remove();}},300);}}"
+    auto_dismiss_code = f"setTimeout(function(){{var t=document.getElementById('{toast_id}');if(t&&t.parentElement){{t.classList.add('toast-slide-out');setTimeout(function(){{if(t&&t.parentElement)t.remove();}},300);}}}},{duration});"
+    
+    toast_html = f'<div id="{toast_id}" class="toast-container" style="--priority-color: {priority_color};" data-toast-id="{toast_id}"><div class="toast-notification" style="border-left-color: {priority_color} !important;" onclick="{card_click_handler}"><div class="toast-header"><div class="toast-title"><span style="font-size: 20px;">{priority_emoji}</span><span style="font-size: 18px;">{type_emoji}</span><span style="color: #ffffff !important;">{safe_title}</span></div><button class="toast-close" data-toast-id="{toast_id}" type="button" onclick="event.stopPropagation();{close_handler}return false;">×</button></div><div class="toast-message">{safe_message}</div><div class="toast-meta">{meta_html}</div></div></div><script>{auto_dismiss_code}</script>'
     
     st.markdown(toast_html, unsafe_allow_html=True)
 
