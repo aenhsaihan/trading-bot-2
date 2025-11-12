@@ -297,40 +297,75 @@ Transform the trading bot into a **notification-first, autonomous collaboration 
 ### User Preferences (`config/notifications.yaml`)
 ```yaml
 notification_channels:
-  in_app: true
+  in_app: true  # Primary - sexy and smart UI
   email: true
-  sms: false
+  sms: true
   telegram: true
   
 notification_priorities:
-  critical: [all_channels]
-  high: [in_app, email]
-  medium: [in_app]
+  critical: [in_app, email, sms, telegram]
+  high: [in_app, email, telegram]
+  medium: [in_app, email]
   low: [in_app]
-  info: [none]  # Only in notification center
+  info: [in_app]  # Only in notification center
   
-autonomy_level: "medium"  # manual, low, medium, high, full
-autonomy_timeout: 300  # seconds before autonomous action
+# Dynamic autonomy based on urgency + promise scoring
+autonomy_config:
+  base_timeout: 300  # Base timeout in seconds
+  urgency_multiplier: 0.5  # High urgency = shorter timeout
+  promise_multiplier: 0.7  # High promise = shorter timeout
+  min_timeout: 60  # Minimum timeout (1 minute)
+  max_timeout: 1800  # Maximum timeout (30 minutes)
+  
+  # Autonomy thresholds (based on urgency + promise score)
+  full_autonomy_threshold: 90  # Act immediately if score >= 90
+  high_autonomy_threshold: 75  # Act after short timeout if >= 75
+  medium_autonomy_threshold: 60  # Act after medium timeout if >= 60
+  low_autonomy_threshold: 45  # Act after long timeout if >= 45
   
 social_sources:
+  # Primary sources
   twitter:
     enabled: true
-    keywords: ["BTC", "ETH", "SOL", "crypto", "bitcoin"]
+    priority: "high"
+    keywords: ["BTC", "ETH", "SOL", "crypto", "bitcoin", "altcoin"]
     influencers: ["@elonmusk", "@VitalikButerin"]
   telegram:
     enabled: true
+    priority: "high"
     channels: ["@cryptosignals", "@tradingview"]
-  reddit:
-    enabled: true
-    subreddits: ["r/cryptocurrency", "r/bitcoin"]
   news:
     enabled: true
-    sources: ["coindesk", "cointelegraph"]
+    priority: "high"
+    sources: ["coindesk", "cointelegraph", "decrypt", "theblock"]
+  
+  # Secondary sources (support)
+  reddit:
+    enabled: true
+    priority: "medium"
+    subreddits: ["r/cryptocurrency", "r/bitcoin", "r/ethereum"]
+  discord:
+    enabled: true
+    priority: "medium"
+    servers: []  # User-configurable
     
 sentiment_thresholds:
   extreme_positive: 0.7
   extreme_negative: -0.7
   significant_shift: 0.3  # Change in sentiment score
+  
+opportunity_priorities:
+  # Order of importance (highest to lowest)
+  1: "combined_signal"  # Technical + Social alignment (highest confidence)
+  2: "technical_breakout"  # Strong technical signal
+  3: "social_surge"  # Extreme sentiment shift
+  4: "news_event"  # Major news breaking
+  5: "risk_alert"  # Negative signals (protect capital)
+  
+learning:
+  track_responses: true
+  learn_preferences: true
+  adjust_confidence: true  # Adjust based on user approval/rejection patterns
 ```
 
 ---
