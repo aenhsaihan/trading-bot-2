@@ -44,131 +44,137 @@ def render_toast_notification(notification: Notification, duration: int = 5000):
     # Generate unique ID for this notification
     toast_id = f"toast_{notification.notification_id}"
     
-    # CSS and JavaScript for toast notification
-    toast_html = f"""
+    # CSS and JavaScript for toast notification - inject styles once globally
+    if not hasattr(render_toast_notification, '_styles_injected'):
+        st.markdown("""
     <style>
-    @keyframes slideInRight {{
-        from {{
+    @keyframes slideInRight {
+        from {
             transform: translateX(100%);
             opacity: 0;
-        }}
-        to {{
+        }
+        to {
             transform: translateX(0);
             opacity: 1;
-        }}
-    }}
+        }
+    }
     
-    @keyframes slideOutRight {{
-        from {{
+    @keyframes slideOutRight {
+        from {
             transform: translateX(0);
             opacity: 1;
-        }}
-        to {{
+        }
+        to {
             transform: translateX(100%);
             opacity: 0;
-        }}
-    }}
+        }
+    }
     
-    .toast-container {{
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        z-index: 9999;
-        max-width: 400px;
-        animation: slideInRight 0.3s ease-out;
-    }}
+    .toast-container {
+        position: fixed !important;
+        top: 20px !important;
+        right: 20px !important;
+        z-index: 9999 !important;
+        max-width: 400px !important;
+        animation: slideInRight 0.3s ease-out !important;
+    }
     
-    .toast-notification {{
-        background: linear-gradient(135deg, #1e1e2e 0%, #2a2a3e 100%);
-        border-left: 4px solid {priority_color};
-        border-radius: 12px;
-        padding: 16px;
-        margin-bottom: 12px;
-        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
-        color: #ffffff;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        cursor: pointer;
-        transition: transform 0.2s, box-shadow 0.2s;
-    }}
+    .toast-notification {
+        background: linear-gradient(135deg, #1e1e2e 0%, #2a2a3e 100%) !important;
+        border-left: 4px solid var(--priority-color) !important;
+        border-radius: 12px !important;
+        padding: 16px !important;
+        margin-bottom: 12px !important;
+        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4) !important;
+        color: #ffffff !important;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+        cursor: pointer !important;
+        transition: transform 0.2s, box-shadow 0.2s !important;
+    }
     
-    .toast-notification:hover {{
-        transform: translateY(-2px);
-        box-shadow: 0 12px 24px rgba(0, 0, 0, 0.5);
-    }}
+    .toast-notification:hover {
+        transform: translateY(-2px) !important;
+        box-shadow: 0 12px 24px rgba(0, 0, 0, 0.5) !important;
+    }
     
-    .toast-header {{
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 8px;
-    }}
+    .toast-header {
+        display: flex !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+        margin-bottom: 8px !important;
+    }
     
-    .toast-title {{
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        font-weight: bold;
-        font-size: 16px;
-    }}
+    .toast-title {
+        display: flex !important;
+        align-items: center !important;
+        gap: 8px !important;
+        font-weight: bold !important;
+        font-size: 16px !important;
+        color: #ffffff !important;
+    }
     
-    .toast-close {{
-        background: rgba(255, 255, 255, 0.2);
-        border: none;
-        border-radius: 50%;
-        width: 24px;
-        height: 24px;
-        color: #ffffff;
-        cursor: pointer;
-        font-size: 16px;
-        line-height: 1;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        transition: background 0.2s;
-    }}
+    .toast-close {
+        background: rgba(255, 255, 255, 0.2) !important;
+        border: none !important;
+        border-radius: 50% !important;
+        width: 24px !important;
+        height: 24px !important;
+        color: #ffffff !important;
+        cursor: pointer !important;
+        font-size: 16px !important;
+        line-height: 1 !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        transition: background 0.2s !important;
+    }
     
-    .toast-close:hover {{
-        background: rgba(255, 255, 255, 0.3);
-    }}
+    .toast-close:hover {
+        background: rgba(255, 255, 255, 0.3) !important;
+    }
     
-    .toast-message {{
-        color: #cccccc;
-        font-size: 14px;
-        line-height: 1.5;
-        margin-bottom: 8px;
-    }}
+    .toast-message {
+        color: #cccccc !important;
+        font-size: 14px !important;
+        line-height: 1.5 !important;
+        margin-bottom: 8px !important;
+    }
     
-    .toast-meta {{
-        display: flex;
-        gap: 12px;
-        font-size: 12px;
-        color: #888;
-        flex-wrap: wrap;
-    }}
+    .toast-meta {
+        display: flex !important;
+        gap: 12px !important;
+        font-size: 12px !important;
+        color: #888 !important;
+        flex-wrap: wrap !important;
+    }
     
-    .toast-meta span {{
-        color: #888;
-    }}
+    .toast-meta span {
+        color: #888 !important;
+    }
     
-    .toast-slide-out {{
-        animation: slideOutRight 0.3s ease-in forwards;
-    }}
+    .toast-slide-out {
+        animation: slideOutRight 0.3s ease-in forwards !important;
+    }
     </style>
+    """, unsafe_allow_html=True)
+        render_toast_notification._styles_injected = True
     
-    <div id="{toast_id}" class="toast-container">
-        <div class="toast-notification" onclick="this.parentElement.classList.add('toast-slide-out'); setTimeout(() => this.parentElement.remove(), 300);">
+    # HTML for the toast notification
+    toast_html = f"""
+    <div id="{toast_id}" class="toast-container" style="--priority-color: {priority_color};">
+        <div class="toast-notification" style="border-left-color: {priority_color} !important;" onclick="this.parentElement.classList.add('toast-slide-out'); setTimeout(() => this.parentElement.remove(), 300);">
             <div class="toast-header">
                 <div class="toast-title">
                     <span style="font-size: 20px;">{priority_emoji}</span>
                     <span style="font-size: 18px;">{type_emoji}</span>
-                    <span>{notification.title}</span>
+                    <span style="color: #ffffff !important;">{notification.title}</span>
                 </div>
                 <button class="toast-close" onclick="event.stopPropagation(); this.closest('.toast-container').classList.add('toast-slide-out'); setTimeout(() => this.closest('.toast-container').remove(), 300);">×</button>
             </div>
             <div class="toast-message">{notification.message}</div>
             <div class="toast-meta">
-                {f'<span><strong>Symbol:</strong> <span style="color: #4CAF50;">{notification.symbol}</span></span>' if notification.symbol else ''}
-                {f'<span><strong>Confidence:</strong> <span style="color: #4CAF50;">{notification.confidence_score:.0f}%</span></span>' if notification.confidence_score is not None else ''}
+                {f'<span><strong>Symbol:</strong> <span style="color: #4CAF50 !important;">{notification.symbol}</span></span>' if notification.symbol else ''}
+                {f'<span><strong>Confidence:</strong> <span style="color: #4CAF50 !important;">{notification.confidence_score:.0f}%</span></span>' if notification.confidence_score is not None else ''}
             </div>
         </div>
     </div>
