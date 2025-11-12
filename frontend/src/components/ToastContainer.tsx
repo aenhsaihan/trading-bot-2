@@ -20,6 +20,7 @@ export function ToastContainer({
 
   // Show new notifications as toasts
   useEffect(() => {
+    console.log('ToastContainer: notifications changed', notifications.length);
     notifications.forEach((notification) => {
       // Only show unread, non-responded notifications that haven't been displayed
       if (
@@ -28,6 +29,7 @@ export function ToastContainer({
         !displayedIds.has(notification.id) &&
         !dismissedIds.has(notification.id)
       ) {
+        console.log('Showing toast for notification:', notification.id, notification.title);
         setDisplayedIds((prev) => new Set([...prev, notification.id]));
 
         // Play voice alert

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNotifications } from './hooks/useNotifications';
+import { useNotifications } from './hooks/useNotifications';
 import { ToastContainer } from './components/ToastContainer';
 import { NotificationCenter } from './components/NotificationCenter';
 import { SystemStatus } from './components/SystemStatus';
@@ -17,6 +18,11 @@ function App() {
     deleteNotification,
     refresh,
   } = useNotifications();
+
+  // Debug: Log notifications
+  useEffect(() => {
+    console.log('App: notifications updated', notifications.length, notifications);
+  }, [notifications]);
 
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [systemStatus, setSystemStatus] = useState<any>(null);

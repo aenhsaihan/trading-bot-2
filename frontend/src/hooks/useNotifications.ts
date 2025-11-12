@@ -11,7 +11,9 @@ export function useNotifications() {
   const fetchNotifications = useCallback(async () => {
     try {
       setLoading(true);
+      console.log('Fetching notifications from API...');
       const data = await notificationAPI.getNotifications();
+      console.log('Notifications fetched:', data);
       setNotifications(data.notifications);
       setError(null);
     } catch (err) {
@@ -27,6 +29,7 @@ export function useNotifications() {
     
     // Set up WebSocket connection
     const wsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8000/ws/notifications';
+    console.log('Connecting to WebSocket:', wsUrl);
     const ws = new WebSocket(wsUrl);
 
     ws.onopen = () => {
@@ -39,6 +42,7 @@ export function useNotifications() {
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
+        console.log('WebSocket message received:', data);
         
         // Handle connection message
         if (data.type === 'connected') {
@@ -49,6 +53,7 @@ export function useNotifications() {
         // Handle notification
         if (data.id && data.type) {
           const notification = data as Notification;
+          console.log('New notification via WebSocket:', notification);
           setNotifications((prev) => {
             // Check if notification already exists
             const exists = prev.some((n) => n.id === notification.id);
