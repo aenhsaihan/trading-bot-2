@@ -7,6 +7,9 @@ from decimal import Decimal
 from src.exchanges.base import ExchangeBase
 from src.utils.logger import setup_logger
 
+# Global lock to prevent duplicate streamer starts across Streamlit reruns
+_streamer_lock = threading.Lock()
+
 
 class DataStreamer:
     """Stream real-time market data"""
@@ -26,26 +29,30 @@ class DataStreamer:
         self.thread = None
         self.callbacks = []
         self.latest_data = {}
+        self._start_lock = threading.Lock()  # Per-instance lock
     
     def subscribe(self, callback: Callable):
         """Subscribe to data updates"""
         self.callbacks.append(callback)
     
     def start(self, symbol: str):
-        """Start streaming data"""
-        if self.running:
-            self.logger.debug(f"Streamer already running for {symbol}, skipping start")
-            return
-        
-        # Double-check to prevent race conditions
-        if self.thread and self.thread.is_alive():
-            self.logger.debug(f"Streamer thread already alive for {symbol}, skipping start")
-            return
-        
-        self.running = True
-        self.thread = threading.Thread(target=self._stream_loop, args=(symbol,), daemon=True)
-        self.thread.start()
-        self.logger.info(f"Started streaming data for {symbol}")
+        """Start streaming data with thread-safe duplicate prevention"""
+        # Use both global and instance locks to prevent duplicates
+        with _streamer_lock:
+            with self._start_lock:
+                if self.running:
+                    self.logger.debug(f"Streamer already running for {symbol}, skipping start")
+                    return
+                
+                # Double-check to prevent race conditions
+                if self.thread and self.thread.is_alive():
+                    self.logger.debug(f"Streamer thread already alive for {symbol}, skipping start")
+                    return
+                
+                self.running = True
+                self.thread = threading.Thread(target=self._stream_loop, args=(symbol,), daemon=True)
+                self.thread.start()
+                self.logger.info(f"Started streaming data for {symbol}")
     
     def stop(self):
         """Stop streaming data"""
