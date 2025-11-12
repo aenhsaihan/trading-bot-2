@@ -51,11 +51,23 @@ def initialize_bot():
     exchange = BinanceExchange(api_key=api_key, api_secret=api_secret, sandbox=use_sandbox)
     
     if not exchange.connect():
-        st.error("Failed to connect to exchange. Trying public API without sandbox...")
-        exchange = BinanceExchange(api_key=None, api_secret=None, sandbox=False)
+        # Binance may be blocked in some regions (e.g., Streamlit Cloud servers)
+        # Try Coinbase as fallback
+        st.warning("⚠️ Binance connection failed (may be geo-restricted). Trying Coinbase...")
+        from src.exchanges.coinbase import CoinbaseExchange
+        exchange = CoinbaseExchange(api_key=None, api_secret=None, sandbox=False)
         if not exchange.connect():
-            st.error("Failed to connect to Binance. Please check your internet connection.")
-            st.stop()
+            # Try Kraken as last resort
+            st.warning("⚠️ Coinbase connection failed. Trying Kraken...")
+            from src.exchanges.kraken import KrakenExchange
+            exchange = KrakenExchange(api_key=None, api_secret=None, sandbox=False)
+            if not exchange.connect():
+                st.error("❌ Failed to connect to any exchange. This may be due to:")
+                st.error("1. Network connectivity issues")
+                st.error("2. Exchange API restrictions (Binance blocks some regions)")
+                st.error("3. Exchange API downtime")
+                st.info("💡 **Tip:** Try refreshing the page or check if exchanges are accessible from your location.")
+                st.stop()
     
     # Initialize strategy
     strategy_config = config.get_strategy_config()
