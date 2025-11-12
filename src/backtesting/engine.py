@@ -227,7 +227,9 @@ class BacktestEngine:
         """Close current position"""
         position = self.paper_trading.get_position(symbol)
         if position:
-            result = self.paper_trading.sell(symbol, position['amount'], price)
+            # Store amount before sell() modifies the position
+            sold_amount = position['amount']
+            result = self.paper_trading.sell(symbol, sold_amount, price)
             
             if result['success']:
                 # Capture indicator values for trade reasoning
@@ -248,13 +250,14 @@ class BacktestEngine:
                 if entry_price > 0:
                     profit_pct = float((exit_price - entry_price) / entry_price * 100)
                 
+                # Use the amount from the trade result, which has the correct sold amount
                 self.trades.append({
                     'type': 'sell',
                     'symbol': symbol,
                     'price': price,
                     'entry_price': entry_price,  # Store entry price for percentage calculation
                     'timestamp': timestamp,
-                    'amount': position['amount'],
+                    'amount': result['trade'].get('amount', sold_amount),
                     'reason': reason,
                     'profit': result['trade'].get('profit', Decimal('0')),
                     'profit_pct': profit_pct,
