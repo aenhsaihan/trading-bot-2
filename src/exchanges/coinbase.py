@@ -50,31 +50,42 @@ class CoinbaseExchange(ExchangeBase):
         # Try connecting with SSL verification first
         # Note: Python 3.14 on macOS may have SSL certificate issues
         # If SSL verification fails, retry with verification disabled
-        for verify_ssl in [certifi.where(), False]:
-            try:
-                config = base_config.copy()
-                config['verify'] = verify_ssl
-                
-                self.exchange = ccxt.coinbasepro(config)
-                self.exchange.load_markets()
-                self._connected = True
-                mode = 'sandbox' if self.sandbox else 'live'
-                key_status = 'with API keys' if self.api_key else 'public data only'
-                ssl_status = 'SSL verified' if verify_ssl else 'SSL verification disabled (dev)'
-                self.logger.info(f"Connected to Coinbase Pro ({mode}, {key_status}, {ssl_status})")
-                if not verify_ssl:
-                    self.logger.warning("SSL verification is disabled - FOR DEVELOPMENT ONLY!")
-                return True
-            except Exception as e:
-                # If SSL verification failed, try without verification
-                if verify_ssl and ('SSL' in str(e) or 'certificate' in str(e).lower()):
-                    self.logger.warning(f"SSL verification failed, retrying without verification: {e}")
+        # Note: ccxt 4.4.1 uses 'coinbase' instead of 'coinbasepro'
+        exchange_names = ['coinbase', 'coinbasepro']
+        
+        for exchange_name in exchange_names:
+            for verify_ssl in [certifi.where(), False]:
+                try:
+                    config = base_config.copy()
+                    config['verify'] = verify_ssl
+                    
+                    # Try to get the exchange class dynamically
+                    exchange_class = getattr(ccxt, exchange_name, None)
+                    if exchange_class is None:
+                        continue
+                    
+                    self.exchange = exchange_class(config)
+                    self.exchange.load_markets()
+                    self._connected = True
+                    mode = 'sandbox' if self.sandbox else 'live'
+                    key_status = 'with API keys' if self.api_key else 'public data only'
+                    ssl_status = 'SSL verified' if verify_ssl else 'SSL verification disabled (dev)'
+                    self.logger.info(f"Connected to Coinbase ({mode}, {key_status}, {ssl_status})")
+                    if not verify_ssl:
+                        self.logger.warning("SSL verification is disabled - FOR DEVELOPMENT ONLY!")
+                    return True
+                except AttributeError:
+                    # Exchange name doesn't exist, try next one
                     continue
-                # If it's not an SSL error or we've already tried without verification, fail
-                if not verify_ssl:
-                    self.logger.error(f"Failed to connect to Coinbase Pro: {e}")
-                    self._connected = False
-                    return False
+                except Exception as e:
+                    # If SSL verification failed, try without verification
+                    if verify_ssl and ('SSL' in str(e) or 'certificate' in str(e).lower()):
+                        self.logger.warning(f"SSL verification failed, retrying without verification: {e}")
+                        continue
+                    # If it's not an SSL error or we've already tried without verification, try next exchange name
+                    if not verify_ssl:
+                        self.logger.debug(f"Failed to connect with {exchange_name}: {e}")
+                        break
         
         self._connected = False
         return False
