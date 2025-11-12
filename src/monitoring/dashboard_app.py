@@ -961,29 +961,29 @@ def main():
             
             if indicators:
                 position = bot._get_position(symbol)
-                        # Display current indicator values
-                        short_ma = indicators.get('short_ma', 0)
-                        long_ma = indicators.get('long_ma', 0)
-                        rsi = indicators.get('rsi', 0)
-                        macd_line = indicators.get('macd_line', 0)
-                        macd_signal = indicators.get('macd_signal', 0)
-                        
-                        # Determine current signal
-                        if position:
-                            should_sell = bot.strategy.should_sell(market_data, position)
-                            current_signal = "SELL" if should_sell else "HOLD"
-                            signal_color = "🔴" if should_sell else "🟡"
-                        else:
-                            should_buy = bot.strategy.should_buy(market_data)
-                            current_signal = "BUY" if should_buy else "HOLD"
-                            signal_color = "🟢" if should_buy else "🟡"
-                        
-                        st.markdown(f"### {signal_color} **{current_signal}**")
-                        
-                        # Show indicator values
-                        col_ind1, col_ind2 = st.columns(2)
-                        with col_ind1:
-                            st.metric("Short MA", f"${short_ma:.2f}")
+                # Display current indicator values
+                short_ma = indicators.get('short_ma', 0)
+                long_ma = indicators.get('long_ma', 0)
+                rsi = indicators.get('rsi', 0)
+                macd_line = indicators.get('macd_line', 0)
+                macd_signal = indicators.get('macd_signal', 0)
+                
+                # Determine current signal
+                if position:
+                    should_sell = bot.strategy.should_sell(market_data, position)
+                    current_signal = "SELL" if should_sell else "HOLD"
+                    signal_color = "🔴" if should_sell else "🟡"
+                else:
+                    should_buy = bot.strategy.should_buy(market_data)
+                    current_signal = "BUY" if should_buy else "HOLD"
+                    signal_color = "🟢" if should_buy else "🟡"
+                
+                st.markdown(f"### {signal_color} **{current_signal}**")
+                
+                # Show indicator values
+                col_ind1, col_ind2 = st.columns(2)
+                with col_ind1:
+                    st.metric("Short MA", f"${short_ma:.2f}")
                             st.metric("RSI", f"{rsi:.1f}")
                         with col_ind2:
                             st.metric("Long MA", f"${long_ma:.2f}")
