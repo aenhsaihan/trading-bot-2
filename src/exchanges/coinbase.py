@@ -123,10 +123,15 @@ class CoinbaseExchange(ExchangeBase):
     def get_ohlcv(self, symbol: str, timeframe: str = "1h", limit: int = 100, since: Optional[int] = None) -> List[Dict[str, Any]]:
         """Get OHLCV data"""
         try:
+            # Coinbase doesn't support 'since' parameter for historical data
+            # If 'since' is provided, ignore it and fetch most recent data
+            # This prevents "start must not be in the future" errors
             params = {}
-            if since:
-                params['since'] = since
-            ohlcv = self.exchange.fetch_ohlcv(symbol, timeframe, limit=limit, **params)
+            # Explicitly don't pass 'since' to Coinbase - it causes errors
+            # Coinbase will return the most recent data available
+            
+            # Use fetch_ohlcv without since parameter
+            ohlcv = self.exchange.fetch_ohlcv(symbol, timeframe, limit=limit)
             return [
                 {
                     'timestamp': candle[0],

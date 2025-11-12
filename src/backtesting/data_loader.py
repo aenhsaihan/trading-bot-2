@@ -75,26 +75,37 @@ class DataLoader:
                     # For large requests, we can only get what Coinbase provides (typically max 1000 candles)
                     self.logger.info(f"Coinbase: Fetching without 'since' parameter (will get most recent data available)")
                     
-                    # Try to fetch the requested limit, but Coinbase may limit this
+                    # Coinbase has strict limits - try fetching max_per_request first
+                    # Don't try to fetch more than Coinbase supports
                     try:
-                        batch = exchange.get_ohlcv(symbol, timeframe, limit)
+                        # Always use max_per_request for Coinbase to avoid issues
+                        batch = exchange.get_ohlcv(symbol, timeframe, max_per_request)
                         if batch:
                             all_data = batch
-                            self.logger.info(f"Coinbase: Fetched {len(all_data)} candles (Coinbase may limit historical data)")
+                            self.logger.info(f"Coinbase: Fetched {len(all_data)} candles (Coinbase API limit: {max_per_request} candles)")
+                            # If user requested more, log a warning
+                            if limit > max_per_request:
+                                self.logger.warning(f"Coinbase: Requested {limit} candles but Coinbase only provides {max_per_request} candles")
                         else:
                             return []
                     except Exception as e:
-                        # If limit is too high, try with max_per_request
-                        self.logger.warning(f"Coinbase: Could not fetch {limit} candles, trying {max_per_request}: {e}")
-                        try:
-                            batch = exchange.get_ohlcv(symbol, timeframe, max_per_request)
-                            if batch:
-                                all_data = batch
-                                self.logger.info(f"Coinbase: Fetched {len(all_data)} candles (limited by Coinbase API)")
-                            else:
+                        # If even max_per_request fails, try a smaller limit
+                        error_str = str(e).lower()
+                        if 'future' in error_str or 'invalid' in error_str:
+                            self.logger.error(f"Coinbase: API error - Coinbase doesn't support fetching {max_per_request} candles. Error: {e}")
+                            # Try with a smaller limit (300 candles is usually safe)
+                            try:
+                                batch = exchange.get_ohlcv(symbol, timeframe, 300)
+                                if batch:
+                                    all_data = batch
+                                    self.logger.warning(f"Coinbase: Fetched {len(all_data)} candles (reduced limit due to API restrictions)")
+                                else:
+                                    return []
+                            except Exception as e2:
+                                self.logger.error(f"Coinbase: Failed to fetch data even with reduced limit: {e2}")
                                 return []
-                        except Exception as e2:
-                            self.logger.error(f"Coinbase: Failed to fetch data: {e2}")
+                        else:
+                            self.logger.error(f"Coinbase: Failed to fetch data: {e}")
                             return []
                 else:
                     # Other exchanges: fetch from oldest to newest
