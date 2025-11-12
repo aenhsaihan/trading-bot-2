@@ -52,57 +52,119 @@ class DataLoader:
             all_data = []
             max_per_request = 1000  # Most exchanges limit to 1000 per request
             
-            # Calculate since timestamp if not provided - go backwards from now
-            if since is None:
-                timeframe_ms = self._get_timeframe_ms(timeframe)
-                # Calculate timestamp for oldest candle we need (limit candles ago)
-                current_time_ms = int(time.time() * 1000)
-                since = current_time_ms - (limit * timeframe_ms)
+            # Coinbase has strict requirements for 'since' parameter - don't calculate it
+            # Instead, fetch without 'since' and work backwards from most recent data
+            is_coinbase = exchange.name.lower() in ['coinbase', 'coinbasepro']
             
             if limit <= max_per_request:
                 # Single request
                 self.logger.info(f"Fetching {limit} candles of {symbol} {timeframe} from {exchange.name}")
-                ohlcv_data = exchange.get_ohlcv(symbol, timeframe, limit, since=since)
+                if is_coinbase and since is None:
+                    # Coinbase: fetch without 'since' to get most recent data
+                    ohlcv_data = exchange.get_ohlcv(symbol, timeframe, limit)
+                else:
+                    ohlcv_data = exchange.get_ohlcv(symbol, timeframe, limit, since=since)
                 all_data = ohlcv_data
             else:
-                # Multiple requests needed - fetch from oldest to newest
+                # Multiple requests needed
                 self.logger.info(f"Fetching {limit} candles of {symbol} {timeframe} (will make multiple requests)")
                 
-                remaining = limit
-                current_since = since
-                
-                while remaining > 0 and len(all_data) < limit:
-                    request_size = min(remaining, max_per_request)
+                if is_coinbase and since is None:
+                    # Coinbase: fetch backwards from most recent data
+                    # Start with most recent data, then fetch older batches
+                    remaining = limit
                     
-                    # Fetch batch
-                    batch = exchange.get_ohlcv(symbol, timeframe, request_size, since=current_since)
+                    # First fetch: get most recent batch
+                    first_batch = exchange.get_ohlcv(symbol, timeframe, max_per_request)
+                    if not first_batch:
+                        return []
                     
-                    if not batch:
-                        break
+                    all_data.extend(first_batch)
+                    remaining -= len(first_batch)
                     
-                    all_data.extend(batch)
-                    
-                    # Update for next request - use last candle timestamp + timeframe to get next batch
-                    if batch:
-                        last_timestamp = batch[-1]['timestamp']
+                    # Continue fetching older data
+                    while remaining > 0 and len(all_data) < limit:
+                        # Use the oldest timestamp we have minus timeframe to avoid overlap
+                        oldest_timestamp = all_data[0]['timestamp']
                         timeframe_ms = self._get_timeframe_ms(timeframe)
-                        next_since = last_timestamp + timeframe_ms
+                        # Go back enough to get the next batch without overlap
+                        # Coinbase returns data from 'since' forward, so we need to go back further
+                        next_since = oldest_timestamp - (timeframe_ms * max_per_request)
                         
-                        # Safety check: don't go into the future
-                        current_time_ms = int(time.time() * 1000)
-                        if next_since >= current_time_ms:
-                            # We've reached the present, stop fetching
+                        request_size = min(remaining, max_per_request)
+                        
+                        try:
+                            batch = exchange.get_ohlcv(symbol, timeframe, request_size, since=next_since)
+                            if not batch:
+                                break
+                            
+                            # Filter out any overlapping candles (those >= oldest_timestamp)
+                            new_batch = [c for c in batch if c['timestamp'] < oldest_timestamp]
+                            
+                            if not new_batch:
+                                # No new data, we've reached the limit
+                                break
+                            
+                            # Prepend older data (maintain chronological order: oldest to newest)
+                            all_data = new_batch + all_data
+                            remaining -= len(new_batch)
+                        except Exception as e:
+                            # If we can't fetch older data (e.g., timestamp too old), stop
+                            error_str = str(e).lower()
+                            if 'future' in error_str or 'invalid' in error_str:
+                                self.logger.warning(f"Reached Coinbase's historical data limit: {e}")
+                            else:
+                                self.logger.warning(f"Could not fetch older data: {e}")
                             break
                         
-                        current_since = next_since
+                        # Small delay to avoid rate limits
+                        time.sleep(0.1)
                     
-                    remaining -= len(batch)
+                    # Trim to exact limit if needed (keep most recent)
+                    if len(all_data) > limit:
+                        all_data = all_data[-limit:]
+                else:
+                    # Other exchanges: fetch from oldest to newest
+                    if since is None:
+                        timeframe_ms = self._get_timeframe_ms(timeframe)
+                        current_time_ms = int(time.time() * 1000)
+                        since = current_time_ms - (limit * timeframe_ms)
                     
-                    # Small delay to avoid rate limits
-                    time.sleep(0.1)
-                
-                # Trim to exact limit if needed
-                all_data = all_data[:limit]
+                    remaining = limit
+                    current_since = since
+                    
+                    while remaining > 0 and len(all_data) < limit:
+                        request_size = min(remaining, max_per_request)
+                        
+                        # Fetch batch
+                        batch = exchange.get_ohlcv(symbol, timeframe, request_size, since=current_since)
+                        
+                        if not batch:
+                            break
+                        
+                        all_data.extend(batch)
+                        
+                        # Update for next request - use last candle timestamp + timeframe to get next batch
+                        if batch:
+                            last_timestamp = batch[-1]['timestamp']
+                            timeframe_ms = self._get_timeframe_ms(timeframe)
+                            next_since = last_timestamp + timeframe_ms
+                            
+                            # Safety check: don't go into the future
+                            current_time_ms = int(time.time() * 1000)
+                            if next_since >= current_time_ms:
+                                # We've reached the present, stop fetching
+                                break
+                            
+                            current_since = next_since
+                        
+                        remaining -= len(batch)
+                        
+                        # Small delay to avoid rate limits
+                        time.sleep(0.1)
+                    
+                    # Trim to exact limit if needed
+                    all_data = all_data[:limit]
             
             self.logger.info(f"Fetched {len(all_data)} candles total")
             
