@@ -651,10 +651,18 @@ def render_backtest_view(bot, exchange, config):
                         trailing_stop_percent=risk_config.get('trailing_stop_percent', 0.025)
                     )
                     
+                    # Progress callback for comparison mode
+                    def update_progress_compare(current, total):
+                        # Update overall progress across all strategies
+                        overall_progress = (idx / len(compare_strategies)) + ((current / total) / len(compare_strategies))
+                        progress_bar.progress(overall_progress)
+                        status_text.text(f"Running backtest for {strategy_display}... ({idx + 1}/{len(compare_strategies)}) - Processing {current:,}/{total:,} candles ({current/total*100:.1f}%)")
+                    
                     results = backtest_engine.run(
                         ohlcv_data,
                         backtest_symbol,
-                        position_size_percent=risk_config.get('position_size_percent', 0.01)
+                        position_size_percent=risk_config.get('position_size_percent', 0.01),
+                        progress_callback=update_progress_compare
                     )
                     
                     comparison_results[strategy_name] = {
