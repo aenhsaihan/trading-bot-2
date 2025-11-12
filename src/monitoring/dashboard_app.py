@@ -771,17 +771,16 @@ def main():
     if 'metrics_collector' not in st.session_state:
         st.session_state.metrics_collector = MetricsCollector()
     
-    # Initialize streamer only once and check if it's actually running
+    # Initialize streamer lazily - only create it, don't start it yet
+    # We'll start it conditionally based on which tab is active
     if 'streamer' not in st.session_state:
         # Use longer update interval to avoid rate limits (10 seconds for Kraken)
         st.session_state.streamer = DataStreamer(exchange, update_interval=10.0)
-        st.session_state.streamer.start("BTC/USDT")
-    elif hasattr(st.session_state.streamer, 'running'):
-        # Only restart if it's actually stopped (not just checking the flag)
-        if not st.session_state.streamer.running:
-            # Check if thread is actually dead before restarting
-            if not (st.session_state.streamer.thread and st.session_state.streamer.thread.is_alive()):
-                st.session_state.streamer.start("BTC/USDT")
+        st.session_state.streamer_started = False  # Track if we've started it
+    
+    # Use query parameter or session state to track active tab
+    # Streamlit tabs don't expose which one is active directly
+    # We'll start streamer only when Live Trading tab content is rendered
     
     if 'trade_db' not in st.session_state:
         st.session_state.trade_db = TradeDB(config.database_path)
@@ -1035,6 +1034,11 @@ def main():
         render_export_section(st.session_state.exporter, symbol)
     
     with tab2:
+        # Stop streamer when on Backtesting tab to avoid rate limits
+        if st.session_state.get('streamer_started', False) and st.session_state.streamer.running:
+            st.session_state.streamer.stop()
+            st.session_state.streamer_started = False
+        
         # Backtesting view
         render_backtest_view(bot, exchange, config)
         # Don't auto-refresh on backtesting tab to prevent flickering/repeating
