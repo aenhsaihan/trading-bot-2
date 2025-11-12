@@ -988,44 +988,42 @@ def main():
                 with col_ind2:
                     st.metric("Long MA", f"${long_ma:.2f}")
                     st.metric("MACD", f"{macd_line:.4f}")
-                        
-                        # Show why it's holding (if not trading)
-                        if current_signal == "HOLD":
-                            reasons = []
-                            if position:
-                                if short_ma >= long_ma:
-                                    reasons.append("✓ Short MA above Long MA (bullish)")
-                                else:
-                                    reasons.append("✗ Short MA below Long MA (bearish)")
-                                if rsi < 70:
-                                    reasons.append("✓ RSI not overbought")
-                                else:
-                                    reasons.append("✗ RSI overbought")
-                            else:
-                                if short_ma > long_ma:
-                                    reasons.append("✓ Short MA above Long MA")
-                                else:
-                                    reasons.append("✗ Waiting for golden cross (Short MA > Long MA)")
-                                if rsi < 70:
-                                    reasons.append("✓ RSI not overbought")
-                                else:
-                                    reasons.append("✗ RSI too high")
-                                if macd_line > macd_signal:
-                                    reasons.append("✓ MACD bullish")
-                                else:
-                                    reasons.append("✗ MACD not bullish")
-                            
-                            with st.expander("Why HOLD?"):
-                                for reason in reasons:
-                                    st.write(reason)
-                        
-                        # Show next check time
-                        if bot.running:
-                            st.caption(f"⏱️ Next check in ~30 seconds")
+                
+                # Show why it's holding (if not trading)
+                if current_signal == "HOLD":
+                    reasons = []
+                    if position:
+                        if short_ma >= long_ma:
+                            reasons.append("✓ Short MA above Long MA (bullish)")
+                        else:
+                            reasons.append("✗ Short MA below Long MA (bearish)")
+                        if rsi < 70:
+                            reasons.append("✓ RSI not overbought")
+                        else:
+                            reasons.append("✗ RSI overbought")
                     else:
-                        st.info("Calculating indicators...")
-                except Exception as e:
-                    st.warning(f"Error analyzing signals: {e}")
+                        if short_ma > long_ma:
+                            reasons.append("✓ Short MA above Long MA")
+                        else:
+                            reasons.append("✗ Waiting for golden cross (Short MA > Long MA)")
+                        if rsi < 70:
+                            reasons.append("✓ RSI not overbought")
+                        else:
+                            reasons.append("✗ RSI too high")
+                        if macd_line > macd_signal:
+                            reasons.append("✓ MACD bullish")
+                        else:
+                            reasons.append("✗ MACD not bullish")
+                    
+                    with st.expander("Why HOLD?"):
+                        for reason in reasons:
+                            st.write(reason)
+                
+                # Show next check time
+                if bot.running:
+                    st.caption(f"⏱️ Next check in ~30 seconds")
+            else:
+                st.info("Calculating indicators...")
             
             # Performance metrics
             metrics = st.session_state.metrics_collector.get_metrics()
