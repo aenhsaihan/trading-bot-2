@@ -12,7 +12,7 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 # App version - update this when deploying major changes
-APP_VERSION = "1.1.0"
+APP_VERSION = "1.1.1"
 APP_BUILD_DATE = "2025-11-12"
 
 from src.utils.config import Config
@@ -252,69 +252,134 @@ def render_backtest_view(bot, exchange, config):
                 return
             
             # Performance metrics
+            # Add CSS once at the top
+            st.markdown("""
+            <style>
+            .tooltip-container {
+                position: relative;
+                display: inline-block;
+            }
+            .tooltip-icon {
+                display: inline-block;
+                width: 16px;
+                height: 16px;
+                line-height: 16px;
+                text-align: center;
+                background-color: #1f77b4;
+                color: white;
+                border-radius: 50%;
+                font-size: 11px;
+                font-weight: bold;
+                cursor: help;
+                vertical-align: middle;
+                margin-left: 4px;
+            }
+            .tooltip-text {
+                visibility: hidden;
+                width: 250px;
+                background-color: #333;
+                color: #fff;
+                text-align: left;
+                border-radius: 6px;
+                padding: 8px;
+                position: absolute;
+                z-index: 1000;
+                bottom: 125%;
+                left: 50%;
+                margin-left: -125px;
+                opacity: 0;
+                transition: opacity 0.3s;
+                font-size: 12px;
+                line-height: 1.4;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            }
+            .tooltip-container:hover .tooltip-text {
+                visibility: visible;
+                opacity: 1;
+            }
+            .tooltip-text::after {
+                content: "";
+                position: absolute;
+                top: 100%;
+                left: 50%;
+                margin-left: -5px;
+                border-width: 5px;
+                border-style: solid;
+                border-color: #333 transparent transparent transparent;
+            }
+            </style>
+            """, unsafe_allow_html=True)
+            
             col1, col2, col3, col4 = st.columns(4)
             with col1:
-                label_col, tooltip_col = st.columns([0.9, 0.1])
-                with label_col:
-                    st.write("**Initial Balance**")
-                with tooltip_col:
-                    render_tooltip_icon("Starting capital for the backtest.")
+                st.markdown("""
+                <strong>Initial Balance</strong> <span class="tooltip-container" style="display: inline-block;">
+                    <span class="tooltip-icon">ℹ</span>
+                    <span class="tooltip-text">Starting capital for the backtest.</span>
+                </span>
+                """, unsafe_allow_html=True)
                 st.metric("", f"${results.get('initial_balance', 0):,.2f}")
             with col2:
-                label_col, tooltip_col = st.columns([0.9, 0.1])
-                with label_col:
-                    st.write("**Final Balance**")
-                with tooltip_col:
-                    render_tooltip_icon("Ending capital after all trades.")
+                st.markdown("""
+                <strong>Final Balance</strong> <span class="tooltip-container" style="display: inline-block;">
+                    <span class="tooltip-icon">ℹ</span>
+                    <span class="tooltip-text">Ending capital after all trades.</span>
+                </span>
+                """, unsafe_allow_html=True)
                 st.metric("", f"${results.get('final_balance', 0):,.2f}")
             with col3:
                 return_pct = results.get('total_return', 0)
-                label_col, tooltip_col = st.columns([0.9, 0.1])
-                with label_col:
-                    st.write("**Total Return**")
-                with tooltip_col:
-                    render_tooltip_icon("Percentage gain or loss from initial to final balance.")
+                st.markdown("""
+                <strong>Total Return</strong> <span class="tooltip-container" style="display: inline-block;">
+                    <span class="tooltip-icon">ℹ</span>
+                    <span class="tooltip-text">Percentage gain or loss from initial to final balance.</span>
+                </span>
+                """, unsafe_allow_html=True)
                 st.metric("", f"{return_pct:.2f}%", delta=f"{return_pct:.2f}%")
             with col4:
-                label_col, tooltip_col = st.columns([0.9, 0.1])
-                with label_col:
-                    st.write("**Total Trades**")
-                with tooltip_col:
-                    render_tooltip_icon("Number of completed buy-sell trade pairs.")
+                st.markdown("""
+                <strong>Total Trades</strong> <span class="tooltip-container" style="display: inline-block;">
+                    <span class="tooltip-icon">ℹ</span>
+                    <span class="tooltip-text">Number of completed buy-sell trade pairs.</span>
+                </span>
+                """, unsafe_allow_html=True)
                 st.metric("", results.get('total_trades', 0))
             
             col1, col2, col3 = st.columns(3)
             with col1:
                 win_rate = results.get('win_rate', 0)
-                label_col, tooltip_col = st.columns([0.9, 0.1])
-                with label_col:
-                    st.write("**Win Rate**")
-                with tooltip_col:
-                    render_tooltip_icon("Percentage of trades that were profitable. Higher is better (e.g., 60% means 6 out of 10 trades made money).")
+                st.markdown("""
+                <strong>Win Rate</strong> <span class="tooltip-container" style="display: inline-block;">
+                    <span class="tooltip-icon">ℹ</span>
+                    <span class="tooltip-text">Percentage of trades that were profitable. Higher is better (e.g., 60% means 6 out of 10 trades made money).</span>
+                </span>
+                """, unsafe_allow_html=True)
                 st.metric("", f"{win_rate:.1%}")
             with col2:
                 sharpe = results.get('sharpe_ratio', 0)
-                label_col, tooltip_col = st.columns([0.9, 0.1])
-                with label_col:
-                    st.write("**Sharpe Ratio**")
-                with tooltip_col:
-                    sharpe_interpretation = ""
-                    if sharpe >= 2:
-                        sharpe_interpretation = "🟢 Excellent"
-                    elif sharpe >= 1:
-                        sharpe_interpretation = "🟡 Good"
-                    else:
-                        sharpe_interpretation = "🔴 Needs improvement"
-                    render_tooltip_icon(f"Measures risk-adjusted returns. Higher is better:<br/>• &lt; 1: Poor (returns don't compensate for risk)<br/>• 1-2: Good<br/>• 2-3: Very good<br/>• &gt; 3: Excellent<br/><br/>A Sharpe ratio of 2 means you're earning 2 units of return for every unit of risk. {sharpe_interpretation}")
+                sharpe_interpretation = ""
+                if sharpe >= 2:
+                    sharpe_interpretation = "🟢 Excellent"
+                elif sharpe >= 1:
+                    sharpe_interpretation = "🟡 Good"
+                else:
+                    sharpe_interpretation = "🔴 Needs improvement"
+                st.markdown(f"""
+                <strong>Sharpe Ratio</strong> <span class="tooltip-container" style="display: inline-block;">
+                    <span class="tooltip-icon">ℹ</span>
+                    <span class="tooltip-text">Measures risk-adjusted returns. Higher is better:<br/>• &lt; 1: Poor (returns don't compensate for risk)<br/>• 1-2: Good<br/>• 2-3: Very good<br/>• &gt; 3: Excellent<br/><br/>A Sharpe ratio of 2 means you're earning 2 units of return for every unit of risk. {sharpe_interpretation}</span>
+                </span>
+                """, unsafe_allow_html=True)
                 st.metric("", f"{sharpe:.2f}")
             with col3:
                 total_pnl = results.get('total_pnl', 0)
                 pnl_color = "🟢" if total_pnl > 0 else "🔴"
-                label_col, tooltip_col = st.columns([0.9, 0.1])
-                with label_col:
-                    st.write("**Total P&L**")
-                with tooltip_col:
-                    render_tooltip_icon("Total profit or loss from all completed trades. Green = profit, Red = loss.")
+                st.markdown("""
+                <strong>Total P&L</strong> <span class="tooltip-container" style="display: inline-block;">
+                    <span class="tooltip-icon">ℹ</span>
+                    <span class="tooltip-text">Total profit or loss from all completed trades. Green = profit, Red = loss.</span>
+                </span>
+                """, unsafe_allow_html=True)
                 st.metric("", f"{pnl_color} ${total_pnl:,.2f}")
             
             # Signal analysis
@@ -326,19 +391,21 @@ def render_backtest_view(bot, exchange, config):
                 with col1:
                     potential_buys = signal_analysis.get('potential_buys', 0)
                     actual_buys = len([t for t in results.get('trades', []) if t.get('type') == 'buy'])
-                    label_col, tooltip_col = st.columns([0.9, 0.1])
-                    with label_col:
-                        st.write("**Golden Crosses Detected**")
-                    with tooltip_col:
-                        render_tooltip_icon("Number of bullish crossover signals detected (when short MA crosses above long MA).")
+                    st.markdown("""
+                    <strong>Golden Crosses Detected</strong> <span class="tooltip-container" style="display: inline-block;">
+                        <span class="tooltip-icon">ℹ</span>
+                        <span class="tooltip-text">Number of bullish crossover signals detected (when short MA crosses above long MA).</span>
+                    </span>
+                    """, unsafe_allow_html=True)
                     st.metric("", potential_buys)
                     if potential_buys > 0:
                         conversion_rate = (actual_buys / potential_buys) * 100
-                        label_col2, tooltip_col2 = st.columns([0.9, 0.1])
-                        with label_col2:
-                            st.write("**Conversion Rate**")
-                        with tooltip_col2:
-                            render_tooltip_icon(f"Percentage of potential buy signals that became trades. Low (&lt; 50%) might mean filters are too strict. High (&gt; 80%) means most signals are acted upon. Signals can be rejected if RSI is overbought (≥ 70) at the time of the golden cross.")
+                        st.markdown("""
+                        <strong>Conversion Rate</strong> <span class="tooltip-container" style="display: inline-block;">
+                            <span class="tooltip-icon">ℹ</span>
+                            <span class="tooltip-text">Percentage of potential buy signals that became trades. Low (&lt; 50%) might mean filters are too strict. High (&gt; 80%) means most signals are acted upon. Signals can be rejected if RSI is overbought (≥ 70) at the time of the golden cross.</span>
+                        </span>
+                        """, unsafe_allow_html=True)
                         st.metric("", f"{conversion_rate:.1f}%")
                         st.caption(f"✅ {actual_buys} trades executed out of {potential_buys} potential signals")
                 with col2:
