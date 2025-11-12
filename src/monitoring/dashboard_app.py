@@ -903,13 +903,24 @@ def main():
         # Get latest data
         latest_data = st.session_state.streamer.get_latest_data(symbol)
         
+        # Fetch OHLCV on-demand for charts (not from streamer to avoid rate limits)
+        ohlcv_data = None
+        if latest_data:
+            try:
+                # Fetch OHLCV on-demand when displaying chart
+                ohlcv_data = exchange.get_ohlcv(symbol, timeframe="1h", limit=100)
+            except Exception as e:
+                st.warning(f"Could not fetch chart data: {e}")
+        
         # Main columns
         col1, col2 = st.columns([2, 1])
     
         with col1:
             # Price chart
-            if latest_data and latest_data.get('ohlcv'):
-                render_price_chart(latest_data['ohlcv'])
+            if ohlcv_data:
+                render_price_chart(ohlcv_data)
+            elif latest_data:
+                st.info("📊 Chart data loading... (Price: ${:,.2f})".format(latest_data.get('price', 0)))
             else:
                 st.warning("Loading price data...")
             
@@ -927,18 +938,19 @@ def main():
         with col2:
             # Current Signal Analysis (real-time)
             st.subheader("🔍 Current Signal Analysis")
-            if latest_data and latest_data.get('ohlcv'):
-                try:
-                    # Get current indicators
-                    ohlcv_data = latest_data['ohlcv']
+            # Fetch OHLCV on-demand for indicators (not from streamer)
+            try:
+                # Get current indicators using on-demand OHLCV fetch
+                ohlcv_for_indicators = exchange.get_ohlcv(symbol, timeframe="1h", limit=200)
+                if ohlcv_for_indicators:
                     market_data = {
                         'symbol': symbol,
-                        'ohlcv': ohlcv_data,
-                        'current_price': Decimal(str(latest_data.get('price', 0))),
-                        'ticker': latest_data
+                        'ohlcv': ohlcv_for_indicators,
+                        'current_price': Decimal(str(latest_data.get('price', 0))) if latest_data else Decimal('0'),
+                        'ticker': latest_data if latest_data else {}
                     }
                     
-                    indicators = bot.strategy._calculate_indicators(ohlcv_data)
+                    indicators = bot.strategy._calculate_indicators(ohlcv_for_indicators)
                     position = bot._get_position(symbol)
                     
                     if indicators:

@@ -62,28 +62,15 @@ class DataStreamer:
         self.logger.info("Stopped streaming data")
     
     def _stream_loop(self, symbol: str):
-        """Main streaming loop with exponential backoff for rate limiting"""
+        """Main streaming loop - only fetches ticker data (no OHLCV to avoid rate limits)"""
         consecutive_errors = 0
         max_backoff = 60  # Maximum backoff time in seconds
-        ohlcv_fetch_counter = 0  # Counter to fetch OHLCV less frequently
         
         while self.running:
             try:
-                # Get ticker data (lightweight, fast)
+                # Only get ticker data (lightweight, fast, less likely to rate limit)
+                # OHLCV data should be fetched on-demand when charts are displayed
                 ticker = self.exchange.get_ticker(symbol)
-                
-                # Only fetch OHLCV every 6th iteration (every 60 seconds with 10s interval)
-                # This reduces API calls significantly while still providing chart data
-                ohlcv = []
-                ohlcv_fetch_counter += 1
-                if ohlcv_fetch_counter >= 6:
-                    try:
-                        ohlcv = self.exchange.get_ohlcv(symbol, timeframe="1h", limit=10)
-                        ohlcv_fetch_counter = 0  # Reset counter
-                    except Exception as ohlcv_error:
-                        # If OHLCV fetch fails, continue with ticker data only
-                        self.logger.debug(f"OHLCV fetch failed (non-critical): {ohlcv_error}")
-                        ohlcv = []
                 
                 data = {
                     'symbol': symbol,
@@ -92,7 +79,7 @@ class DataStreamer:
                     'ask': float(ticker['ask']),
                     'volume': float(ticker['volume']),
                     'timestamp': ticker['timestamp'],
-                    'ohlcv': ohlcv[-10:] if ohlcv else []  # Last 10 candles (may be empty)
+                    'ohlcv': []  # Empty - fetch on-demand when needed
                 }
                 
                 self.latest_data[symbol] = data
@@ -126,8 +113,6 @@ class DataStreamer:
                     backoff_time = min(2 ** consecutive_errors, max_backoff)
                     self.logger.warning(f"Rate limited. Backing off for {backoff_time}s (attempt {consecutive_errors})")
                     time.sleep(backoff_time)
-                    # Reset OHLCV counter on rate limit to avoid immediate retry
-                    ohlcv_fetch_counter = 0
                 else:
                     # For other errors, use normal interval
                     self.logger.error(f"Error in stream loop: {e}")
