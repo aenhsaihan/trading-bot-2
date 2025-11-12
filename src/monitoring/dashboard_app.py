@@ -2164,10 +2164,21 @@ def main():
         notification_adapter = st.session_state.notification_adapter
         
         # Show API connection status
-        if st.session_state.get('api_connected', False):
-            st.success("✅ Connected to FastAPI backend")
+        api_client = notification_adapter.api_client
+        is_connected = api_client.health_check()
+        
+        if is_connected:
+            st.success(f"✅ Connected to FastAPI backend at {api_client.base_url}")
         else:
-            st.info("ℹ️ Using direct NotificationManager (FastAPI backend not available)")
+            st.warning(f"⚠️ FastAPI backend not available at {api_client.base_url} - Using direct NotificationManager")
+        
+        # Debug info (can remove later)
+        with st.expander("🔍 Debug Info"):
+            st.json({
+                "api_url": api_client.base_url,
+                "health_check": is_connected,
+                "using_api": notification_adapter._should_use_api() if hasattr(notification_adapter, '_should_use_api') else "unknown"
+            })
         
         # Check for new notifications and show toast + voice alert
         new_notif_id = check_and_show_new_notifications(
