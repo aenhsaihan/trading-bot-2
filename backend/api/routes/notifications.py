@@ -1,14 +1,22 @@
 """Notification REST API routes"""
 
+import sys
+from pathlib import Path
 from fastapi import APIRouter, HTTPException, Query
 from typing import Optional
-from ..models.notification import (
+
+# Add project root to path
+project_root = Path(__file__).parent.parent.parent.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
+
+from backend.api.models.notification import (
     NotificationResponse,
     NotificationCreate,
     NotificationUpdate,
     NotificationListResponse
 )
-from ...services.notification_service import NotificationService
+from backend.services.notification_service import NotificationService
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
 
