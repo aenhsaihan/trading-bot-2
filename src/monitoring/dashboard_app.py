@@ -137,69 +137,153 @@ def render_backtest_view(bot, exchange, config):
             # Use the manual input value
             pass
     
-    # Strategy parameters
+    # Strategy parameters - dynamic based on selected strategy
+    selected_strategy = st.session_state.get('selected_strategy', 'trend_following')
+    
     with st.expander("⚙️ Strategy Parameters (Advanced)"):
-        st.write("**Current:** 50/200 MA (very conservative - few signals)")
-        st.write("**Tip:** Shorter MA periods = more frequent signals but potentially more false signals")
-        
-        # Initialize MA preset in session state if not exists
-        if 'ma_preset' not in st.session_state:
-            st.session_state.ma_preset = "Conservative (50/200)"
-        
         # Use form to batch widget changes and prevent immediate reruns
         with st.form(key="strategy_params_form", clear_on_submit=False):
-            ma_preset = st.selectbox(
-                "MA Period Preset",
-                ["Conservative (50/200)", "Moderate (20/50)", "Aggressive (10/20)", "Custom"],
-                index=["Conservative (50/200)", "Moderate (20/50)", "Aggressive (10/20)", "Custom"].index(st.session_state.ma_preset) if st.session_state.ma_preset in ["Conservative (50/200)", "Moderate (20/50)", "Aggressive (10/20)", "Custom"] else 0,
-                key="ma_preset_form"
-            )
-            
-            if ma_preset == "Custom":
-                # Initialize custom values if not set
-                if 'custom_short_ma' not in st.session_state:
-                    st.session_state.custom_short_ma = 50
-                if 'custom_long_ma' not in st.session_state:
-                    st.session_state.custom_long_ma = 200
-                short_ma = st.number_input("Short MA Period", min_value=5, max_value=100, value=st.session_state.custom_short_ma, key="custom_short_ma_form")
-                long_ma = st.number_input("Long MA Period", min_value=10, max_value=300, value=st.session_state.custom_long_ma, key="custom_long_ma_form")
-            elif ma_preset == "Moderate (20/50)":
-                short_ma = 20
-                long_ma = 50
-            elif ma_preset == "Aggressive (10/20)":
-                short_ma = 10
-                long_ma = 20
-            else:  # Conservative
-                short_ma = 50
-                long_ma = 200
-            
-            # Initialize RSI threshold if not set
-            if 'rsi_threshold' not in st.session_state:
-                st.session_state.rsi_threshold = 70
-            
-            rsi_threshold = st.slider("RSI Overbought Threshold", min_value=60, max_value=85, value=st.session_state.rsi_threshold, key="rsi_threshold_form")
-            st.caption(f"Signals rejected if RSI ≥ {rsi_threshold}")
-            
-            # Submit button to apply changes
-            form_submitted = st.form_submit_button("Apply Parameters", use_container_width=True)
-            
-            if form_submitted:
-                # Update session state when form is submitted
-                st.session_state.ma_preset = ma_preset
+            if selected_strategy == "trend_following":
+                st.write("**Trend Following Parameters:**")
+                st.write("**Tip:** Shorter MA periods = more frequent signals but potentially more false signals")
+                
+                # Initialize MA preset in session state if not exists
+                if 'ma_preset' not in st.session_state:
+                    st.session_state.ma_preset = "Conservative (50/200)"
+                
+                ma_preset = st.selectbox(
+                    "MA Period Preset",
+                    ["Conservative (50/200)", "Moderate (20/50)", "Aggressive (10/20)", "Custom"],
+                    index=["Conservative (50/200)", "Moderate (20/50)", "Aggressive (10/20)", "Custom"].index(st.session_state.ma_preset) if st.session_state.ma_preset in ["Conservative (50/200)", "Moderate (20/50)", "Aggressive (10/20)", "Custom"] else 0,
+                    key="ma_preset_form"
+                )
+                
                 if ma_preset == "Custom":
-                    st.session_state.custom_short_ma = short_ma
-                    st.session_state.custom_long_ma = long_ma
-                st.session_state.rsi_threshold = rsi_threshold
-                st.session_state['backtest_short_ma'] = short_ma
-                st.session_state['backtest_long_ma'] = long_ma
-                st.session_state['backtest_rsi_threshold'] = rsi_threshold
-                st.success("✅ Parameters updated!")
-        
-        # Display current values (read from session state)
-        current_short_ma = st.session_state.get('backtest_short_ma', 50)
-        current_long_ma = st.session_state.get('backtest_long_ma', 200)
-        current_rsi = st.session_state.get('backtest_rsi_threshold', 70)
-        st.info(f"📊 **Active Parameters:** Short MA: {current_short_ma}, Long MA: {current_long_ma}, RSI Threshold: {current_rsi}")
+                    # Initialize custom values if not set
+                    if 'custom_short_ma' not in st.session_state:
+                        st.session_state.custom_short_ma = 50
+                    if 'custom_long_ma' not in st.session_state:
+                        st.session_state.custom_long_ma = 200
+                    short_ma = st.number_input("Short MA Period", min_value=5, max_value=100, value=st.session_state.custom_short_ma, key="custom_short_ma_form")
+                    long_ma = st.number_input("Long MA Period", min_value=10, max_value=300, value=st.session_state.custom_long_ma, key="custom_long_ma_form")
+                elif ma_preset == "Moderate (20/50)":
+                    short_ma = 20
+                    long_ma = 50
+                elif ma_preset == "Aggressive (10/20)":
+                    short_ma = 10
+                    long_ma = 20
+                else:  # Conservative
+                    short_ma = 50
+                    long_ma = 200
+                
+                # Initialize RSI threshold if not set
+                if 'rsi_threshold' not in st.session_state:
+                    st.session_state.rsi_threshold = 70
+                
+                rsi_threshold = st.slider("RSI Overbought Threshold", min_value=60, max_value=85, value=st.session_state.rsi_threshold, key="rsi_threshold_form")
+                st.caption(f"Signals rejected if RSI ≥ {rsi_threshold}")
+                
+                # Submit button to apply changes
+                form_submitted = st.form_submit_button("Apply Parameters", use_container_width=True)
+                
+                if form_submitted:
+                    st.session_state.ma_preset = ma_preset
+                    if ma_preset == "Custom":
+                        st.session_state.custom_short_ma = short_ma
+                        st.session_state.custom_long_ma = long_ma
+                    st.session_state.rsi_threshold = rsi_threshold
+                    st.session_state['backtest_short_ma'] = short_ma
+                    st.session_state['backtest_long_ma'] = long_ma
+                    st.session_state['backtest_rsi_threshold'] = rsi_threshold
+                    st.success("✅ Parameters updated!")
+                
+                # Display current values
+                current_short_ma = st.session_state.get('backtest_short_ma', 50)
+                current_long_ma = st.session_state.get('backtest_long_ma', 200)
+                current_rsi = st.session_state.get('backtest_rsi_threshold', 70)
+                st.info(f"📊 **Active Parameters:** Short MA: {current_short_ma}, Long MA: {current_long_ma}, RSI Threshold: {current_rsi}")
+            
+            elif selected_strategy == "mean_reversion":
+                st.write("**Mean Reversion Parameters:**")
+                st.write("**Tip:** Lower RSI oversold = more buy signals. Higher BB std = wider bands (less sensitive)")
+                
+                # Initialize parameters if not set
+                if 'mr_rsi_oversold' not in st.session_state:
+                    st.session_state.mr_rsi_oversold = 30
+                if 'mr_rsi_overbought' not in st.session_state:
+                    st.session_state.mr_rsi_overbought = 70
+                if 'mr_bb_period' not in st.session_state:
+                    st.session_state.mr_bb_period = 20
+                if 'mr_bb_std' not in st.session_state:
+                    st.session_state.mr_bb_std = 2.0
+                
+                rsi_oversold = st.slider("RSI Oversold Threshold (Buy Signal)", min_value=20, max_value=40, value=st.session_state.mr_rsi_oversold, key="mr_rsi_oversold_form")
+                st.caption(f"Buy when RSI ≤ {rsi_oversold}")
+                
+                rsi_overbought = st.slider("RSI Overbought Threshold (Sell Signal)", min_value=60, max_value=80, value=st.session_state.mr_rsi_overbought, key="mr_rsi_overbought_form")
+                st.caption(f"Sell when RSI ≥ {rsi_overbought}")
+                
+                bb_period = st.number_input("Bollinger Bands Period", min_value=10, max_value=50, value=st.session_state.mr_bb_period, key="mr_bb_period_form")
+                st.caption(f"Period for calculating Bollinger Bands moving average")
+                
+                bb_std = st.slider("Bollinger Bands Std Deviation", min_value=1.0, max_value=3.0, value=float(st.session_state.mr_bb_std), step=0.1, key="mr_bb_std_form")
+                st.caption(f"Standard deviation multiplier for band width")
+                
+                # Submit button
+                form_submitted = st.form_submit_button("Apply Parameters", use_container_width=True)
+                
+                if form_submitted:
+                    st.session_state.mr_rsi_oversold = rsi_oversold
+                    st.session_state.mr_rsi_overbought = rsi_overbought
+                    st.session_state.mr_bb_period = bb_period
+                    st.session_state.mr_bb_std = bb_std
+                    st.session_state['backtest_mr_rsi_oversold'] = rsi_oversold
+                    st.session_state['backtest_mr_rsi_overbought'] = rsi_overbought
+                    st.session_state['backtest_mr_bb_period'] = bb_period
+                    st.session_state['backtest_mr_bb_std'] = bb_std
+                    st.success("✅ Parameters updated!")
+                
+                # Display current values
+                st.info(f"📊 **Active Parameters:** RSI Oversold: {st.session_state.get('backtest_mr_rsi_oversold', 30)}, RSI Overbought: {st.session_state.get('backtest_mr_rsi_overbought', 70)}, BB Period: {st.session_state.get('backtest_mr_bb_period', 20)}, BB Std: {st.session_state.get('backtest_mr_bb_std', 2.0)}")
+            
+            elif selected_strategy == "momentum":
+                st.write("**Momentum Parameters:**")
+                st.write("**Tip:** Higher RSI buy threshold = fewer but stronger signals. Volume multiplier filters out low-volume moves")
+                
+                # Initialize parameters if not set
+                if 'mom_rsi_buy' not in st.session_state:
+                    st.session_state.mom_rsi_buy = 55
+                if 'mom_rsi_sell' not in st.session_state:
+                    st.session_state.mom_rsi_sell = 45
+                if 'mom_volume_mult' not in st.session_state:
+                    st.session_state.mom_volume_mult = 1.2
+                
+                rsi_buy = st.slider("RSI Buy Threshold", min_value=50, max_value=70, value=st.session_state.mom_rsi_buy, key="mom_rsi_buy_form")
+                st.caption(f"Buy when RSI is rising and above {rsi_buy}")
+                
+                rsi_sell = st.slider("RSI Sell Threshold", min_value=30, max_value=50, value=st.session_state.mom_rsi_sell, key="mom_rsi_sell_form")
+                st.caption(f"Sell when RSI falls below {rsi_sell}")
+                
+                volume_mult = st.slider("Volume Multiplier", min_value=1.0, max_value=2.0, value=float(st.session_state.mom_volume_mult), step=0.1, key="mom_volume_mult_form")
+                st.caption(f"Volume must be {volume_mult}x average for confirmation")
+                
+                # Submit button
+                form_submitted = st.form_submit_button("Apply Parameters", use_container_width=True)
+                
+                if form_submitted:
+                    st.session_state.mom_rsi_buy = rsi_buy
+                    st.session_state.mom_rsi_sell = rsi_sell
+                    st.session_state.mom_volume_mult = volume_mult
+                    st.session_state['backtest_mom_rsi_buy'] = rsi_buy
+                    st.session_state['backtest_mom_rsi_sell'] = rsi_sell
+                    st.session_state['backtest_mom_volume_mult'] = volume_mult
+                    st.success("✅ Parameters updated!")
+                
+                # Display current values
+                st.info(f"📊 **Active Parameters:** RSI Buy: {st.session_state.get('backtest_mom_rsi_buy', 55)}, RSI Sell: {st.session_state.get('backtest_mom_rsi_sell', 45)}, Volume Mult: {st.session_state.get('backtest_mom_volume_mult', 1.2)}")
+            
+            else:
+                st.info("No customizable parameters for this strategy")
     
     if st.button("🚀 Run Backtest", width='stretch'):
         # Clear previous rendered results ID when starting new backtest
@@ -225,16 +309,39 @@ def render_backtest_view(bot, exchange, config):
             # Run backtest with custom strategy parameters if set
             strategy_config = config.get_strategy_config().copy()
             
-            # Override with user-selected parameters if available
-            if 'backtest_short_ma' in st.session_state:
-                strategy_config['short_ma_period'] = st.session_state['backtest_short_ma']
-            if 'backtest_long_ma' in st.session_state:
-                strategy_config['long_ma_period'] = st.session_state['backtest_long_ma']
-            if 'backtest_rsi_threshold' in st.session_state:
-                strategy_config['rsi_overbought'] = st.session_state['backtest_rsi_threshold']
-            
             # Use selected strategy from session state or default to trend_following
             backtest_strategy_name = st.session_state.get('selected_strategy', 'trend_following')
+            
+            # Override with user-selected parameters based on selected strategy
+            if backtest_strategy_name == "trend_following":
+                # Trend Following parameters
+                if 'backtest_short_ma' in st.session_state:
+                    strategy_config['short_ma_period'] = st.session_state['backtest_short_ma']
+                if 'backtest_long_ma' in st.session_state:
+                    strategy_config['long_ma_period'] = st.session_state['backtest_long_ma']
+                if 'backtest_rsi_threshold' in st.session_state:
+                    strategy_config['rsi_overbought'] = st.session_state['backtest_rsi_threshold']
+            
+            elif backtest_strategy_name == "mean_reversion":
+                # Mean Reversion parameters
+                if 'backtest_mr_rsi_oversold' in st.session_state:
+                    strategy_config['rsi_oversold'] = st.session_state['backtest_mr_rsi_oversold']
+                if 'backtest_mr_rsi_overbought' in st.session_state:
+                    strategy_config['rsi_overbought'] = st.session_state['backtest_mr_rsi_overbought']
+                if 'backtest_mr_bb_period' in st.session_state:
+                    strategy_config['bb_period'] = st.session_state['backtest_mr_bb_period']
+                if 'backtest_mr_bb_std' in st.session_state:
+                    strategy_config['bb_std'] = st.session_state['backtest_mr_bb_std']
+            
+            elif backtest_strategy_name == "momentum":
+                # Momentum parameters
+                if 'backtest_mom_rsi_buy' in st.session_state:
+                    strategy_config['rsi_buy_threshold'] = st.session_state['backtest_mom_rsi_buy']
+                if 'backtest_mom_rsi_sell' in st.session_state:
+                    strategy_config['rsi_sell_threshold'] = st.session_state['backtest_mom_rsi_sell']
+                if 'backtest_mom_volume_mult' in st.session_state:
+                    strategy_config['min_volume_multiplier'] = st.session_state['backtest_mom_volume_mult']
+            
             strategy = StrategyRegistry.get_strategy(backtest_strategy_name, config=strategy_config)
             
             risk_config = config.get_risk_config()
