@@ -1,6 +1,7 @@
 """Toast notification system - slides in from top right"""
 
 import streamlit as st
+import streamlit.components.v1 as components
 from typing import Optional, Dict
 from datetime import datetime
 from src.notifications.notification_types import Notification, NotificationPriority, NotificationType
@@ -224,15 +225,188 @@ def render_toast_notification(notification: Notification, duration: int = 5000):
     if notification.confidence_score is not None:
         meta_html += f'<span><strong>Confidence:</strong> <span style="color: #4CAF50 !important;">{notification.confidence_score:.0f}%</span></span>'
     
-    # HTML for the toast notification - use single-line format to avoid Streamlit parsing issues
-    # Use inline event handlers and immediate script execution for reliability
-    close_handler = f"var c=document.getElementById('{toast_id}');if(c){{c.classList.add('toast-slide-out');setTimeout(function(){{if(c.parentElement)c.remove();}},300);}}"
-    card_click_handler = f"var c=document.getElementById('{toast_id}');if(c){{c.classList.add('toast-slide-out');setTimeout(function(){{if(c.parentElement)c.remove();}},300);}}"
-    auto_dismiss_code = f"setTimeout(function(){{var t=document.getElementById('{toast_id}');if(t&&t.parentElement){{t.classList.add('toast-slide-out');setTimeout(function(){{if(t&&t.parentElement)t.remove();}},300);}}}},{duration});"
+    # Build complete HTML with embedded JavaScript
+    # Use components.v1.html for better JavaScript execution control
+    full_html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <style>
+        @keyframes slideInRight {{
+            from {{
+                transform: translateX(100%);
+                opacity: 0;
+            }}
+            to {{
+                transform: translateX(0);
+                opacity: 1;
+            }}
+        }}
+        
+        @keyframes slideOutRight {{
+            from {{
+                transform: translateX(0);
+                opacity: 1;
+            }}
+            to {{
+                transform: translateX(100%);
+                opacity: 0;
+            }}
+        }}
+        
+        .toast-container {{
+            position: fixed !important;
+            top: 70px !important;
+            right: 20px !important;
+            z-index: 9999 !important;
+            max-width: 400px !important;
+            animation: slideInRight 0.3s ease-out !important;
+        }}
+        
+        .toast-notification {{
+            background: linear-gradient(135deg, #1e1e2e 0%, #2a2a3e 100%) !important;
+            border-left: 4px solid {priority_color} !important;
+            border-radius: 12px !important;
+            padding: 16px !important;
+            margin-bottom: 12px !important;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4) !important;
+            color: #ffffff !important;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+            cursor: pointer !important;
+            transition: transform 0.2s, box-shadow 0.2s !important;
+        }}
+        
+        .toast-notification:hover {{
+            transform: translateY(-2px) !important;
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.5) !important;
+        }}
+        
+        .toast-header {{
+            display: flex !important;
+            justify-content: space-between !important;
+            align-items: center !important;
+            margin-bottom: 8px !important;
+        }}
+        
+        .toast-title {{
+            display: flex !important;
+            align-items: center !important;
+            gap: 8px !important;
+            font-weight: bold !important;
+            font-size: 16px !important;
+            color: #ffffff !important;
+        }}
+        
+        .toast-close {{
+            background: rgba(255, 255, 255, 0.2) !important;
+            border: none !important;
+            border-radius: 50% !important;
+            width: 24px !important;
+            height: 24px !important;
+            color: #ffffff !important;
+            cursor: pointer !important;
+            font-size: 16px !important;
+            line-height: 1 !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            transition: background 0.2s !important;
+        }}
+        
+        .toast-close:hover {{
+            background: rgba(255, 255, 255, 0.3) !important;
+        }}
+        
+        .toast-message {{
+            color: #cccccc !important;
+            font-size: 14px !important;
+            line-height: 1.5 !important;
+            margin-bottom: 8px !important;
+        }}
+        
+        .toast-meta {{
+            display: flex !important;
+            gap: 12px !important;
+            font-size: 12px !important;
+            color: #888 !important;
+            flex-wrap: wrap !important;
+        }}
+        
+        .toast-meta span {{
+            color: #888 !important;
+        }}
+        
+        .toast-slide-out {{
+            animation: slideOutRight 0.3s ease-in forwards !important;
+        }}
+        </style>
+    </head>
+    <body>
+        <div id="{toast_id}" class="toast-container" data-toast-id="{toast_id}">
+            <div class="toast-notification" id="toast-notif-{toast_id}">
+                <div class="toast-header">
+                    <div class="toast-title">
+                        <span style="font-size: 20px;">{priority_emoji}</span>
+                        <span style="font-size: 18px;">{type_emoji}</span>
+                        <span style="color: #ffffff !important;">{safe_title}</span>
+                    </div>
+                    <button class="toast-close" id="close-{toast_id}" type="button">×</button>
+                </div>
+                <div class="toast-message">{safe_message}</div>
+                <div class="toast-meta">{meta_html}</div>
+            </div>
+        </div>
+        
+        <script>
+        (function() {{
+            var toastId = '{toast_id}';
+            var container = document.getElementById(toastId);
+            var closeBtn = document.getElementById('close-' + toastId);
+            var toastCard = document.getElementById('toast-notif-' + toastId);
+            
+            function dismissToast() {{
+                if (container) {{
+                    container.classList.add('toast-slide-out');
+                    setTimeout(function() {{
+                        if (container && container.parentElement) {{
+                            container.remove();
+                        }}
+                    }}, 300);
+                }}
+            }}
+            
+            // Close button handler
+            if (closeBtn) {{
+                closeBtn.addEventListener('click', function(e) {{
+                    e.stopPropagation();
+                    e.preventDefault();
+                    dismissToast();
+                    return false;
+                }});
+            }}
+            
+            // Card click handler
+            if (toastCard) {{
+                toastCard.addEventListener('click', function(e) {{
+                    // Don't dismiss if clicking on close button
+                    if (!e.target.classList.contains('toast-close') && !e.target.closest('.toast-close')) {{
+                        dismissToast();
+                    }}
+                }});
+            }}
+            
+            // Auto-dismiss
+            setTimeout(function() {{
+                dismissToast();
+            }}, {duration});
+        }})();
+        </script>
+    </body>
+    </html>
+    """
     
-    toast_html = f'<div id="{toast_id}" class="toast-container" style="--priority-color: {priority_color};" data-toast-id="{toast_id}"><div class="toast-notification" style="border-left-color: {priority_color} !important;" onclick="{card_click_handler}"><div class="toast-header"><div class="toast-title"><span style="font-size: 20px;">{priority_emoji}</span><span style="font-size: 18px;">{type_emoji}</span><span style="color: #ffffff !important;">{safe_title}</span></div><button class="toast-close" data-toast-id="{toast_id}" type="button" onclick="event.stopPropagation();{close_handler}return false;">×</button></div><div class="toast-message">{safe_message}</div><div class="toast-meta">{meta_html}</div></div></div><script>{auto_dismiss_code}</script>'
-    
-    st.markdown(toast_html, unsafe_allow_html=True)
+    # Use components.v1.html for better JavaScript execution
+    components.html(full_html, height=0)
 
 
 def render_toast_system():
