@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { useNotifications } from './hooks/useNotifications';
-import { useNotifications } from './hooks/useNotifications';
 import { ToastContainer } from './components/ToastContainer';
 import { NotificationCenter } from './components/NotificationCenter';
 import { SystemStatus } from './components/SystemStatus';
@@ -146,6 +145,22 @@ function App() {
             </div>
           </div>
         )}
+
+        {/* Debug Info */}
+        <div className="bg-blue-500/20 border border-blue-500 rounded-lg p-4 mb-6 text-sm">
+          <div className="text-blue-300">
+            <strong>Debug Info:</strong>
+            <br />
+            API Health: {apiHealth ? '✅ Connected' : '❌ Disconnected'}
+            <br />
+            WebSocket: {connected ? '✅ Connected' : '❌ Disconnected'}
+            <br />
+            Notifications: {notifications.length} total, {notifications.filter(n => !n.read).length} unread
+            <br />
+            Loading: {loading ? 'Yes' : 'No'}
+            {error && <><br />Error: {error}</>}
+          </div>
+        </div>
 
         {/* System Status */}
         {systemStatus && <SystemStatus status={systemStatus} />}

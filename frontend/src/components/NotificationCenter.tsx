@@ -22,10 +22,17 @@ export function NotificationCenter({
   const [priorityFilter, setPriorityFilter] = useState<NotificationPriority | 'all'>('all');
 
   const filteredNotifications = useMemo(() => {
+    console.log('NotificationCenter: filtering notifications', {
+      total: notifications.length,
+      showUnreadOnly,
+      priorityFilter,
+    });
     let filtered = notifications.filter((n) => !n.responded);
+    console.log('After filtering responded:', filtered.length);
 
     if (showUnreadOnly) {
       filtered = filtered.filter((n) => !n.read);
+      console.log('After filtering unread:', filtered.length);
     }
 
     if (priorityFilter !== 'all') {

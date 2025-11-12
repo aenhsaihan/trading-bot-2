@@ -28,7 +28,7 @@ export function useNotifications() {
     fetchNotifications();
     
     // Set up WebSocket connection
-    const wsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8000/ws/notifications';
+    const wsUrl = (import.meta as any).env?.VITE_WS_URL || 'ws://localhost:8000/ws/notifications';
     console.log('Connecting to WebSocket:', wsUrl);
     const ws = new WebSocket(wsUrl);
 
