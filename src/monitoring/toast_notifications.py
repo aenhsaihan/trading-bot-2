@@ -44,7 +44,7 @@ def render_toast_notification(notification: Notification, duration: int = 5000):
     # Generate unique ID for this notification
     toast_id = f"toast_{notification.notification_id}"
     
-    # CSS and JavaScript for toast notification - inject styles once globally
+    # CSS and JavaScript for toast notification - inject styles and handlers once globally
     if not hasattr(render_toast_notification, '_styles_injected'):
         st.markdown("""
     <style>
@@ -156,6 +156,34 @@ def render_toast_notification(notification: Notification, duration: int = 5000):
         animation: slideOutRight 0.3s ease-in forwards !important;
     }
     </style>
+    <script>
+    // Global event delegation for toast dismissals
+    document.addEventListener('click', function(e) {
+        // Handle close button clicks
+        if (e.target && e.target.classList.contains('toast-close')) {
+            e.stopPropagation();
+            e.preventDefault();
+            var container = e.target.closest('.toast-container');
+            if (container) {
+                container.classList.add('toast-slide-out');
+                setTimeout(function() {
+                    container.remove();
+                }, 300);
+            }
+            return false;
+        }
+        // Handle toast card clicks
+        if (e.target && e.target.classList.contains('toast-notification')) {
+            var container = e.target.closest('.toast-container');
+            if (container) {
+                container.classList.add('toast-slide-out');
+                setTimeout(function() {
+                    container.remove();
+                }, 300);
+            }
+        }
+    });
+    </script>
     """, unsafe_allow_html=True)
         render_toast_notification._styles_injected = True
     
@@ -173,8 +201,8 @@ def render_toast_notification(notification: Notification, duration: int = 5000):
         meta_html += f'<span><strong>Confidence:</strong> <span style="color: #4CAF50 !important;">{notification.confidence_score:.0f}%</span></span>'
     
     # HTML for the toast notification - use single-line format to avoid Streamlit parsing issues
-    # Use a more reliable close handler that finds the container by ID
-    toast_html = f'<div id="{toast_id}" class="toast-container" style="--priority-color: {priority_color};"><div class="toast-notification" style="border-left-color: {priority_color} !important;" onclick="var container = document.getElementById(\'{toast_id}\'); if (container) {{ container.classList.add(\'toast-slide-out\'); setTimeout(function() {{ container.remove(); }}, 300); }}"><div class="toast-header"><div class="toast-title"><span style="font-size: 20px;">{priority_emoji}</span><span style="font-size: 18px;">{type_emoji}</span><span style="color: #ffffff !important;">{safe_title}</span></div><button class="toast-close" onclick="event.stopPropagation(); event.preventDefault(); var container = document.getElementById(\'{toast_id}\'); if (container) {{ container.classList.add(\'toast-slide-out\'); setTimeout(function() {{ container.remove(); }}, 300); }} return false;">×</button></div><div class="toast-message">{safe_message}</div><div class="toast-meta">{meta_html}</div></div></div><script>setTimeout(function() {{ var toast = document.getElementById(\'{toast_id}\'); if (toast) {{ toast.classList.add(\'toast-slide-out\'); setTimeout(function() {{ if (toast.parentElement) {{ toast.remove(); }} }}, 300); }} }}, {duration});</script>'
+    # Event handlers are attached via global event delegation in the injected script
+    toast_html = f'<div id="{toast_id}" class="toast-container" style="--priority-color: {priority_color};" data-toast-id="{toast_id}"><div class="toast-notification" style="border-left-color: {priority_color} !important;"><div class="toast-header"><div class="toast-title"><span style="font-size: 20px;">{priority_emoji}</span><span style="font-size: 18px;">{type_emoji}</span><span style="color: #ffffff !important;">{safe_title}</span></div><button class="toast-close" data-toast-id="{toast_id}">×</button></div><div class="toast-message">{safe_message}</div><div class="toast-meta">{meta_html}</div></div></div><script>(function() {{ var toast = document.getElementById(\'{toast_id}\'); if (toast) {{ setTimeout(function() {{ if (toast && toast.parentElement) {{ toast.classList.add(\'toast-slide-out\'); setTimeout(function() {{ if (toast && toast.parentElement) {{ toast.remove(); }} }}, 300); }} }}, {duration}); }} })();</script>'
     
     st.markdown(toast_html, unsafe_allow_html=True)
 
