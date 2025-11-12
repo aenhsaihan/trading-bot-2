@@ -323,131 +323,139 @@ def render_backtest_view(bot, exchange, config):
                 st.markdown("""
                 <style>
                 .tooltip-container {
-                position: relative;
-                display: inline-block;
+                    position: relative;
+                    display: inline-block;
                 }
                 .tooltip-icon {
-                display: inline-block;
-                width: 16px;
-                height: 16px;
-                line-height: 16px;
-                text-align: center;
-                background-color: #1f77b4;
-                color: white;
-                border-radius: 50%;
-                font-size: 11px;
-                font-weight: bold;
-                cursor: help;
-                vertical-align: middle;
-                margin-left: 4px;
+                    display: inline-block;
+                    width: 16px;
+                    height: 16px;
+                    line-height: 16px;
+                    text-align: center;
+                    background-color: #1f77b4;
+                    color: white;
+                    border-radius: 50%;
+                    font-size: 11px;
+                    font-weight: bold;
+                    cursor: help;
+                    vertical-align: middle;
+                    margin-left: 4px;
                 }
                 .tooltip-text {
-                visibility: hidden;
-                width: 250px;
-                background-color: #333;
-                color: #fff;
-                text-align: left;
-                border-radius: 6px;
-                padding: 8px;
-                position: absolute;
-                z-index: 1000;
-                bottom: 125%;
-                left: 50%;
-                margin-left: -125px;
-                opacity: 0;
-                transition: opacity 0.3s;
-                font-size: 12px;
-                line-height: 1.4;
-                box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+                    visibility: hidden;
+                    width: 250px;
+                    background-color: #333;
+                    color: #fff;
+                    text-align: left;
+                    border-radius: 6px;
+                    padding: 8px;
+                    position: absolute;
+                    z-index: 1000;
+                    bottom: 125%;
+                    left: 50%;
+                    margin-left: -125px;
+                    opacity: 0;
+                    transition: opacity 0.3s;
+                    font-size: 12px;
+                    line-height: 1.4;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
                 }
                 .tooltip-container:hover .tooltip-text {
-                visibility: visible;
-                opacity: 1;
+                    visibility: visible;
+                    opacity: 1;
                 }
                 .tooltip-text::after {
-                content: "";
-                position: absolute;
-                top: 100%;
-                left: 50%;
-                margin-left: -5px;
-                border-width: 5px;
-                border-style: solid;
-                border-color: #333 transparent transparent transparent;
+                    content: "";
+                    position: absolute;
+                    top: 100%;
+                    left: 50%;
+                    margin-left: -5px;
+                    border-width: 5px;
+                    border-style: solid;
+                    border-color: #333 transparent transparent transparent;
                 }
                 </style>
                 """, unsafe_allow_html=True)
             
+                # Performance metrics section
+                st.subheader("📊 Performance Metrics")
+                
                 col1, col2, col3, col4 = st.columns(4)
                 with col1:
                     st.markdown("""
-                <strong>Initial Balance</strong> <span class="tooltip-container" style="display: inline-block;">
-                    <span class="tooltip-icon">ℹ</span>
-                    <span class="tooltip-text">Starting capital for the backtest.</span>
-                </span>
-                """, unsafe_allow_html=True)
-                st.metric("Initial Balance", f"${results.get('initial_balance', 0):,.2f}", label_visibility="hidden")
+                    <strong>Initial Balance</strong> <span class="tooltip-container" style="display: inline-block;">
+                        <span class="tooltip-icon">ℹ</span>
+                        <span class="tooltip-text">Starting capital for the backtest.</span>
+                    </span>
+                    """, unsafe_allow_html=True)
+                    st.metric("Initial Balance", f"${results.get('initial_balance', 0):,.2f}", label_visibility="hidden")
+                
                 with col2:
                     st.markdown("""
-                <strong>Final Balance</strong> <span class="tooltip-container" style="display: inline-block;">
-                    <span class="tooltip-icon">ℹ</span>
-                    <span class="tooltip-text">Ending capital after all trades.</span>
-                </span>
-                """, unsafe_allow_html=True)
-                st.metric("Final Balance", f"${results.get('final_balance', 0):,.2f}", label_visibility="hidden")
+                    <strong>Final Balance</strong> <span class="tooltip-container" style="display: inline-block;">
+                        <span class="tooltip-icon">ℹ</span>
+                        <span class="tooltip-text">Ending capital after all trades.</span>
+                    </span>
+                    """, unsafe_allow_html=True)
+                    st.metric("Final Balance", f"${results.get('final_balance', 0):,.2f}", label_visibility="hidden")
+                
                 with col3:
                     return_pct = results.get('total_return', 0)
-                st.markdown("""
-                <strong>Total Return</strong> <span class="tooltip-container" style="display: inline-block;">
-                    <span class="tooltip-icon">ℹ</span>
-                    <span class="tooltip-text">Percentage gain or loss from initial to final balance.</span>
-                </span>
-                """, unsafe_allow_html=True)
-                st.metric("Total Return", f"{return_pct:.2f}%", delta=f"{return_pct:.2f}%", label_visibility="hidden")
+                    st.markdown("""
+                    <strong>Total Return</strong> <span class="tooltip-container" style="display: inline-block;">
+                        <span class="tooltip-icon">ℹ</span>
+                        <span class="tooltip-text">Percentage gain or loss from initial to final balance.</span>
+                    </span>
+                    """, unsafe_allow_html=True)
+                    st.metric("Total Return", f"{return_pct:.2f}%", delta=f"{return_pct:.2f}%", label_visibility="hidden")
+                
                 with col4:
                     st.markdown("""
-                <strong>Total Trades</strong> <span class="tooltip-container" style="display: inline-block;">
-                    <span class="tooltip-icon">ℹ</span>
-                    <span class="tooltip-text">Number of completed buy-sell trade pairs.</span>
-                </span>
-                """, unsafe_allow_html=True)
-                st.metric("Total Trades", results.get('total_trades', 0), label_visibility="hidden")
-            
+                    <strong>Total Trades</strong> <span class="tooltip-container" style="display: inline-block;">
+                        <span class="tooltip-icon">ℹ</span>
+                        <span class="tooltip-text">Number of completed buy-sell trade pairs.</span>
+                    </span>
+                    """, unsafe_allow_html=True)
+                    st.metric("Total Trades", results.get('total_trades', 0), label_visibility="hidden")
+                
                 col1, col2, col3 = st.columns(3)
                 with col1:
                     win_rate = results.get('win_rate', 0)
-                st.markdown("""
-                <strong>Win Rate</strong> <span class="tooltip-container" style="display: inline-block;">
-                    <span class="tooltip-icon">ℹ</span>
-                    <span class="tooltip-text">Percentage of trades that were profitable. Higher is better (e.g., 60% means 6 out of 10 trades made money).</span>
-                </span>
-                """, unsafe_allow_html=True)
-                st.metric("Win Rate", f"{win_rate:.1%}", label_visibility="hidden")
+                    st.markdown("""
+                    <strong>Win Rate</strong> <span class="tooltip-container" style="display: inline-block;">
+                        <span class="tooltip-icon">ℹ</span>
+                        <span class="tooltip-text">Percentage of trades that were profitable. Higher is better (e.g., 60% means 6 out of 10 trades made money).</span>
+                    </span>
+                    """, unsafe_allow_html=True)
+                    st.metric("Win Rate", f"{win_rate:.1%}", label_visibility="hidden")
+                
                 with col2:
                     sharpe = results.get('sharpe_ratio', 0)
-                sharpe_interpretation = ""
-                if sharpe >= 2:
-                    sharpe_interpretation = "🟢 Excellent"
-                elif sharpe >= 1:
-                    sharpe_interpretation = "🟡 Good"
-                else:
-                    sharpe_interpretation = "🔴 Needs improvement"
-                st.markdown(f"""
-                <strong>Sharpe Ratio</strong> <span class="tooltip-container" style="display: inline-block;">
-                    <span class="tooltip-icon">ℹ</span>
-                    <span class="tooltip-text">Measures risk-adjusted returns. Higher is better:<br/>• &lt; 1: Poor (returns don't compensate for risk)<br/>• 1-2: Good<br/>• 2-3: Very good<br/>• &gt; 3: Excellent<br/><br/>A Sharpe ratio of 2 means you're earning 2 units of return for every unit of risk. {sharpe_interpretation}</span>
-                </span>
-                """, unsafe_allow_html=True)
-                st.metric("Sharpe Ratio", f"{sharpe:.2f}", label_visibility="hidden")
+                    sharpe_interpretation = ""
+                    if sharpe >= 2:
+                        sharpe_interpretation = "🟢 Excellent"
+                    elif sharpe >= 1:
+                        sharpe_interpretation = "🟡 Good"
+                    else:
+                        sharpe_interpretation = "🔴 Needs improvement"
+                    st.markdown(f"""
+                    <strong>Sharpe Ratio</strong> <span class="tooltip-container" style="display: inline-block;">
+                        <span class="tooltip-icon">ℹ</span>
+                        <span class="tooltip-text">Measures risk-adjusted returns. Higher is better:<br/>• &lt; 1: Poor (returns don't compensate for risk)<br/>• 1-2: Good<br/>• 2-3: Very good<br/>• &gt; 3: Excellent<br/><br/>A Sharpe ratio of 2 means you're earning 2 units of return for every unit of risk. {sharpe_interpretation}</span>
+                    </span>
+                    """, unsafe_allow_html=True)
+                    st.metric("Sharpe Ratio", f"{sharpe:.2f}", label_visibility="hidden")
+                
                 with col3:
                     total_pnl = results.get('total_pnl', 0)
-                pnl_color = "🟢" if total_pnl > 0 else "🔴"
-                st.markdown("""
-                <strong>Total P&L</strong> <span class="tooltip-container" style="display: inline-block;">
-                    <span class="tooltip-icon">ℹ</span>
-                    <span class="tooltip-text">Total profit or loss from all completed trades. Green = profit, Red = loss.</span>
-                </span>
-                """, unsafe_allow_html=True)
-                st.metric("Total P&L", f"{pnl_color} ${total_pnl:,.2f}", label_visibility="hidden")
+                    pnl_color = "🟢" if total_pnl > 0 else "🔴"
+                    st.markdown("""
+                    <strong>Total P&L</strong> <span class="tooltip-container" style="display: inline-block;">
+                        <span class="tooltip-icon">ℹ</span>
+                        <span class="tooltip-text">Total profit or loss from all completed trades. Green = profit, Red = loss.</span>
+                    </span>
+                    """, unsafe_allow_html=True)
+                    st.metric("Total P&L", f"{pnl_color} ${total_pnl:,.2f}", label_visibility="hidden")
             
                 # Signal analysis
                 signal_analysis = results.get('signal_analysis', {})
