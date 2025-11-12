@@ -289,44 +289,44 @@ def render_backtest_view(bot, exchange, config):
                 results = st.session_state['backtest_results']
                 ohlcv_data = st.session_state['backtest_ohlcv']
                 symbol = st.session_state.get('backtest_result_symbol', backtest_symbol)
-            
-            # Create a unique key for this results set
-            results_id = str(hash(str(results.get('trades', [])) + str(results.get('initial_balance', 0))))
-            
-            # Validate results structure
-            if not isinstance(results, dict):
-                st.error(f"Invalid backtest results format. Got: {type(results)}")
-                st.json({})
-                return
-            
-            # Handle case where no trades were executed (backtest returns minimal dict)
-            if 'initial_balance' not in results:
-                # This happens when no trades were executed - show message and basic info
-                st.info("ℹ️ No trades were executed during this backtest period. The strategy didn't find any buy signals.")
-                st.metric("Total Trades", results.get('total_trades', 0))
-                st.metric("Total P&L", f"${results.get('total_pnl', 0):,.2f}")
                 
-                # Show signal analysis if available
-                signal_analysis = results.get('signal_analysis', {})
-                if signal_analysis.get('potential_buys', 0) > 0:
-                    st.warning(f"⚠️ Found {signal_analysis['potential_buys']} golden cross events, but all were rejected due to RSI being overbought (>70)")
-                    if signal_analysis.get('rejected_buys'):
-                        with st.expander("View rejected signals"):
-                            rejected_df = pd.DataFrame(signal_analysis['rejected_buys'])
-                            if 'timestamp' in rejected_df.columns:
-                                rejected_df['timestamp'] = pd.to_datetime(rejected_df['timestamp'], unit='ms', errors='coerce')
-                            st.dataframe(rejected_df.head(10), width='stretch')
-                return
-            
-            # Performance metrics
-            # Add CSS once at the top
-            st.markdown("""
-            <style>
-            .tooltip-container {
+                # Create a unique key for this results set
+                results_id = str(hash(str(results.get('trades', [])) + str(results.get('initial_balance', 0))))
+                
+                # Validate results structure
+                if not isinstance(results, dict):
+                    st.error(f"Invalid backtest results format. Got: {type(results)}")
+                    st.json({})
+                    return
+                
+                # Handle case where no trades were executed (backtest returns minimal dict)
+                if 'initial_balance' not in results:
+                    # This happens when no trades were executed - show message and basic info
+                    st.info("ℹ️ No trades were executed during this backtest period. The strategy didn't find any buy signals.")
+                    st.metric("Total Trades", results.get('total_trades', 0))
+                    st.metric("Total P&L", f"${results.get('total_pnl', 0):,.2f}")
+                    
+                    # Show signal analysis if available
+                    signal_analysis = results.get('signal_analysis', {})
+                    if signal_analysis.get('potential_buys', 0) > 0:
+                        st.warning(f"⚠️ Found {signal_analysis['potential_buys']} golden cross events, but all were rejected due to RSI being overbought (>70)")
+                        if signal_analysis.get('rejected_buys'):
+                            with st.expander("View rejected signals"):
+                                rejected_df = pd.DataFrame(signal_analysis['rejected_buys'])
+                                if 'timestamp' in rejected_df.columns:
+                                    rejected_df['timestamp'] = pd.to_datetime(rejected_df['timestamp'], unit='ms', errors='coerce')
+                                st.dataframe(rejected_df.head(10), width='stretch')
+                    return
+                
+                # Performance metrics
+                # Add CSS once at the top
+                st.markdown("""
+                <style>
+                .tooltip-container {
                 position: relative;
                 display: inline-block;
-            }
-            .tooltip-icon {
+                }
+                .tooltip-icon {
                 display: inline-block;
                 width: 16px;
                 height: 16px;
@@ -340,8 +340,8 @@ def render_backtest_view(bot, exchange, config):
                 cursor: help;
                 vertical-align: middle;
                 margin-left: 4px;
-            }
-            .tooltip-text {
+                }
+                .tooltip-text {
                 visibility: hidden;
                 width: 250px;
                 background-color: #333;
@@ -359,12 +359,12 @@ def render_backtest_view(bot, exchange, config):
                 font-size: 12px;
                 line-height: 1.4;
                 box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-            }
-            .tooltip-container:hover .tooltip-text {
+                }
+                .tooltip-container:hover .tooltip-text {
                 visibility: visible;
                 opacity: 1;
-            }
-            .tooltip-text::after {
+                }
+                .tooltip-text::after {
                 content: "";
                 position: absolute;
                 top: 100%;
@@ -373,12 +373,12 @@ def render_backtest_view(bot, exchange, config):
                 border-width: 5px;
                 border-style: solid;
                 border-color: #333 transparent transparent transparent;
-            }
-            </style>
-            """, unsafe_allow_html=True)
+                }
+                </style>
+                """, unsafe_allow_html=True)
             
-            col1, col2, col3, col4 = st.columns(4)
-            with col1:
+                col1, col2, col3, col4 = st.columns(4)
+                with col1:
                 st.markdown("""
                 <strong>Initial Balance</strong> <span class="tooltip-container" style="display: inline-block;">
                     <span class="tooltip-icon">ℹ</span>
@@ -386,7 +386,7 @@ def render_backtest_view(bot, exchange, config):
                 </span>
                 """, unsafe_allow_html=True)
                 st.metric("Initial Balance", f"${results.get('initial_balance', 0):,.2f}", label_visibility="hidden")
-            with col2:
+                with col2:
                 st.markdown("""
                 <strong>Final Balance</strong> <span class="tooltip-container" style="display: inline-block;">
                     <span class="tooltip-icon">ℹ</span>
@@ -394,7 +394,7 @@ def render_backtest_view(bot, exchange, config):
                 </span>
                 """, unsafe_allow_html=True)
                 st.metric("Final Balance", f"${results.get('final_balance', 0):,.2f}", label_visibility="hidden")
-            with col3:
+                with col3:
                 return_pct = results.get('total_return', 0)
                 st.markdown("""
                 <strong>Total Return</strong> <span class="tooltip-container" style="display: inline-block;">
@@ -403,7 +403,7 @@ def render_backtest_view(bot, exchange, config):
                 </span>
                 """, unsafe_allow_html=True)
                 st.metric("Total Return", f"{return_pct:.2f}%", delta=f"{return_pct:.2f}%", label_visibility="hidden")
-            with col4:
+                with col4:
                 st.markdown("""
                 <strong>Total Trades</strong> <span class="tooltip-container" style="display: inline-block;">
                     <span class="tooltip-icon">ℹ</span>
@@ -412,8 +412,8 @@ def render_backtest_view(bot, exchange, config):
                 """, unsafe_allow_html=True)
                 st.metric("Total Trades", results.get('total_trades', 0), label_visibility="hidden")
             
-            col1, col2, col3 = st.columns(3)
-            with col1:
+                col1, col2, col3 = st.columns(3)
+                with col1:
                 win_rate = results.get('win_rate', 0)
                 st.markdown("""
                 <strong>Win Rate</strong> <span class="tooltip-container" style="display: inline-block;">
@@ -422,7 +422,7 @@ def render_backtest_view(bot, exchange, config):
                 </span>
                 """, unsafe_allow_html=True)
                 st.metric("Win Rate", f"{win_rate:.1%}", label_visibility="hidden")
-            with col2:
+                with col2:
                 sharpe = results.get('sharpe_ratio', 0)
                 sharpe_interpretation = ""
                 if sharpe >= 2:
@@ -438,7 +438,7 @@ def render_backtest_view(bot, exchange, config):
                 </span>
                 """, unsafe_allow_html=True)
                 st.metric("Sharpe Ratio", f"{sharpe:.2f}", label_visibility="hidden")
-            with col3:
+                with col3:
                 total_pnl = results.get('total_pnl', 0)
                 pnl_color = "🟢" if total_pnl > 0 else "🔴"
                 st.markdown("""
@@ -449,9 +449,9 @@ def render_backtest_view(bot, exchange, config):
                 """, unsafe_allow_html=True)
                 st.metric("Total P&L", f"{pnl_color} ${total_pnl:,.2f}", label_visibility="hidden")
             
-            # Signal analysis
-            signal_analysis = results.get('signal_analysis', {})
-            if signal_analysis:
+                # Signal analysis
+                signal_analysis = results.get('signal_analysis', {})
+                if signal_analysis:
                 st.divider()
                 st.subheader("📊 Signal Analysis")
                 col1, col2 = st.columns(2)
@@ -485,8 +485,8 @@ def render_backtest_view(bot, exchange, config):
                     else:
                         st.info("All golden crosses met RSI criteria")
             
-            # Only render chart and table if results have changed
-            if 'last_rendered_results_id' not in st.session_state or st.session_state.get('last_rendered_results_id') != results_id:
+                # Only render chart and table if results have changed
+                if 'last_rendered_results_id' not in st.session_state or st.session_state.get('last_rendered_results_id') != results_id:
                 st.session_state['last_rendered_results_id'] = results_id
                 
                 # Animated chart - render in container
