@@ -253,21 +253,42 @@ def render_backtest_view(bot, exchange, config):
                 )
                 
                 # Store results in session state for animation (use different keys to avoid widget conflicts)
+                current_strategy = st.session_state.get('selected_strategy', 'trend_following')
                 st.session_state['backtest_results'] = results
                 st.session_state['backtest_ohlcv'] = ohlcv_data
                 st.session_state['backtest_result_symbol'] = backtest_symbol  # Different key to avoid widget conflict
+                st.session_state['backtest_result_strategy'] = current_strategy  # Track which strategy these results are for
                 st.success("✅ Backtest completed!")
             except Exception as e:
                 st.error(f"Error running backtest: {e}")
                 import traceback
                 st.code(traceback.format_exc())
     
-    # Display results if available
+    # Display results if available (only if they're for the current strategy)
+    current_strategy = st.session_state.get('selected_strategy', 'trend_following')
+    results_strategy = st.session_state.get('backtest_result_strategy', None)
+    
     if 'backtest_results' in st.session_state and st.session_state.get('backtest_results'):
-        try:
-            results = st.session_state['backtest_results']
-            ohlcv_data = st.session_state['backtest_ohlcv']
-            symbol = st.session_state.get('backtest_result_symbol', backtest_symbol)
+        # Only show results if they're for the current strategy
+        if results_strategy != current_strategy:
+            # Clear old results from different strategy
+            if 'backtest_results' in st.session_state:
+                del st.session_state.backtest_results
+            if 'backtest_result_symbol' in st.session_state:
+                del st.session_state.backtest_result_symbol
+            if 'backtest_result_strategy' in st.session_state:
+                del st.session_state.backtest_result_strategy
+            if 'backtest_ohlcv' in st.session_state:
+                del st.session_state.backtest_ohlcv
+            if 'last_rendered_results_id' in st.session_state:
+                del st.session_state.last_rendered_results_id
+            # Don't display anything - results cleared
+        else:
+            # Display backtest results
+            try:
+                results = st.session_state['backtest_results']
+                ohlcv_data = st.session_state['backtest_ohlcv']
+                symbol = st.session_state.get('backtest_result_symbol', backtest_symbol)
             
             # Create a unique key for this results set
             results_id = str(hash(str(results.get('trades', [])) + str(results.get('initial_balance', 0))))
@@ -1006,6 +1027,13 @@ def main():
                 del st.session_state.cached_exchange
             if 'cached_config' in st.session_state:
                 del st.session_state.cached_config
+            # Clear backtest results when strategy changes (old results are for different strategy)
+            if 'backtest_results' in st.session_state:
+                del st.session_state.backtest_results
+            if 'backtest_result_symbol' in st.session_state:
+                del st.session_state.backtest_result_symbol
+            if 'last_rendered_results_id' in st.session_state:
+                del st.session_state.last_rendered_results_id
             # Stop streamer if running
             if 'streamer' in st.session_state and st.session_state.streamer.running:
                 st.session_state.streamer.stop()
