@@ -2141,6 +2141,9 @@ def main():
         # Get notifications
         all_notifications = notification_manager.get_all(unread_only=show_unread_only)
         
+        # Filter out responded notifications (they've been handled)
+        all_notifications = [n for n in all_notifications if not n.responded]
+        
         # Filter by priority if selected
         if priority_filter != "All":
             priority_map = {
@@ -2153,6 +2156,18 @@ def main():
             selected_priority = priority_map.get(priority_filter)
             all_notifications = [n for n in all_notifications if n.priority == selected_priority]
         
+        # Handle user actions BEFORE rendering (to avoid flicker)
+        # Check if there's a pending action in session state
+        if 'pending_notification_action' in st.session_state:
+            action, notif_id = st.session_state.pending_notification_action
+            if action and notif_id:
+                notification_manager.respond(notif_id, action)
+                notification_manager.mark_read(notif_id)
+                # Remove from session state
+                del st.session_state.pending_notification_action
+                st.success(f"✅ Action '{action}' recorded for notification")
+                st.rerun()
+        
         # Render notification center
         action, notif_id = render_notification_center(
             all_notifications,
@@ -2161,11 +2176,9 @@ def main():
             show_unread_only=show_unread_only
         )
         
-        # Handle user actions
+        # Store action in session state for next rerun (prevents flicker)
         if action and notif_id:
-            notification_manager.respond(notif_id, action)
-            notification_manager.mark_read(notif_id)
-            st.success(f"✅ Action '{action}' recorded for notification")
+            st.session_state.pending_notification_action = (action, notif_id)
             st.rerun()
         
         # Demo notifications (for testing - remove in production)
