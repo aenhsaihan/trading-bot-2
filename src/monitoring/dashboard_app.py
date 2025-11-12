@@ -55,6 +55,8 @@ from src.notifications.notification_types import (
     NotificationSource
 )
 from src.notifications.voice_alert import VoiceAlert
+from src.monitoring.api_client import NotificationAPIClient
+from src.monitoring.notification_adapter import NotificationAdapter
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import pandas as pd
