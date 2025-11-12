@@ -928,7 +928,16 @@ def main():
         if 'selected_strategy' not in st.session_state:
             st.session_state.selected_strategy = "trend_following"
         
-        # Get available strategies
+        # Get available strategies (force reload by accessing registry directly)
+        try:
+            # Reload registry module to pick up new strategies
+            import importlib
+            from src.strategies import registry
+            importlib.reload(registry)
+            from src.strategies.registry import StrategyRegistry
+        except Exception as e:
+            st.warning(f"Could not reload registry: {e}")
+        
         available_strategies = StrategyRegistry.get_strategy_names()
         strategy_descriptions = StrategyRegistry.list_strategies()
         
