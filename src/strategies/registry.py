@@ -3,6 +3,8 @@
 from typing import Dict, Type, Optional
 from .base import StrategyBase
 from .trend_following import TrendFollowingStrategy
+from .mean_reversion import MeanReversionStrategy
+from .momentum import MomentumStrategy
 
 
 class StrategyRegistry:
@@ -10,10 +12,14 @@ class StrategyRegistry:
     
     _strategies: Dict[str, Type[StrategyBase]] = {
         'trend_following': TrendFollowingStrategy,
+        'mean_reversion': MeanReversionStrategy,
+        'momentum': MomentumStrategy,
     }
     
     _strategy_descriptions: Dict[str, str] = {
         'trend_following': 'Trend Following - Uses moving averages (MA) and momentum indicators (RSI, MACD) to identify and follow market trends. Best for trending markets.',
+        'mean_reversion': 'Mean Reversion - Buys when price is oversold (low RSI, below Bollinger Bands) and sells when overbought. Best for range-bound markets.',
+        'momentum': 'Momentum - Buys on strong momentum signals (rising RSI, bullish MACD, high volume) and sells when momentum weakens. Best for volatile trending markets.',
     }
     
     @classmethod
@@ -47,6 +53,8 @@ class StrategyRegistry:
         """Get a human-readable display name for a strategy"""
         display_names = {
             'trend_following': 'Trend Following',
+            'mean_reversion': 'Mean Reversion',
+            'momentum': 'Momentum',
         }
         return display_names.get(name, name.replace('_', ' ').title())
 
