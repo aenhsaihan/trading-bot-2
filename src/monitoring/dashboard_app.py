@@ -12,7 +12,7 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 # App version - update this when deploying major changes
-APP_VERSION = "2.0.14"
+APP_VERSION = "2.0.15"
 APP_BUILD_DATE = "2025-11-12"
 
 from src.utils.config import Config
