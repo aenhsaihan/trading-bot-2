@@ -50,32 +50,25 @@ def initialize_bot():
     use_sandbox = is_paper and api_key is not None
     exchange = BinanceExchange(api_key=api_key, api_secret=api_secret, sandbox=use_sandbox)
     
-    # Show connection status
-    with st.spinner("🔄 Connecting to exchange..."):
+    # Try to connect - status will be shown at top of page
+    connected_exchange = None
+    if not exchange.connect():
+        # Binance may be blocked in some regions (e.g., Streamlit Cloud servers)
+        # Try Coinbase as fallback
+        from src.exchanges.coinbase import CoinbaseExchange
+        exchange = CoinbaseExchange(api_key=None, api_secret=None, sandbox=False)
         if not exchange.connect():
-            # Binance may be blocked in some regions (e.g., Streamlit Cloud servers)
-            # Try Coinbase as fallback
-            st.warning("⚠️ Binance connection failed (may be geo-restricted). Trying Coinbase...")
-            from src.exchanges.coinbase import CoinbaseExchange
-            exchange = CoinbaseExchange(api_key=None, api_secret=None, sandbox=False)
+            # Try Kraken as last resort
+            from src.exchanges.kraken import KrakenExchange
+            exchange = KrakenExchange(api_key=None, api_secret=None, sandbox=False)
             if not exchange.connect():
-                # Try Kraken as last resort
-                st.warning("⚠️ Coinbase connection failed. Trying Kraken...")
-                from src.exchanges.kraken import KrakenExchange
-                exchange = KrakenExchange(api_key=None, api_secret=None, sandbox=False)
-                if not exchange.connect():
-                    st.error("❌ Failed to connect to any exchange. This may be due to:")
-                    st.error("1. Network connectivity issues")
-                    st.error("2. Exchange API restrictions (Binance blocks some regions)")
-                    st.error("3. Exchange API downtime")
-                    st.info("💡 **Tip:** Try refreshing the page or check if exchanges are accessible from your location.")
-                    st.stop()
-                else:
-                    st.success(f"✅ Connected to Kraken")
+                connected_exchange = None  # Failed
             else:
-                st.success(f"✅ Connected to Coinbase")
+                connected_exchange = "Kraken"
         else:
-            st.success(f"✅ Connected to Binance")
+            connected_exchange = "Coinbase"
+    else:
+        connected_exchange = "Binance"
     
     # Initialize strategy
     strategy_config = config.get_strategy_config()
@@ -84,7 +77,7 @@ def initialize_bot():
     # Initialize bot
     bot = TradingBot(exchange, strategy, config, is_paper_trading=is_paper)
     
-    return bot, exchange, config
+    return bot, exchange, config, connected_exchange
 
 
 def render_backtest_view(bot, exchange, config):
@@ -747,15 +740,31 @@ def main():
     
     st.title("🤖 Crypto Trading Bot Dashboard")
     
+    # Show connection status at the top
+    connection_status_container = st.container()
+    with connection_status_container:
+        with st.spinner("🔄 Connecting to exchange..."):
+            try:
+                bot, exchange, config, connected_exchange = initialize_bot()
+                
+                # Clear spinner and show connection status
+                if connected_exchange:
+                    st.success(f"✅ Connected to {connected_exchange}")
+                else:
+                    st.error("❌ Failed to connect to any exchange. This may be due to:")
+                    st.error("1. Network connectivity issues")
+                    st.error("2. Exchange API restrictions (Binance blocks some regions)")
+                    st.error("3. Exchange API downtime")
+                    st.info("💡 **Tip:** Try refreshing the page or check if exchanges are accessible from your location.")
+                    st.stop()
+            except Exception as e:
+                st.error(f"Failed to initialize bot: {e}")
+                st.stop()
+    
+    st.divider()
+    
     # Add tabs for Live Trading and Backtesting
     tab1, tab2 = st.tabs(["📈 Live Trading", "📊 Backtesting"])
-    
-    # Initialize components
-    try:
-        bot, exchange, config = initialize_bot()
-    except Exception as e:
-        st.error(f"Failed to initialize bot: {e}")
-        st.stop()
     
     # Initialize other components
     if 'metrics_collector' not in st.session_state:
