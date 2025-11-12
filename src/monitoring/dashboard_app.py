@@ -2265,6 +2265,7 @@ def main():
         # Demo notifications (for testing - remove in production)
         st.divider()
         with st.expander("🧪 Demo: Create Test Notification"):
+            notification_adapter = st.session_state.notification_adapter
             col1, col2 = st.columns(2)
             with col1:
                 demo_type = st.selectbox(
