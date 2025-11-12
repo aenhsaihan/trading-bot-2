@@ -1,7 +1,6 @@
 """Toast notification system - slides in from top right"""
 
 import streamlit as st
-import streamlit.components.v1 as components
 from typing import Optional, Dict
 from datetime import datetime
 from src.notifications.notification_types import Notification, NotificationPriority, NotificationType
@@ -225,142 +224,33 @@ def render_toast_notification(notification: Notification, duration: int = 5000):
     if notification.confidence_score is not None:
         meta_html += f'<span><strong>Confidence:</strong> <span style="color: #4CAF50 !important;">{notification.confidence_score:.0f}%</span></span>'
     
-    # Build complete HTML with embedded JavaScript
-    # Use components.v1.html for better JavaScript execution control
-    full_html = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <style>
-        @keyframes slideInRight {{
-            from {{
-                transform: translateX(100%);
-                opacity: 0;
-            }}
-            to {{
-                transform: translateX(0);
-                opacity: 1;
-            }}
-        }}
-        
-        @keyframes slideOutRight {{
-            from {{
-                transform: translateX(0);
-                opacity: 1;
-            }}
-            to {{
-                transform: translateX(100%);
-                opacity: 0;
-            }}
-        }}
-        
-        .toast-container {{
-            position: fixed !important;
-            top: 70px !important;
-            right: 20px !important;
-            z-index: 9999 !important;
-            max-width: 400px !important;
-            animation: slideInRight 0.3s ease-out !important;
-        }}
-        
-        .toast-notification {{
-            background: linear-gradient(135deg, #1e1e2e 0%, #2a2a3e 100%) !important;
-            border-left: 4px solid {priority_color} !important;
-            border-radius: 12px !important;
-            padding: 16px !important;
-            margin-bottom: 12px !important;
-            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4) !important;
-            color: #ffffff !important;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
-            cursor: pointer !important;
-            transition: transform 0.2s, box-shadow 0.2s !important;
-        }}
-        
-        .toast-notification:hover {{
-            transform: translateY(-2px) !important;
-            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.5) !important;
-        }}
-        
-        .toast-header {{
-            display: flex !important;
-            justify-content: space-between !important;
-            align-items: center !important;
-            margin-bottom: 8px !important;
-        }}
-        
-        .toast-title {{
-            display: flex !important;
-            align-items: center !important;
-            gap: 8px !important;
-            font-weight: bold !important;
-            font-size: 16px !important;
-            color: #ffffff !important;
-        }}
-        
-        .toast-close {{
-            background: rgba(255, 255, 255, 0.2) !important;
-            border: none !important;
-            border-radius: 50% !important;
-            width: 24px !important;
-            height: 24px !important;
-            color: #ffffff !important;
-            cursor: pointer !important;
-            font-size: 16px !important;
-            line-height: 1 !important;
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            transition: background 0.2s !important;
-        }}
-        
-        .toast-close:hover {{
-            background: rgba(255, 255, 255, 0.3) !important;
-        }}
-        
-        .toast-message {{
-            color: #cccccc !important;
-            font-size: 14px !important;
-            line-height: 1.5 !important;
-            margin-bottom: 8px !important;
-        }}
-        
-        .toast-meta {{
-            display: flex !important;
-            gap: 12px !important;
-            font-size: 12px !important;
-            color: #888 !important;
-            flex-wrap: wrap !important;
-        }}
-        
-        .toast-meta span {{
-            color: #888 !important;
-        }}
-        
-        .toast-slide-out {{
-            animation: slideOutRight 0.3s ease-in forwards !important;
-        }}
-        </style>
-    </head>
-    <body>
-        <div id="{toast_id}" class="toast-container" data-toast-id="{toast_id}">
-            <div class="toast-notification" id="toast-notif-{toast_id}">
-                <div class="toast-header">
-                    <div class="toast-title">
-                        <span style="font-size: 20px;">{priority_emoji}</span>
-                        <span style="font-size: 18px;">{type_emoji}</span>
-                        <span style="color: #ffffff !important;">{safe_title}</span>
-                    </div>
-                    <button class="toast-close" id="close-{toast_id}" type="button">×</button>
+    # HTML for the toast notification
+    # Use a script that runs immediately and sets up event listeners
+    toast_html = f'''
+    <div id="{toast_id}" class="toast-container" style="--priority-color: {priority_color};" data-toast-id="{toast_id}">
+        <div class="toast-notification" id="toast-notif-{toast_id}" style="border-left-color: {priority_color} !important;">
+            <div class="toast-header">
+                <div class="toast-title">
+                    <span style="font-size: 20px;">{priority_emoji}</span>
+                    <span style="font-size: 18px;">{type_emoji}</span>
+                    <span style="color: #ffffff !important;">{safe_title}</span>
                 </div>
-                <div class="toast-message">{safe_message}</div>
-                <div class="toast-meta">{meta_html}</div>
+                <button class="toast-close" id="close-{toast_id}" type="button">×</button>
             </div>
+            <div class="toast-message">{safe_message}</div>
+            <div class="toast-meta">{meta_html}</div>
         </div>
-        
-        <script>
-        (function() {{
+    </div>
+    <script>
+    (function() {{
+        function initToast() {{
             var toastId = '{toast_id}';
             var container = document.getElementById(toastId);
+            if (!container) {{
+                setTimeout(initToast, 50);
+                return;
+            }}
+            
             var closeBtn = document.getElementById('close-' + toastId);
             var toastCard = document.getElementById('toast-notif-' + toastId);
             
@@ -377,36 +267,42 @@ def render_toast_notification(notification: Notification, duration: int = 5000):
             
             // Close button handler
             if (closeBtn) {{
-                closeBtn.addEventListener('click', function(e) {{
+                closeBtn.onclick = function(e) {{
                     e.stopPropagation();
                     e.preventDefault();
                     dismissToast();
                     return false;
-                }});
+                }};
             }}
             
             // Card click handler
             if (toastCard) {{
-                toastCard.addEventListener('click', function(e) {{
-                    // Don't dismiss if clicking on close button
+                toastCard.onclick = function(e) {{
                     if (!e.target.classList.contains('toast-close') && !e.target.closest('.toast-close')) {{
                         dismissToast();
                     }}
-                }});
+                }};
             }}
             
             // Auto-dismiss
             setTimeout(function() {{
                 dismissToast();
             }}, {duration});
-        }})();
-        </script>
-    </body>
-    </html>
-    """
+        }}
+        
+        // Try immediately, then retry if DOM not ready
+        if (document.readyState === 'loading') {{
+            document.addEventListener('DOMContentLoaded', initToast);
+        }} else {{
+            initToast();
+        }}
+        // Also retry after a short delay to catch dynamically added elements
+        setTimeout(initToast, 100);
+    }})();
+    </script>
+    '''
     
-    # Use components.v1.html for better JavaScript execution
-    components.html(full_html, height=0)
+    st.markdown(toast_html, unsafe_allow_html=True)
 
 
 def render_toast_system():
