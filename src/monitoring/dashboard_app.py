@@ -44,12 +44,17 @@ from src.monitoring.notifications import (
     render_system_status_indicator,
     render_notification_badge
 )
+from src.monitoring.toast_notifications import (
+    render_toast_notification,
+    check_and_show_new_notifications
+)
 from src.notifications.notification_manager import NotificationManager
 from src.notifications.notification_types import (
     NotificationType,
     NotificationPriority,
     NotificationSource
 )
+from src.notifications.voice_alert import VoiceAlert
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import pandas as pd
@@ -1796,6 +1801,14 @@ def main():
         notification_config = config.get_notification_config() if hasattr(config, 'get_notification_config') else {}
         st.session_state.notification_manager = NotificationManager(config=notification_config)
     
+    # Initialize voice alert system
+    if 'voice_alert' not in st.session_state:
+        st.session_state.voice_alert = VoiceAlert(enabled=True)
+    
+    # Track last shown notification for toast
+    if 'last_toast_notification_id' not in st.session_state:
+        st.session_state.last_toast_notification_id = None
+    
     # Initialize streamer lazily - only create it, don't start it yet
     # We'll start it conditionally based on which tab is active
     # Recreate streamer if exchange changed
@@ -2117,6 +2130,26 @@ def main():
     with tab4:
         # Notification Center
         notification_manager = st.session_state.notification_manager
+        
+        # Check for new notifications and show toast + voice alert
+        new_notif_id = check_and_show_new_notifications(
+            notification_manager,
+            st.session_state.last_toast_notification_id
+        )
+        
+        # If new notification, play voice alert
+        if new_notif_id and new_notif_id != st.session_state.last_toast_notification_id:
+            # Get the notification
+            all_notifications = notification_manager.get_all()
+            new_notification = next((n for n in all_notifications if n.notification_id == new_notif_id), None)
+            if new_notification:
+                # Play voice alert
+                st.session_state.voice_alert.alert(
+                    notification_type=new_notification.notification_type.value,
+                    priority=new_notification.priority.value,
+                    symbol=new_notification.symbol
+                )
+                st.session_state.last_toast_notification_id = new_notif_id
         
         # System status indicator at top
         status = notification_manager.get_system_status()
