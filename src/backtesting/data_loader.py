@@ -52,13 +52,20 @@ class DataLoader:
             all_data = []
             max_per_request = 1000  # Most exchanges limit to 1000 per request
             
+            # Calculate since timestamp if not provided - go backwards from now
+            if since is None:
+                timeframe_ms = self._get_timeframe_ms(timeframe)
+                # Calculate timestamp for oldest candle we need (limit candles ago)
+                current_time_ms = int(time.time() * 1000)
+                since = current_time_ms - (limit * timeframe_ms)
+            
             if limit <= max_per_request:
                 # Single request
                 self.logger.info(f"Fetching {limit} candles of {symbol} {timeframe} from {exchange.name}")
                 ohlcv_data = exchange.get_ohlcv(symbol, timeframe, limit, since=since)
                 all_data = ohlcv_data
             else:
-                # Multiple requests needed
+                # Multiple requests needed - fetch from oldest to newest
                 self.logger.info(f"Fetching {limit} candles of {symbol} {timeframe} (will make multiple requests)")
                 
                 remaining = limit
@@ -75,12 +82,19 @@ class DataLoader:
                     
                     all_data.extend(batch)
                     
-                    # Update for next request - use last candle timestamp
+                    # Update for next request - use last candle timestamp + timeframe to get next batch
                     if batch:
                         last_timestamp = batch[-1]['timestamp']
-                        # Add one timeframe duration to avoid overlap
                         timeframe_ms = self._get_timeframe_ms(timeframe)
-                        current_since = last_timestamp + timeframe_ms
+                        next_since = last_timestamp + timeframe_ms
+                        
+                        # Safety check: don't go into the future
+                        current_time_ms = int(time.time() * 1000)
+                        if next_since >= current_time_ms:
+                            # We've reached the present, stop fetching
+                            break
+                        
+                        current_since = next_since
                     
                     remaining -= len(batch)
                     

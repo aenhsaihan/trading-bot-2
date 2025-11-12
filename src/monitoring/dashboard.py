@@ -202,7 +202,7 @@ def render_performance_metrics(metrics: Dict):
             <span class="tooltip-text">Total profit or loss from all completed trades. Green = profit, Red = loss.</span>
         </span>
         """, unsafe_allow_html=True)
-        st.metric("", f"{pnl_color} ${total_pnl:.2f}")
+        st.metric("Total P&L", f"{pnl_color} ${total_pnl:.2f}", label_visibility="hidden")
     
     with col2:
         st.markdown("""
@@ -211,7 +211,7 @@ def render_performance_metrics(metrics: Dict):
             <span class="tooltip-text">Percentage of trades that were profitable. Higher is better (e.g., 60% means 6 out of 10 trades made money).</span>
         </span>
         """, unsafe_allow_html=True)
-        st.metric("", f"{win_rate:.1%}")
+        st.metric("Win Rate", f"{win_rate:.1%}", label_visibility="hidden")
     
     with col3:
         st.markdown("""
@@ -220,7 +220,7 @@ def render_performance_metrics(metrics: Dict):
             <span class="tooltip-text">Number of completed buy-sell trade pairs.</span>
         </span>
         """, unsafe_allow_html=True)
-        st.metric("", total_trades)
+        st.metric("Total Trades", total_trades, label_visibility="hidden")
     
     with col4:
         sharpe_interpretation = ""
@@ -236,7 +236,7 @@ def render_performance_metrics(metrics: Dict):
             <span class="tooltip-text">Measures risk-adjusted returns. Higher is better:<br/>• &lt; 1: Poor (returns don't compensate for risk)<br/>• 1-2: Good<br/>• 2-3: Very good<br/>• &gt; 3: Excellent<br/><br/>A Sharpe ratio of 2 means you're earning 2 units of return for every unit of risk. {sharpe_interpretation}</span>
         </span>
         """, unsafe_allow_html=True)
-        st.metric("", f"{sharpe:.2f}")
+        st.metric("Sharpe Ratio", f"{sharpe:.2f}", label_visibility="hidden")
 
 
 def render_price_chart(ohlcv_data: list, indicators: Optional[Dict] = None):

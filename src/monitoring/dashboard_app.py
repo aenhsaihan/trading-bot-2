@@ -12,7 +12,7 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 # App version - update this when deploying major changes
-APP_VERSION = "1.1.1"
+APP_VERSION = "1.1.2"
 APP_BUILD_DATE = "2025-11-12"
 
 from src.utils.config import Config
@@ -318,7 +318,7 @@ def render_backtest_view(bot, exchange, config):
                     <span class="tooltip-text">Starting capital for the backtest.</span>
                 </span>
                 """, unsafe_allow_html=True)
-                st.metric("", f"${results.get('initial_balance', 0):,.2f}")
+                st.metric("Initial Balance", f"${results.get('initial_balance', 0):,.2f}", label_visibility="hidden")
             with col2:
                 st.markdown("""
                 <strong>Final Balance</strong> <span class="tooltip-container" style="display: inline-block;">
@@ -326,7 +326,7 @@ def render_backtest_view(bot, exchange, config):
                     <span class="tooltip-text">Ending capital after all trades.</span>
                 </span>
                 """, unsafe_allow_html=True)
-                st.metric("", f"${results.get('final_balance', 0):,.2f}")
+                st.metric("Final Balance", f"${results.get('final_balance', 0):,.2f}", label_visibility="hidden")
             with col3:
                 return_pct = results.get('total_return', 0)
                 st.markdown("""
@@ -335,7 +335,7 @@ def render_backtest_view(bot, exchange, config):
                     <span class="tooltip-text">Percentage gain or loss from initial to final balance.</span>
                 </span>
                 """, unsafe_allow_html=True)
-                st.metric("", f"{return_pct:.2f}%", delta=f"{return_pct:.2f}%")
+                st.metric("Total Return", f"{return_pct:.2f}%", delta=f"{return_pct:.2f}%", label_visibility="hidden")
             with col4:
                 st.markdown("""
                 <strong>Total Trades</strong> <span class="tooltip-container" style="display: inline-block;">
@@ -343,7 +343,7 @@ def render_backtest_view(bot, exchange, config):
                     <span class="tooltip-text">Number of completed buy-sell trade pairs.</span>
                 </span>
                 """, unsafe_allow_html=True)
-                st.metric("", results.get('total_trades', 0))
+                st.metric("Total Trades", results.get('total_trades', 0), label_visibility="hidden")
             
             col1, col2, col3 = st.columns(3)
             with col1:
@@ -354,7 +354,7 @@ def render_backtest_view(bot, exchange, config):
                     <span class="tooltip-text">Percentage of trades that were profitable. Higher is better (e.g., 60% means 6 out of 10 trades made money).</span>
                 </span>
                 """, unsafe_allow_html=True)
-                st.metric("", f"{win_rate:.1%}")
+                st.metric("Win Rate", f"{win_rate:.1%}", label_visibility="hidden")
             with col2:
                 sharpe = results.get('sharpe_ratio', 0)
                 sharpe_interpretation = ""
@@ -370,7 +370,7 @@ def render_backtest_view(bot, exchange, config):
                     <span class="tooltip-text">Measures risk-adjusted returns. Higher is better:<br/>• &lt; 1: Poor (returns don't compensate for risk)<br/>• 1-2: Good<br/>• 2-3: Very good<br/>• &gt; 3: Excellent<br/><br/>A Sharpe ratio of 2 means you're earning 2 units of return for every unit of risk. {sharpe_interpretation}</span>
                 </span>
                 """, unsafe_allow_html=True)
-                st.metric("", f"{sharpe:.2f}")
+                st.metric("Sharpe Ratio", f"{sharpe:.2f}", label_visibility="hidden")
             with col3:
                 total_pnl = results.get('total_pnl', 0)
                 pnl_color = "🟢" if total_pnl > 0 else "🔴"
@@ -380,7 +380,7 @@ def render_backtest_view(bot, exchange, config):
                     <span class="tooltip-text">Total profit or loss from all completed trades. Green = profit, Red = loss.</span>
                 </span>
                 """, unsafe_allow_html=True)
-                st.metric("", f"{pnl_color} ${total_pnl:,.2f}")
+                st.metric("Total P&L", f"{pnl_color} ${total_pnl:,.2f}", label_visibility="hidden")
             
             # Signal analysis
             signal_analysis = results.get('signal_analysis', {})
@@ -397,7 +397,7 @@ def render_backtest_view(bot, exchange, config):
                         <span class="tooltip-text">Number of bullish crossover signals detected (when short MA crosses above long MA).</span>
                     </span>
                     """, unsafe_allow_html=True)
-                    st.metric("", potential_buys)
+                    st.metric("Golden Crosses Detected", potential_buys, label_visibility="hidden")
                     if potential_buys > 0:
                         conversion_rate = (actual_buys / potential_buys) * 100
                         st.markdown("""
@@ -406,7 +406,7 @@ def render_backtest_view(bot, exchange, config):
                             <span class="tooltip-text">Percentage of potential buy signals that became trades. Low (&lt; 50%) might mean filters are too strict. High (&gt; 80%) means most signals are acted upon. Signals can be rejected if RSI is overbought (≥ 70) at the time of the golden cross.</span>
                         </span>
                         """, unsafe_allow_html=True)
-                        st.metric("", f"{conversion_rate:.1f}%")
+                        st.metric("Conversion Rate", f"{conversion_rate:.1f}%", label_visibility="hidden")
                         st.caption(f"✅ {actual_buys} trades executed out of {potential_buys} potential signals")
                 with col2:
                     rejected = len(signal_analysis.get('rejected_buys', []))
