@@ -215,7 +215,7 @@ def render_notification_center(
     
     if not display_notifications:
         st.info("✨ No notifications - Everything is calm and monitored.")
-        return
+        return None, None
     
     # Stats bar
     unread_count = len([n for n in notifications if not n.read])
