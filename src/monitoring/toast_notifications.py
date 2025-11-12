@@ -157,32 +157,56 @@ def render_toast_notification(notification: Notification, duration: int = 5000):
     }
     </style>
     <script>
-    // Global event delegation for toast dismissals
-    document.addEventListener('click', function(e) {
-        // Handle close button clicks
-        if (e.target && e.target.classList.contains('toast-close')) {
-            e.stopPropagation();
-            e.preventDefault();
-            var container = e.target.closest('.toast-container');
-            if (container) {
-                container.classList.add('toast-slide-out');
-                setTimeout(function() {
-                    container.remove();
-                }, 300);
-            }
-            return false;
+    // Global event delegation for toast dismissals - ensure it runs after DOM is ready
+    (function() {
+        function setupToastHandlers() {
+            // Remove old listeners to avoid duplicates
+            document.removeEventListener('click', handleToastClick);
+            document.addEventListener('click', handleToastClick);
         }
-        // Handle toast card clicks
-        if (e.target && e.target.classList.contains('toast-notification')) {
-            var container = e.target.closest('.toast-container');
-            if (container) {
-                container.classList.add('toast-slide-out');
-                setTimeout(function() {
-                    container.remove();
-                }, 300);
+        
+        function handleToastClick(e) {
+            // Handle close button clicks
+            if (e.target && e.target.classList.contains('toast-close')) {
+                e.stopPropagation();
+                e.preventDefault();
+                var container = e.target.closest('.toast-container');
+                if (container) {
+                    container.classList.add('toast-slide-out');
+                    setTimeout(function() {
+                        if (container.parentElement) {
+                            container.remove();
+                        }
+                    }, 300);
+                }
+                return false;
+            }
+            // Handle toast card clicks (but not if clicking on close button)
+            if (e.target && (e.target.classList.contains('toast-notification') || e.target.closest('.toast-notification'))) {
+                if (!e.target.classList.contains('toast-close') && !e.target.closest('.toast-close')) {
+                    var container = e.target.closest('.toast-container');
+                    if (container) {
+                        container.classList.add('toast-slide-out');
+                        setTimeout(function() {
+                            if (container.parentElement) {
+                                container.remove();
+                            }
+                        }, 300);
+                    }
+                }
             }
         }
-    });
+        
+        // Setup handlers when DOM is ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', setupToastHandlers);
+        } else {
+            setupToastHandlers();
+        }
+        
+        // Also setup on next tick to catch dynamically added elements
+        setTimeout(setupToastHandlers, 100);
+    })();
     </script>
     """, unsafe_allow_html=True)
         render_toast_notification._styles_injected = True
@@ -202,9 +226,9 @@ def render_toast_notification(notification: Notification, duration: int = 5000):
     
     # HTML for the toast notification - use single-line format to avoid Streamlit parsing issues
     # Event handlers are attached via global event delegation in the injected script
-    # Use .format() to avoid f-string brace escaping issues
-    script_part = f'(function() {{ var toast = document.getElementById(\'{toast_id}\'); if (toast) {{ setTimeout(function() {{ if (toast && toast.parentElement) {{ toast.classList.add(\'toast-slide-out\'); setTimeout(function() {{ if (toast && toast.parentElement) {{ toast.remove(); }} }}, 300); }} }}, {duration}); }} }})();'
-    toast_html = f'<div id="{toast_id}" class="toast-container" style="--priority-color: {priority_color};" data-toast-id="{toast_id}"><div class="toast-notification" style="border-left-color: {priority_color} !important;"><div class="toast-header"><div class="toast-title"><span style="font-size: 20px;">{priority_emoji}</span><span style="font-size: 18px;">{type_emoji}</span><span style="color: #ffffff !important;">{safe_title}</span></div><button class="toast-close" data-toast-id="{toast_id}">×</button></div><div class="toast-message">{safe_message}</div><div class="toast-meta">{meta_html}</div></div></div><script>{script_part}</script>'
+    # Auto-dismiss script runs immediately after toast is created
+    auto_dismiss_script = f'<script>(function() {{ var toastId = \'{toast_id}\'; setTimeout(function() {{ var toast = document.getElementById(toastId); if (toast && toast.parentElement) {{ toast.classList.add(\'toast-slide-out\'); setTimeout(function() {{ if (toast && toast.parentElement) {{ toast.remove(); }} }}, 300); }} }}, {duration}); }})();</script>'
+    toast_html = f'<div id="{toast_id}" class="toast-container" style="--priority-color: {priority_color};" data-toast-id="{toast_id}"><div class="toast-notification" style="border-left-color: {priority_color} !important;"><div class="toast-header"><div class="toast-title"><span style="font-size: 20px;">{priority_emoji}</span><span style="font-size: 18px;">{type_emoji}</span><span style="color: #ffffff !important;">{safe_title}</span></div><button class="toast-close" data-toast-id="{toast_id}" type="button">×</button></div><div class="toast-message">{safe_message}</div><div class="toast-meta">{meta_html}</div></div></div>{auto_dismiss_script}'
     
     st.markdown(toast_html, unsafe_allow_html=True)
 
