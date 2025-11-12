@@ -2218,11 +2218,6 @@ def main():
                     )
                 st.session_state.last_toast_notification_id = new_notif_id
         
-        # Auto-refresh logic
-        if auto_refresh and refresh_interval:
-            time.sleep(refresh_interval)
-            st.rerun()
-        
         # System status indicator at top
         status = notification_adapter.get_system_status()
         render_system_status_indicator(status)
@@ -2284,6 +2279,11 @@ def main():
         # Store action in session state for next rerun (prevents flicker)
         if action and notif_id:
             st.session_state.pending_notification_action = (action, notif_id)
+            st.rerun()
+        
+        # Auto-refresh logic (at the very end, after all content is rendered)
+        if auto_refresh and refresh_interval:
+            time.sleep(refresh_interval)
             st.rerun()
         
         # Demo notifications (for testing - remove in production)
