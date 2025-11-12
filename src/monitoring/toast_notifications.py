@@ -272,16 +272,12 @@ def render_toast_notification(notification: Notification, duration: int = 5000):
             <div style="position: absolute; top: 0; right: 20px; z-index: 10000;">
         ''', unsafe_allow_html=True)
         
-        # Check if dismiss button was clicked
+        # Dismiss button - don't set session_state for widget keys
         dismiss_key = f"dismiss_{toast_id}"
-        if dismiss_key not in st.session_state:
-            st.session_state[dismiss_key] = False
-        
         if st.button("×", key=dismiss_key, help="Dismiss notification", 
                     use_container_width=False):
             dismissed_toasts.add(notification.notification_id)
             st.session_state.dismissed_toasts = dismissed_toasts
-            st.session_state[dismiss_key] = True
             st.rerun()
         
         st.markdown('</div></div>', unsafe_allow_html=True)
