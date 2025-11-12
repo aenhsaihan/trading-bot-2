@@ -951,9 +951,16 @@ def main():
                     }
                     
                     indicators = bot.strategy._calculate_indicators(ohlcv_for_indicators)
-                    position = bot._get_position(symbol)
-                    
-                    if indicators:
+                else:
+                    indicators = {}
+                    market_data = {}
+            except Exception as e:
+                st.warning(f"Could not fetch indicator data: {e}")
+                indicators = {}
+                market_data = {}
+            
+            if indicators:
+                position = bot._get_position(symbol)
                         # Display current indicator values
                         short_ma = indicators.get('short_ma', 0)
                         long_ma = indicators.get('long_ma', 0)
