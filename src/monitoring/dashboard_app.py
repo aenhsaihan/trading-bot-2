@@ -740,26 +740,25 @@ def main():
     
     st.title("🤖 Crypto Trading Bot Dashboard")
     
-    # Show connection status at the top
-    connection_status_container = st.container()
-    with connection_status_container:
-        with st.spinner("🔄 Connecting to exchange..."):
-            try:
-                bot, exchange, config, connected_exchange = initialize_bot()
-                
-                # Clear spinner and show connection status
-                if connected_exchange:
-                    st.success(f"✅ Connected to {connected_exchange}")
-                else:
-                    st.error("❌ Failed to connect to any exchange. This may be due to:")
-                    st.error("1. Network connectivity issues")
-                    st.error("2. Exchange API restrictions (Binance blocks some regions)")
-                    st.error("3. Exchange API downtime")
-                    st.info("💡 **Tip:** Try refreshing the page or check if exchanges are accessible from your location.")
-                    st.stop()
-            except Exception as e:
-                st.error(f"Failed to initialize bot: {e}")
-                st.stop()
+    # Show connection status at the top (before tabs)
+    with st.spinner("🔄 Connecting to exchange..."):
+        try:
+            bot, exchange, config, connected_exchange = initialize_bot()
+        except Exception as e:
+            st.error(f"Failed to initialize bot: {e}")
+            st.stop()
+    
+    # Display connection status prominently at the top
+    if connected_exchange:
+        st.success(f"✅ **Connected to {connected_exchange}**")
+    else:
+        st.error("❌ **Failed to connect to any exchange**")
+        st.error("This may be due to:")
+        st.error("1. Network connectivity issues")
+        st.error("2. Exchange API restrictions (Binance blocks some regions)")
+        st.error("3. Exchange API downtime")
+        st.info("💡 **Tip:** Try refreshing the page or check if exchanges are accessible from your location.")
+        st.stop()
     
     st.divider()
     
