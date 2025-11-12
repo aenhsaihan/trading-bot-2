@@ -12,7 +12,7 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 # App version - update this when deploying major changes
-APP_VERSION = "1.5.6"
+APP_VERSION = "1.5.7"
 APP_BUILD_DATE = "2025-11-12"
 
 from src.utils.config import Config
@@ -846,7 +846,6 @@ def render_backtest_view(bot, exchange, config):
         
         # Comparison equity curves chart
         st.subheader("📈 Equity Curves Comparison")
-        import plotly.graph_objects as go
         
         fig = go.Figure()
         
