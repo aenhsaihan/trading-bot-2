@@ -159,41 +159,21 @@ def render_toast_notification(notification: Notification, duration: int = 5000):
     """, unsafe_allow_html=True)
         render_toast_notification._styles_injected = True
     
-    # HTML for the toast notification
-    toast_html = f"""
-    <div id="{toast_id}" class="toast-container" style="--priority-color: {priority_color};">
-        <div class="toast-notification" style="border-left-color: {priority_color} !important;" onclick="this.parentElement.classList.add('toast-slide-out'); setTimeout(() => this.parentElement.remove(), 300);">
-            <div class="toast-header">
-                <div class="toast-title">
-                    <span style="font-size: 20px;">{priority_emoji}</span>
-                    <span style="font-size: 18px;">{type_emoji}</span>
-                    <span style="color: #ffffff !important;">{notification.title}</span>
-                </div>
-                <button class="toast-close" onclick="event.stopPropagation(); this.closest('.toast-container').classList.add('toast-slide-out'); setTimeout(() => this.closest('.toast-container').remove(), 300);">×</button>
-            </div>
-            <div class="toast-message">{notification.message}</div>
-            <div class="toast-meta">
-                {f'<span><strong>Symbol:</strong> <span style="color: #4CAF50 !important;">{notification.symbol}</span></span>' if notification.symbol else ''}
-                {f'<span><strong>Confidence:</strong> <span style="color: #4CAF50 !important;">{notification.confidence_score:.0f}%</span></span>' if notification.confidence_score is not None else ''}
-            </div>
-        </div>
-    </div>
+    # Escape HTML in notification content to prevent XSS
+    import html
+    safe_title = html.escape(str(notification.title))
+    safe_message = html.escape(str(notification.message))
+    safe_symbol = html.escape(str(notification.symbol)) if notification.symbol else ""
     
-    <script>
-    // Auto-dismiss after duration
-    setTimeout(function() {{
-        var toast = document.getElementById('{toast_id}');
-        if (toast) {{
-            toast.classList.add('toast-slide-out');
-            setTimeout(function() {{
-                if (toast.parentElement) {{
-                    toast.remove();
-                }}
-            }}, 300);
-        }}
-    }}, {duration});
-    </script>
-    """
+    # Build metadata HTML
+    meta_html = ""
+    if notification.symbol:
+        meta_html += f'<span><strong>Symbol:</strong> <span style="color: #4CAF50 !important;">{safe_symbol}</span></span>'
+    if notification.confidence_score is not None:
+        meta_html += f'<span><strong>Confidence:</strong> <span style="color: #4CAF50 !important;">{notification.confidence_score:.0f}%</span></span>'
+    
+    # HTML for the toast notification - use single-line format to avoid Streamlit parsing issues
+    toast_html = f'<div id="{toast_id}" class="toast-container" style="--priority-color: {priority_color};"><div class="toast-notification" style="border-left-color: {priority_color} !important;" onclick="this.parentElement.classList.add(\'toast-slide-out\'); setTimeout(() => this.parentElement.remove(), 300);"><div class="toast-header"><div class="toast-title"><span style="font-size: 20px;">{priority_emoji}</span><span style="font-size: 18px;">{type_emoji}</span><span style="color: #ffffff !important;">{safe_title}</span></div><button class="toast-close" onclick="event.stopPropagation(); this.closest(\'.toast-container\').classList.add(\'toast-slide-out\'); setTimeout(() => this.closest(\'.toast-container\').remove(), 300);">×</button></div><div class="toast-message">{safe_message}</div><div class="toast-meta">{meta_html}</div></div></div><script>setTimeout(function() {{ var toast = document.getElementById(\'{toast_id}\'); if (toast) {{ toast.classList.add(\'toast-slide-out\'); setTimeout(function() {{ if (toast.parentElement) {{ toast.remove(); }} }}, 300); }} }}, {duration});</script>'
     
     st.markdown(toast_html, unsafe_allow_html=True)
 
