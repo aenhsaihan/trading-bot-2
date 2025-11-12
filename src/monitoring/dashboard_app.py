@@ -5,8 +5,10 @@ import sys
 import threading
 from pathlib import Path
 
-# Add parent directory to path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+# Add parent directory to path for imports
+project_root = Path(__file__).parent.parent.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
 
 from src.utils.config import Config
 from src.exchanges.binance import BinanceExchange
@@ -769,13 +771,17 @@ def main():
     if 'metrics_collector' not in st.session_state:
         st.session_state.metrics_collector = MetricsCollector()
     
+    # Initialize streamer only once and check if it's actually running
     if 'streamer' not in st.session_state:
-        # Use longer update interval to avoid rate limits (5 seconds instead of 2)
-        st.session_state.streamer = DataStreamer(exchange, update_interval=5.0)
+        # Use longer update interval to avoid rate limits (10 seconds for Kraken)
+        st.session_state.streamer = DataStreamer(exchange, update_interval=10.0)
         st.session_state.streamer.start("BTC/USDT")
-    elif not st.session_state.streamer.running:
-        # Restart if it stopped
-        st.session_state.streamer.start("BTC/USDT")
+    elif hasattr(st.session_state.streamer, 'running'):
+        # Only restart if it's actually stopped (not just checking the flag)
+        if not st.session_state.streamer.running:
+            # Check if thread is actually dead before restarting
+            if not (st.session_state.streamer.thread and st.session_state.streamer.thread.is_alive()):
+                st.session_state.streamer.start("BTC/USDT")
     
     if 'trade_db' not in st.session_state:
         st.session_state.trade_db = TradeDB(config.database_path)

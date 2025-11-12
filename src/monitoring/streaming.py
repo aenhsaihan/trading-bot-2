@@ -34,6 +34,12 @@ class DataStreamer:
     def start(self, symbol: str):
         """Start streaming data"""
         if self.running:
+            self.logger.debug(f"Streamer already running for {symbol}, skipping start")
+            return
+        
+        # Double-check to prevent race conditions
+        if self.thread and self.thread.is_alive():
+            self.logger.debug(f"Streamer thread already alive for {symbol}, skipping start")
             return
         
         self.running = True
