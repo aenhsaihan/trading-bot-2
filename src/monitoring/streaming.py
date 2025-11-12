@@ -49,14 +49,17 @@ class DataStreamer:
         self.logger.info("Stopped streaming data")
     
     def _stream_loop(self, symbol: str):
-        """Main streaming loop"""
+        """Main streaming loop with exponential backoff for rate limiting"""
+        consecutive_errors = 0
+        max_backoff = 60  # Maximum backoff time in seconds
+        
         while self.running:
             try:
                 # Get ticker data
                 ticker = self.exchange.get_ticker(symbol)
                 
-                # Get recent OHLCV
-                ohlcv = self.exchange.get_ohlcv(symbol, timeframe="1h", limit=100)
+                # Get recent OHLCV (reduced limit to avoid rate limits)
+                ohlcv = self.exchange.get_ohlcv(symbol, timeframe="1h", limit=10)
                 
                 data = {
                     'symbol': symbol,
@@ -70,6 +73,9 @@ class DataStreamer:
                 
                 self.latest_data[symbol] = data
                 
+                # Reset error counter on success
+                consecutive_errors = 0
+                
                 # Notify callbacks
                 for callback in self.callbacks:
                     try:
@@ -80,8 +86,27 @@ class DataStreamer:
                 time.sleep(self.update_interval)
             
             except Exception as e:
-                self.logger.error(f"Error in stream loop: {e}")
-                time.sleep(self.update_interval)
+                error_str = str(e).lower()
+                
+                # Check for rate limiting errors
+                is_rate_limit = (
+                    'too many requests' in error_str or
+                    'rate limit' in error_str or
+                    '429' in error_str or
+                    'egeneral:too many requests' in error_str
+                )
+                
+                if is_rate_limit:
+                    consecutive_errors += 1
+                    # Exponential backoff: 2^errors seconds, capped at max_backoff
+                    backoff_time = min(2 ** consecutive_errors, max_backoff)
+                    self.logger.warning(f"Rate limited. Backing off for {backoff_time}s (attempt {consecutive_errors})")
+                    time.sleep(backoff_time)
+                else:
+                    # For other errors, use normal interval
+                    self.logger.error(f"Error in stream loop: {e}")
+                    consecutive_errors = min(consecutive_errors + 1, 5)  # Cap at 5 for non-rate-limit errors
+                    time.sleep(self.update_interval)
     
     def get_latest_data(self, symbol: str) -> Optional[Dict]:
         """Get latest data for symbol"""

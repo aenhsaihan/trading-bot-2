@@ -770,7 +770,11 @@ def main():
         st.session_state.metrics_collector = MetricsCollector()
     
     if 'streamer' not in st.session_state:
-        st.session_state.streamer = DataStreamer(exchange, update_interval=2.0)
+        # Use longer update interval to avoid rate limits (5 seconds instead of 2)
+        st.session_state.streamer = DataStreamer(exchange, update_interval=5.0)
+        st.session_state.streamer.start("BTC/USDT")
+    elif not st.session_state.streamer.running:
+        # Restart if it stopped
         st.session_state.streamer.start("BTC/USDT")
     
     if 'trade_db' not in st.session_state:

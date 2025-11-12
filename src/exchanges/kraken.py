@@ -29,7 +29,8 @@ class KrakenExchange(ExchangeBase):
         """Connect to Kraken"""
         # For paper trading, API keys are optional (public data access)
         base_config = {
-            'enableRateLimit': True
+            'enableRateLimit': True,
+            'rateLimit': 1000  # 1 second between requests (Kraken allows 1 req/sec for public endpoints)
         }
         
         # Only add API keys if provided
