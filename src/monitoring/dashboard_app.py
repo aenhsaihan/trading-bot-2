@@ -12,7 +12,7 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 # App version - update this when deploying major changes
-APP_VERSION = "2.0.0"
+APP_VERSION = "2.0.1"
 APP_BUILD_DATE = "2025-11-12"
 
 from src.utils.config import Config
@@ -1650,6 +1650,23 @@ def main():
     with st.sidebar:
         st.caption(f"📦 Version {APP_VERSION}")
         st.caption(f"🔨 Build: {APP_BUILD_DATE}")
+        st.divider()
+        
+        # Voice alert toggle
+        st.subheader("🔊 Voice Alerts")
+        if 'voice_alert_enabled' not in st.session_state:
+            st.session_state.voice_alert_enabled = True
+        
+        voice_enabled = st.checkbox(
+            "Enable voice notifications",
+            value=st.session_state.voice_alert_enabled,
+            key="voice_alert_checkbox"
+        )
+        if voice_enabled != st.session_state.voice_alert_enabled:
+            st.session_state.voice_alert_enabled = voice_enabled
+            if 'voice_alert' in st.session_state:
+                st.session_state.voice_alert.set_enabled(voice_enabled)
+        
         st.divider()
         
         # Exchange selector

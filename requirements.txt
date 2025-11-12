@@ -13,6 +13,9 @@ web3>=6.0.0
 # Visualization
 plotly>=5.17.0
 
+# Voice alerts (StarCraft-style notifications)
+pyttsx3>=2.90  # Text-to-speech for voice alerts
+
 # Note: For full DEX support with ccxt 4.5+ (includes coincurve for performance),
 # see requirements-dex.txt. coincurve requires pkg-config which may not be
 # available on Streamlit Cloud. ccxt will fall back to pure Python ECDSA if
