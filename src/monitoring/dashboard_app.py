@@ -381,7 +381,7 @@ def render_backtest_view(bot, exchange, config):
             key="backtest_symbol"
         )
     with col2:
-        timeframe = st.selectbox("Timeframe", ["1h", "4h", "1d"], index=2, key="backtest_timeframe")
+        timeframe = st.selectbox("Timeframe", ["15m", "1h", "4h", "1d"], index=1, key="backtest_timeframe")
     with col3:
         # Calculate approximate date range based on candles
         timeframe_days = {"15m": 1/96, "1h": 1/24, "4h": 1/6, "1d": 1}.get(timeframe, 1)
