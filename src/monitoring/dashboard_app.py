@@ -12,7 +12,7 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 # App version - update this when deploying major changes
-APP_VERSION = "1.5.1"
+APP_VERSION = "1.5.2"
 APP_BUILD_DATE = "2025-11-12"
 
 from src.utils.config import Config
@@ -1817,6 +1817,14 @@ def main():
     
     # Tab content
     with tab1:
+        # Start streamer if not already started (only for Live Trading tab)
+        if not st.session_state.get('streamer_started', False) or not st.session_state.streamer.running:
+            try:
+                st.session_state.streamer.start(symbol)
+                st.session_state.streamer_started = True
+            except Exception as e:
+                st.warning(f"Could not start data streamer: {e}")
+        
         # Sync bot state with session state (for UI)
         st.session_state.bot_running = bot.running
         
