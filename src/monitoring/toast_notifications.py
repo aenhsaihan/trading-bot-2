@@ -72,7 +72,7 @@ def render_toast_notification(notification: Notification, duration: int = 5000):
     
     .toast-container {
         position: fixed !important;
-        top: 20px !important;
+        top: 70px !important;
         right: 20px !important;
         z-index: 9999 !important;
         max-width: 400px !important;
