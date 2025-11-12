@@ -108,13 +108,31 @@ class CoinbaseExchange(ExchangeBase):
     def get_ticker(self, symbol: str) -> Dict[str, Any]:
         """Get ticker data"""
         try:
-            ticker = self.exchange.fetch_ticker(symbol)
+            # Coinbase uses USD instead of USDT for quote currency
+            # Map common symbols to Coinbase format
+            coinbase_symbol = symbol
+            if symbol.endswith('/USDT'):
+                coinbase_symbol = symbol.replace('/USDT', '/USD')
+                self.logger.debug(f"Mapping {symbol} to {coinbase_symbol} for Coinbase")
+            
+            ticker = self.exchange.fetch_ticker(coinbase_symbol)
+            
+            # Helper function to safely convert to Decimal, handling None values
+            def safe_decimal(value, default='0'):
+                if value is None:
+                    return Decimal(default)
+                try:
+                    return Decimal(str(value))
+                except (ValueError, TypeError) as e:
+                    self.logger.warning(f"Could not convert {value} to Decimal, using default {default}: {e}")
+                    return Decimal(default)
+            
             return {
-                'last': Decimal(str(ticker['last'])),
-                'bid': Decimal(str(ticker['bid'])),
-                'ask': Decimal(str(ticker['ask'])),
-                'volume': Decimal(str(ticker['quoteVolume'])),
-                'timestamp': ticker['timestamp']
+                'last': safe_decimal(ticker.get('last')),
+                'bid': safe_decimal(ticker.get('bid')),
+                'ask': safe_decimal(ticker.get('ask')),
+                'volume': safe_decimal(ticker.get('quoteVolume') or ticker.get('volume')),
+                'timestamp': ticker.get('timestamp', 0)
             }
         except Exception as e:
             self.logger.error(f"Error fetching ticker for {symbol}: {e}")
