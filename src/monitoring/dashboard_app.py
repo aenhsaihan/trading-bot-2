@@ -2301,7 +2301,7 @@ def main():
                     "Info": NotificationPriority.INFO
                 }
                 
-                notification_manager.notify(
+                notification_adapter.notify(
                     notification_type=type_map[demo_type],
                     priority=priority_map[demo_priority],
                     title=demo_title,
