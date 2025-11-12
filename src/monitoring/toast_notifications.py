@@ -243,59 +243,66 @@ def render_toast_notification(notification: Notification, duration: int = 5000):
         st.session_state.dismissed_toasts = dismissed_toasts
         return
     
-    # HTML for the toast notification with integrated close button
-    # The close button will be handled via Streamlit button below, styled to match
-    toast_html = f'''
-    <div id="{toast_id}" class="toast-container" style="--priority-color: {priority_color};" data-toast-id="{toast_id}">
-        <div class="toast-notification" id="toast-notif-{toast_id}" style="border-left-color: {priority_color} !important;">
-            <div class="toast-header">
-                <div class="toast-title">
-                    <span style="font-size: 20px;">{priority_emoji}</span>
-                    <span style="font-size: 18px;">{type_emoji}</span>
-                    <span style="color: #ffffff !important;">{safe_title}</span>
+    # Dismiss button key
+    dismiss_key = f"dismiss_{toast_id}"
+    
+    # Check if button was clicked (before rendering)
+    if dismiss_key in st.session_state and st.session_state[dismiss_key]:
+        dismissed_toasts.add(notification.notification_id)
+        st.session_state.dismissed_toasts = dismissed_toasts
+        # Reset the button state
+        st.session_state[dismiss_key] = False
+        return  # Don't render if dismissed
+    
+    # HTML for the toast notification with close button embedded
+    # Use columns to position button next to toast
+    col1, col2 = st.columns([0.92, 0.08])
+    
+    with col1:
+        toast_html = f'''
+        <div id="{toast_id}" class="toast-container" style="--priority-color: {priority_color};" data-toast-id="{toast_id}">
+            <div class="toast-notification" id="toast-notif-{toast_id}" style="border-left-color: {priority_color} !important;">
+                <div class="toast-header">
+                    <div class="toast-title">
+                        <span style="font-size: 20px;">{priority_emoji}</span>
+                        <span style="font-size: 18px;">{type_emoji}</span>
+                        <span style="color: #ffffff !important;">{safe_title}</span>
+                    </div>
                 </div>
+                <div class="toast-message">{safe_message}</div>
+                <div class="toast-meta">{meta_html}</div>
             </div>
-            <div class="toast-message">{safe_message}</div>
-            <div class="toast-meta">{meta_html}</div>
         </div>
-    </div>
-    '''
+        '''
+        st.markdown(toast_html, unsafe_allow_html=True)
     
-    st.markdown(toast_html, unsafe_allow_html=True)
-    
-    # Add Streamlit button styled to look like close button, positioned absolutely
-    # Use columns to position it in top right
-    with st.container():
-        # Create a container with relative positioning for the button
-        st.markdown(f'''
-        <div style="position: relative; margin-top: -60px; margin-bottom: 20px;">
-            <div style="position: absolute; top: 0; right: 20px; z-index: 10000;">
-        ''', unsafe_allow_html=True)
-        
-        # Dismiss button - don't set session_state for widget keys
-        dismiss_key = f"dismiss_{toast_id}"
+    with col2:
+        # Close button positioned next to toast
         if st.button("×", key=dismiss_key, help="Dismiss notification", 
-                    use_container_width=False):
-            dismissed_toasts.add(notification.notification_id)
-            st.session_state.dismissed_toasts = dismissed_toasts
+                    use_container_width=True):
+            st.session_state[dismiss_key] = True
             st.rerun()
         
-        st.markdown('</div></div>', unsafe_allow_html=True)
-        
-        # Also add CSS to style the button
+        # Style the button to look like a close button
         st.markdown(f'''
         <style>
         button[key="{dismiss_key}"] {{
             background: rgba(255, 255, 255, 0.2) !important;
             border: none !important;
             border-radius: 50% !important;
-            width: 24px !important;
-            height: 24px !important;
+            width: 32px !important;
+            height: 32px !important;
+            min-width: 32px !important;
             color: #ffffff !important;
-            font-size: 16px !important;
+            font-size: 20px !important;
+            font-weight: bold !important;
             line-height: 1 !important;
             padding: 0 !important;
             margin: 0 !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            cursor: pointer !important;
         }}
         button[key="{dismiss_key}"]:hover {{
             background: rgba(255, 255, 255, 0.3) !important;
