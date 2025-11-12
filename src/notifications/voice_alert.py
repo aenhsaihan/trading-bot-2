@@ -31,24 +31,43 @@ class VoiceAlert:
                 self.enabled = False
     
     def _configure_voice(self):
-        """Configure voice settings for StarCraft-like alerts"""
+        """Configure voice settings for StarCraft-like alerts (sexy female voice)"""
         if not self.engine:
             return
         
         try:
             # Set speech rate (slightly faster for urgency)
-            self.engine.setProperty('rate', 180)  # Default is 200, lower = faster
+            self.engine.setProperty('rate', 170)  # Default is 200, lower = faster
             
             # Set volume (0.0 to 1.0)
-            self.engine.setProperty('volume', 0.9)
+            self.engine.setProperty('volume', 0.95)
             
-            # Try to set a more authoritative voice
+            # Try to set a female voice (StarCraft-style)
             voices = self.engine.getProperty('voices')
             if voices:
-                # Prefer male voices (more StarCraft-like)
+                # Prefer female voices - StarCraft style!
+                # Common macOS female voices: Samantha, Victoria, Karen, Zira (Windows)
+                female_voice_names = ['samantha', 'victoria', 'karen', 'zira', 'susan', 'kate', 'anna']
                 for voice in voices:
-                    if 'male' in voice.name.lower() or 'david' in voice.name.lower() or 'daniel' in voice.name.lower():
+                    voice_name_lower = voice.name.lower()
+                    # Check if it's a female voice
+                    if any(female_name in voice_name_lower for female_name in female_voice_names):
                         self.engine.setProperty('voice', voice.id)
+                        self.logger.info(f"Using voice: {voice.name}")
+                        return
+                    # Also check for gender property if available
+                    if hasattr(voice, 'gender'):
+                        if 'female' in str(voice.gender).lower():
+                            self.engine.setProperty('voice', voice.id)
+                            self.logger.info(f"Using voice: {voice.name}")
+                            return
+                
+                # Fallback: try to find any voice that's not explicitly male
+                for voice in voices:
+                    voice_name_lower = voice.name.lower()
+                    if 'male' not in voice_name_lower and 'david' not in voice_name_lower and 'daniel' not in voice_name_lower:
+                        self.engine.setProperty('voice', voice.id)
+                        self.logger.info(f"Using fallback voice: {voice.name}")
                         break
         except Exception as e:
             self.logger.warning(f"Could not configure voice: {e}")
@@ -92,7 +111,7 @@ class VoiceAlert:
         else:
             return f"Notification{symbol_text}: Market update available."
     
-    def alert(self, notification_type: str, priority: str, symbol: Optional[str] = None, custom_message: Optional[str] = None):
+    def alert(self, notification_type: str, priority: str, symbol: Optional[str] = None, custom_message: Optional[str] = None, notification_message: Optional[str] = None):
         """
         Play voice alert for notification.
         
@@ -101,12 +120,18 @@ class VoiceAlert:
             priority: Priority level
             symbol: Trading pair symbol
             custom_message: Custom message to speak (overrides default)
+            notification_message: The actual notification message text (preferred)
         """
         if not self.enabled or not self.engine:
             return
         
-        # Generate message
-        message = custom_message or self._get_alert_message(notification_type, priority, symbol)
+        # Use notification message first, then custom message, then generate default
+        if notification_message:
+            message = notification_message
+        elif custom_message:
+            message = custom_message
+        else:
+            message = self._get_alert_message(notification_type, priority, symbol)
         
         # Play in background thread to avoid blocking
         def speak():

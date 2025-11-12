@@ -2160,11 +2160,12 @@ def main():
             all_notifications = notification_manager.get_all()
             new_notification = next((n for n in all_notifications if n.notification_id == new_notif_id), None)
             if new_notification:
-                # Play voice alert
+                # Play voice alert with the actual notification message
                 st.session_state.voice_alert.alert(
                     notification_type=new_notification.notification_type.value,
                     priority=new_notification.priority.value,
-                    symbol=new_notification.symbol
+                    symbol=new_notification.symbol,
+                    notification_message=new_notification.message  # Use the actual message!
                 )
                 st.session_state.last_toast_notification_id = new_notif_id
         
