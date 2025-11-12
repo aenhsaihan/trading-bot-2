@@ -1,0 +1,11 @@
+# Optional DEX dependencies
+# These are only needed for DEX functionality
+# Note: coincurve requires pkg-config which may not be available on all platforms
+# ccxt will fall back to pure Python ECDSA if coincurve is not available
+
+# For full DEX support with ccxt (includes coincurve for performance):
+ccxt>=4.5.0
+
+# For DEX using web3 only (no coincurve needed):
+# web3>=6.0.0 is already in requirements.txt
+
