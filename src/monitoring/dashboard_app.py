@@ -2172,6 +2172,12 @@ def main():
         else:
             st.warning(f"⚠️ FastAPI backend not available at {api_client.base_url} - Using direct NotificationManager")
         
+        # Auto-refresh toggle for real-time updates
+        col_status, col_refresh = st.columns([3, 1])
+        with col_refresh:
+            auto_refresh = st.checkbox("🔄 Auto-refresh", value=True, help="Automatically refresh every 3 seconds")
+            refresh_interval = 3 if auto_refresh else None
+        
         # Debug info (can remove later)
         with st.expander("🔍 Debug Info"):
             st.json({
@@ -2186,7 +2192,7 @@ def main():
             st.session_state.last_toast_notification_id
         )
         
-        # If new notification, play voice alert
+        # If new notification, play voice alert immediately
         if new_notif_id and new_notif_id != st.session_state.last_toast_notification_id:
             # Get the notification
             all_notifications = notification_adapter.get_all()
@@ -2212,6 +2218,11 @@ def main():
                     )
                 st.session_state.last_toast_notification_id = new_notif_id
         
+        # Auto-refresh logic
+        if auto_refresh and refresh_interval:
+            time.sleep(refresh_interval)
+            st.rerun()
+        
         # System status indicator at top
         status = notification_adapter.get_system_status()
         render_system_status_indicator(status)
@@ -2229,7 +2240,7 @@ def main():
                 index=0
             )
         with col3:
-            if st.button("🔄 Refresh", width='stretch'):
+            if st.button("🔄 Manual Refresh", width='stretch'):
                 st.rerun()
         
         # Get notifications
