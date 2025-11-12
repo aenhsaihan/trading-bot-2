@@ -12,7 +12,7 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 # App version - update this when deploying major changes
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.1.0"
 APP_BUILD_DATE = "2025-11-12"
 
 from src.utils.config import Config
@@ -34,7 +34,8 @@ from src.monitoring.dashboard import (
     render_trade_history,
     render_export_section,
     get_signal_color,
-    get_pnl_color
+    get_pnl_color,
+    render_tooltip_icon
 )
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
@@ -253,25 +254,68 @@ def render_backtest_view(bot, exchange, config):
             # Performance metrics
             col1, col2, col3, col4 = st.columns(4)
             with col1:
-                st.metric("Initial Balance", f"${results.get('initial_balance', 0):,.2f}")
+                label_col, tooltip_col = st.columns([0.9, 0.1])
+                with label_col:
+                    st.write("**Initial Balance**")
+                with tooltip_col:
+                    render_tooltip_icon("Starting capital for the backtest.")
+                st.metric("", f"${results.get('initial_balance', 0):,.2f}")
             with col2:
-                st.metric("Final Balance", f"${results.get('final_balance', 0):,.2f}")
+                label_col, tooltip_col = st.columns([0.9, 0.1])
+                with label_col:
+                    st.write("**Final Balance**")
+                with tooltip_col:
+                    render_tooltip_icon("Ending capital after all trades.")
+                st.metric("", f"${results.get('final_balance', 0):,.2f}")
             with col3:
                 return_pct = results.get('total_return', 0)
-                st.metric("Total Return", f"{return_pct:.2f}%", delta=f"{return_pct:.2f}%")
+                label_col, tooltip_col = st.columns([0.9, 0.1])
+                with label_col:
+                    st.write("**Total Return**")
+                with tooltip_col:
+                    render_tooltip_icon("Percentage gain or loss from initial to final balance.")
+                st.metric("", f"{return_pct:.2f}%", delta=f"{return_pct:.2f}%")
             with col4:
-                st.metric("Total Trades", results.get('total_trades', 0))
+                label_col, tooltip_col = st.columns([0.9, 0.1])
+                with label_col:
+                    st.write("**Total Trades**")
+                with tooltip_col:
+                    render_tooltip_icon("Number of completed buy-sell trade pairs.")
+                st.metric("", results.get('total_trades', 0))
             
             col1, col2, col3 = st.columns(3)
             with col1:
                 win_rate = results.get('win_rate', 0)
-                st.metric("Win Rate", f"{win_rate:.1%}")
+                label_col, tooltip_col = st.columns([0.9, 0.1])
+                with label_col:
+                    st.write("**Win Rate**")
+                with tooltip_col:
+                    render_tooltip_icon("Percentage of trades that were profitable. Higher is better (e.g., 60% means 6 out of 10 trades made money).")
+                st.metric("", f"{win_rate:.1%}")
             with col2:
-                st.metric("Sharpe Ratio", f"{results.get('sharpe_ratio', 0):.2f}")
+                sharpe = results.get('sharpe_ratio', 0)
+                label_col, tooltip_col = st.columns([0.9, 0.1])
+                with label_col:
+                    st.write("**Sharpe Ratio**")
+                with tooltip_col:
+                    sharpe_interpretation = ""
+                    if sharpe >= 2:
+                        sharpe_interpretation = "🟢 Excellent"
+                    elif sharpe >= 1:
+                        sharpe_interpretation = "🟡 Good"
+                    else:
+                        sharpe_interpretation = "🔴 Needs improvement"
+                    render_tooltip_icon(f"Measures risk-adjusted returns. Higher is better:<br/>• &lt; 1: Poor (returns don't compensate for risk)<br/>• 1-2: Good<br/>• 2-3: Very good<br/>• &gt; 3: Excellent<br/><br/>A Sharpe ratio of 2 means you're earning 2 units of return for every unit of risk. {sharpe_interpretation}")
+                st.metric("", f"{sharpe:.2f}")
             with col3:
                 total_pnl = results.get('total_pnl', 0)
                 pnl_color = "🟢" if total_pnl > 0 else "🔴"
-                st.metric("Total P&L", f"{pnl_color} ${total_pnl:,.2f}")
+                label_col, tooltip_col = st.columns([0.9, 0.1])
+                with label_col:
+                    st.write("**Total P&L**")
+                with tooltip_col:
+                    render_tooltip_icon("Total profit or loss from all completed trades. Green = profit, Red = loss.")
+                st.metric("", f"{pnl_color} ${total_pnl:,.2f}")
             
             # Signal analysis
             signal_analysis = results.get('signal_analysis', {})
@@ -282,11 +326,21 @@ def render_backtest_view(bot, exchange, config):
                 with col1:
                     potential_buys = signal_analysis.get('potential_buys', 0)
                     actual_buys = len([t for t in results.get('trades', []) if t.get('type') == 'buy'])
-                    st.metric("Golden Crosses Detected", potential_buys)
+                    label_col, tooltip_col = st.columns([0.9, 0.1])
+                    with label_col:
+                        st.write("**Golden Crosses Detected**")
+                    with tooltip_col:
+                        render_tooltip_icon("Number of bullish crossover signals detected (when short MA crosses above long MA).")
+                    st.metric("", potential_buys)
                     if potential_buys > 0:
                         conversion_rate = (actual_buys / potential_buys) * 100
-                        st.metric("Conversion Rate", f"{conversion_rate:.1f}%")
-                        st.caption(f"{actual_buys} trades executed out of {potential_buys} potential signals")
+                        label_col2, tooltip_col2 = st.columns([0.9, 0.1])
+                        with label_col2:
+                            st.write("**Conversion Rate**")
+                        with tooltip_col2:
+                            render_tooltip_icon(f"Percentage of potential buy signals that became trades. Low (&lt; 50%) might mean filters are too strict. High (&gt; 80%) means most signals are acted upon. Signals can be rejected if RSI is overbought (≥ 70) at the time of the golden cross.")
+                        st.metric("", f"{conversion_rate:.1f}%")
+                        st.caption(f"✅ {actual_buys} trades executed out of {potential_buys} potential signals")
                 with col2:
                     rejected = len(signal_analysis.get('rejected_buys', []))
                     if rejected > 0:

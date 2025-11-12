@@ -61,8 +61,72 @@ def render_signal_alert(signal_type: str, symbol: str, price: float, timestamp: 
         st.info(f"Price: ${price:.2f} | Time: {timestamp}")
 
 
+def render_tooltip_icon(tooltip_text: str):
+    """Render a hover tooltip icon with the given text"""
+    tooltip_html = f"""
+    <style>
+    .tooltip-container {{
+        position: relative;
+        display: inline-block;
+    }}
+    .tooltip-icon {{
+        display: inline-block;
+        width: 16px;
+        height: 16px;
+        line-height: 16px;
+        text-align: center;
+        background-color: #1f77b4;
+        color: white;
+        border-radius: 50%;
+        font-size: 11px;
+        font-weight: bold;
+        cursor: help;
+        vertical-align: middle;
+    }}
+    .tooltip-text {{
+        visibility: hidden;
+        width: 250px;
+        background-color: #333;
+        color: #fff;
+        text-align: left;
+        border-radius: 6px;
+        padding: 8px;
+        position: absolute;
+        z-index: 1000;
+        bottom: 125%;
+        left: 50%;
+        margin-left: -125px;
+        opacity: 0;
+        transition: opacity 0.3s;
+        font-size: 12px;
+        line-height: 1.4;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    }}
+    .tooltip-container:hover .tooltip-text {{
+        visibility: visible;
+        opacity: 1;
+    }}
+    .tooltip-text::after {{
+        content: "";
+        position: absolute;
+        top: 100%;
+        left: 50%;
+        margin-left: -5px;
+        border-width: 5px;
+        border-style: solid;
+        border-color: #333 transparent transparent transparent;
+    }}
+    </style>
+    <div class="tooltip-container">
+        <span class="tooltip-icon">ℹ</span>
+        <span class="tooltip-text">{tooltip_text}</span>
+    </div>
+    """
+    st.markdown(tooltip_html, unsafe_allow_html=True)
+
+
 def render_performance_metrics(metrics: Dict):
-    """Render performance metrics with color coding"""
+    """Render performance metrics with color coding and hover tooltips"""
     st.subheader("📊 Performance Metrics")
     
     col1, col2, col3, col4 = st.columns(4)
@@ -74,16 +138,43 @@ def render_performance_metrics(metrics: Dict):
     
     with col1:
         pnl_color = get_pnl_color(total_pnl)
-        st.metric("Total P&L", f"{pnl_color} ${total_pnl:.2f}")
+        label_col, tooltip_col = st.columns([0.9, 0.1])
+        with label_col:
+            st.write("**Total P&L**")
+        with tooltip_col:
+            render_tooltip_icon("Total profit or loss from all completed trades. Green = profit, Red = loss.")
+        st.metric("", f"{pnl_color} ${total_pnl:.2f}")
     
     with col2:
-        st.metric("Win Rate", f"{win_rate:.1%}")
+        label_col, tooltip_col = st.columns([0.9, 0.1])
+        with label_col:
+            st.write("**Win Rate**")
+        with tooltip_col:
+            render_tooltip_icon("Percentage of trades that were profitable. Higher is better (e.g., 60% means 6 out of 10 trades made money).")
+        st.metric("", f"{win_rate:.1%}")
     
     with col3:
-        st.metric("Total Trades", total_trades)
+        label_col, tooltip_col = st.columns([0.9, 0.1])
+        with label_col:
+            st.write("**Total Trades**")
+        with tooltip_col:
+            render_tooltip_icon("Number of completed buy-sell trade pairs.")
+        st.metric("", total_trades)
     
     with col4:
-        st.metric("Sharpe Ratio", f"{sharpe:.2f}")
+        label_col, tooltip_col = st.columns([0.9, 0.1])
+        with label_col:
+            st.write("**Sharpe Ratio**")
+        with tooltip_col:
+            sharpe_interpretation = ""
+            if sharpe >= 2:
+                sharpe_interpretation = "🟢 Excellent"
+            elif sharpe >= 1:
+                sharpe_interpretation = "🟡 Good"
+            else:
+                sharpe_interpretation = "🔴 Needs improvement"
+            render_tooltip_icon(f"Measures risk-adjusted returns. Higher is better:<br/>• &lt; 1: Poor (returns don't compensate for risk)<br/>• 1-2: Good<br/>• 2-3: Very good<br/>• &gt; 3: Excellent<br/><br/>A Sharpe ratio of 2 means you're earning 2 units of return for every unit of risk. {sharpe_interpretation}")
+        st.metric("", f"{sharpe:.2f}")
 
 
 def render_price_chart(ohlcv_data: list, indicators: Optional[Dict] = None):
