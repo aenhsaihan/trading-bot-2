@@ -774,8 +774,9 @@ def main():
     # Initialize streamer lazily - only create it, don't start it yet
     # We'll start it conditionally based on which tab is active
     if 'streamer' not in st.session_state:
-        # Use longer update interval to avoid rate limits (10 seconds for Kraken)
-        st.session_state.streamer = DataStreamer(exchange, update_interval=10.0)
+        # Use much longer update interval to avoid rate limits (30 seconds for Kraken)
+        # OHLCV data is fetched even less frequently (every 6 iterations = 3 minutes)
+        st.session_state.streamer = DataStreamer(exchange, update_interval=30.0)
         st.session_state.streamer_started = False  # Track if we've started it
     
     # Use query parameter or session state to track active tab
