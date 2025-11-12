@@ -51,8 +51,7 @@ export function ToastNotification({
         animate={{ x: 0, opacity: 1 }}
         exit={{ x: 400, opacity: 0 }}
         transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-        className="fixed top-20 right-5 z-50 max-w-md w-full"
-        style={{ zIndex: 9999 }}
+        className="max-w-md w-full"
       >
         <div
           className="bg-gradient-to-br from-dark-card to-dark-bg rounded-xl shadow-2xl border-l-4 p-4 cursor-pointer hover:shadow-3xl transition-all duration-200 hover:-translate-y-1"

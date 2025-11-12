@@ -54,7 +54,7 @@ export function ToastContainer({
   );
 
   return (
-    <div className="fixed top-0 right-0 z-50 pointer-events-none">
+    <div className="fixed top-0 right-0 z-50 pointer-events-none" style={{ zIndex: 9999 }}>
       <AnimatePresence>
         {toastsToShow.map((notification, index) => (
           <motion.div
@@ -68,10 +68,12 @@ export function ToastContainer({
               stiffness: 200,
               delay: index * 0.1,
             }}
-            className="pointer-events-auto mb-3"
+            className="pointer-events-auto"
             style={{
+              position: 'absolute',
               top: `${70 + index * 120}px`,
               right: '20px',
+              width: '400px',
             }}
           >
             <ToastNotification
