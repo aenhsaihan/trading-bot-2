@@ -12,13 +12,14 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 # App version - update this when deploying major changes
-APP_VERSION = "1.4.0"
+APP_VERSION = "1.5.0"
 APP_BUILD_DATE = "2025-11-12"
 
 from src.utils.config import Config
 from src.exchanges.binance import BinanceExchange
 from src.strategies.trend_following import TrendFollowingStrategy
 from src.strategies.registry import StrategyRegistry
+from src.utils.bot_manager import BotManager, BotInstance
 from src.bot import TradingBot
 from src.monitoring.metrics import MetricsCollector
 from src.monitoring.streaming import DataStreamer
@@ -98,6 +99,216 @@ def initialize_bot(exchange_name: str, strategy_name: str = "trend_following"):
     bot = TradingBot(exchange, strategy, config, is_paper_trading=is_paper)
     
     return bot, exchange, config, exchange_name, None
+
+
+def render_multiple_bots_view(config):
+    """Render the multiple bots management view"""
+    st.header("🤖 Multiple Bots Management")
+    
+    # Initialize bot manager in session state
+    if 'bot_manager' not in st.session_state:
+        st.session_state.bot_manager = BotManager()
+    
+    bot_manager = st.session_state.bot_manager
+    
+    # Summary stats
+    all_bots = bot_manager.get_all_bots()
+    running_count = bot_manager.get_running_count()
+    
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("Total Bots", len(all_bots))
+    with col2:
+        st.metric("Running", running_count, delta=f"{len(all_bots) - running_count} stopped" if len(all_bots) > 0 else None)
+    with col3:
+        total_pnl = sum(float(bot.total_pnl) for bot in all_bots)
+        st.metric("Total P&L", f"${total_pnl:,.2f}")
+    with col4:
+        total_trades = sum(bot.total_trades for bot in all_bots)
+        st.metric("Total Trades", total_trades)
+    
+    st.divider()
+    
+    # Create new bot section
+    with st.expander("➕ Create New Bot", expanded=False):
+        with st.form("create_bot_form"):
+            col1, col2 = st.columns(2)
+            with col1:
+                bot_name = st.text_input("Bot Name", value=f"Bot {len(all_bots) + 1}", key="new_bot_name")
+                bot_symbol = st.selectbox("Symbol", ["BTC/USDT", "ETH/USDT", "BNB/USDT"], key="new_bot_symbol")
+            
+            with col2:
+                bot_exchange_name = st.selectbox("Exchange", ["Binance", "Coinbase", "Kraken"], key="new_bot_exchange")
+                bot_strategy_name = st.selectbox(
+                    "Strategy",
+                    options=[StrategyRegistry.get_display_name(name) for name in StrategyRegistry.get_strategy_names()],
+                    key="new_bot_strategy"
+                )
+            
+            if st.form_submit_button("Create Bot", use_container_width=True):
+                try:
+                    # Get strategy name from display name
+                    strategy_display_names = {name: StrategyRegistry.get_display_name(name) for name in StrategyRegistry.get_strategy_names()}
+                    strategy_name = [name for name, display in strategy_display_names.items() if display == bot_strategy_name][0]
+                    
+                    # Initialize exchange
+                    exchange = None
+                    if bot_exchange_name == "Binance":
+                        api_key = config.get_exchange_api_key("binance")
+                        api_secret = config.get_exchange_api_secret("binance")
+                        use_sandbox = config.is_paper_trading() and api_key is not None
+                        exchange = BinanceExchange(api_key=api_key, api_secret=api_secret, sandbox=use_sandbox)
+                    elif bot_exchange_name == "Coinbase":
+                        from src.exchanges.coinbase import CoinbaseExchange
+                        api_key = config.get_exchange_api_key("coinbase")
+                        api_secret = config.get_exchange_api_secret("coinbase")
+                        exchange = CoinbaseExchange(api_key=api_key, api_secret=api_secret, sandbox=False)
+                    elif bot_exchange_name == "Kraken":
+                        from src.exchanges.kraken import KrakenExchange
+                        api_key = config.get_exchange_api_key("kraken")
+                        api_secret = config.get_exchange_api_secret("kraken")
+                        exchange = KrakenExchange(api_key=api_key, api_secret=api_secret, sandbox=False)
+                    
+                    if exchange and exchange.connect():
+                        # Create strategy
+                        strategy_config = config.get_strategy_config()
+                        strategy = StrategyRegistry.get_strategy(strategy_name, config=strategy_config)
+                        
+                        # Create bot
+                        bot_id = bot_manager.create_bot(
+                            name=bot_name,
+                            exchange=exchange,
+                            strategy=strategy,
+                            symbol=bot_symbol,
+                            config=config,
+                            is_paper_trading=config.is_paper_trading()
+                        )
+                        
+                        st.success(f"✅ Bot '{bot_name}' created successfully!")
+                        st.rerun()
+                    else:
+                        st.error(f"Failed to connect to {bot_exchange_name}")
+                except Exception as e:
+                    st.error(f"Error creating bot: {e}")
+                    import traceback
+                    st.code(traceback.format_exc())
+    
+    st.divider()
+    
+    # Display all bots
+    if len(all_bots) == 0:
+        st.info("👈 Create your first bot using the form above")
+    else:
+        st.subheader("📋 Bot List")
+        
+        # Get all statuses
+        statuses = bot_manager.get_all_statuses()
+        
+        # Display bots in a table
+        import pandas as pd
+        
+        if statuses:
+            df = pd.DataFrame(statuses)
+            
+            # Format columns
+            df['Balance'] = df['balance'].apply(lambda x: f"${x:,.2f}")
+            df['P&L'] = df['total_pnl'].apply(lambda x: f"${x:,.2f}" if x != 0 else "$0.00")
+            df['Return %'] = df['return_pct'].apply(lambda x: f"{x:.2f}%")
+            df['Status'] = df['running'].apply(lambda x: "🟢 Running" if x else "🔴 Stopped")
+            
+            # Select columns to display
+            display_df = df[['name', 'symbol', 'strategy', 'exchange', 'Status', 'Balance', 'P&L', 'Return %', 'total_trades', 'positions']]
+            display_df = display_df.rename(columns={
+                'name': 'Name',
+                'symbol': 'Symbol',
+                'strategy': 'Strategy',
+                'exchange': 'Exchange',
+                'total_trades': 'Trades',
+                'positions': 'Positions'
+            })
+            
+            st.dataframe(display_df, use_container_width=True, hide_index=True)
+            
+            # Bot controls
+            st.subheader("🎮 Bot Controls")
+            
+            for bot in all_bots:
+                with st.expander(f"{'🟢' if bot.running else '🔴'} {bot.name} - {bot.symbol} ({bot.strategy.name})"):
+                    col1, col2, col3, col4 = st.columns(4)
+                    
+                    status = bot.get_status()
+                    
+                    with col1:
+                        st.metric("Status", "🟢 Running" if bot.running else "🔴 Stopped")
+                        st.metric("Balance", f"${status['balance']:,.2f}")
+                    
+                    with col2:
+                        st.metric("Total P&L", f"${status['total_pnl']:,.2f}")
+                        st.metric("Return %", f"{status['return_pct']:.2f}%")
+                    
+                    with col3:
+                        st.metric("Total Trades", status['total_trades'])
+                        st.metric("Open Positions", status['positions'])
+                    
+                    with col4:
+                        st.metric("Exchange", status['exchange'])
+                        st.metric("Strategy", status['strategy'])
+                    
+                    # Control buttons
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        if bot.running:
+                            if st.button("⏸️ Stop", key=f"stop_{bot.bot_id}", use_container_width=True):
+                                bot_manager.stop_bot(bot.bot_id)
+                                st.success(f"✅ {bot.name} stopped")
+                                st.rerun()
+                        else:
+                            if st.button("▶️ Start", key=f"start_{bot.bot_id}", use_container_width=True):
+                                bot_manager.start_bot(bot.bot_id)
+                                st.success(f"✅ {bot.name} started")
+                                st.rerun()
+                    
+                    with col2:
+                        if st.button("🔄 Restart", key=f"restart_{bot.bot_id}", use_container_width=True):
+                            bot_manager.stop_bot(bot.bot_id)
+                            time.sleep(0.5)  # Brief pause
+                            bot_manager.start_bot(bot.bot_id)
+                            st.success(f"✅ {bot.name} restarted")
+                            st.rerun()
+                    
+                    with col3:
+                        if st.button("🗑️ Delete", key=f"delete_{bot.bot_id}", use_container_width=True):
+                            bot_manager.delete_bot(bot.bot_id)
+                            st.success(f"✅ {bot.name} deleted")
+                            st.rerun()
+        
+        # Bulk actions
+        st.divider()
+        st.subheader("⚡ Bulk Actions")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            if st.button("▶️ Start All", use_container_width=True):
+                for bot in all_bots:
+                    if not bot.running:
+                        bot_manager.start_bot(bot.bot_id)
+                st.success("✅ All bots started")
+                st.rerun()
+        with col2:
+            if st.button("⏸️ Stop All", use_container_width=True):
+                bot_manager.stop_all()
+                st.success("✅ All bots stopped")
+                st.rerun()
+        with col3:
+            if st.button("🗑️ Delete All", use_container_width=True, type="secondary"):
+                if st.session_state.get('confirm_delete_all', False):
+                    for bot in all_bots:
+                        bot_manager.delete_bot(bot.bot_id)
+                    st.session_state.confirm_delete_all = False
+                    st.success("✅ All bots deleted")
+                    st.rerun()
+                else:
+                    st.session_state.confirm_delete_all = True
+                    st.warning("⚠️ Click again to confirm deletion of all bots")
 
 
 def render_backtest_view(bot, exchange, config):
@@ -1485,7 +1696,7 @@ def main():
     st.divider()
     
     # Add tabs for Live Trading and Backtesting
-    tab1, tab2 = st.tabs(["📈 Live Trading", "📊 Backtesting"])
+    tab1, tab2, tab3 = st.tabs(["📈 Live Trading", "📊 Backtesting", "🤖 Multiple Bots"])
     
     # Initialize other components
     if 'metrics_collector' not in st.session_state:
@@ -1787,6 +1998,9 @@ def main():
         # Backtesting view
         render_backtest_view(bot, exchange, config)
         # Don't auto-refresh on backtesting tab to prevent flickering/repeating
+    
+    with tab3:
+        render_multiple_bots_view(config)
     
     # Auto-refresh only on Live Trading tab (with error handling for graceful shutdown)
     # Use a session state variable to track active tab and disable refresh on backtesting tab
