@@ -224,8 +224,27 @@ def render_toast_notification(notification: Notification, duration: int = 5000):
     if notification.confidence_score is not None:
         meta_html += f'<span><strong>Confidence:</strong> <span style="color: #4CAF50 !important;">{notification.confidence_score:.0f}%</span></span>'
     
+    # Check if this toast should be dismissed (Python-based dismissal tracking)
+    dismissed_toasts = st.session_state.get('dismissed_toasts', set())
+    if notification.notification_id in dismissed_toasts:
+        return  # Don't render dismissed toasts
+    
+    # Check if auto-dismiss time has passed
+    import time
+    toast_timestamps = st.session_state.get('toast_timestamps', {})
+    if notification.notification_id not in toast_timestamps:
+        toast_timestamps[notification.notification_id] = time.time()
+        st.session_state.toast_timestamps = toast_timestamps
+    
+    elapsed = time.time() - toast_timestamps.get(notification.notification_id, time.time())
+    if elapsed * 1000 >= duration:
+        # Auto-dismiss by adding to dismissed set
+        dismissed_toasts.add(notification.notification_id)
+        st.session_state.dismissed_toasts = dismissed_toasts
+        return
+    
     # HTML for the toast notification
-    # Use a script that runs immediately and sets up event listeners
+    # Use Streamlit buttons for dismissal (Python-based, more reliable)
     toast_html = f'''
     <div id="{toast_id}" class="toast-container" style="--priority-color: {priority_color};" data-toast-id="{toast_id}">
         <div class="toast-notification" id="toast-notif-{toast_id}" style="border-left-color: {priority_color} !important;">
@@ -235,74 +254,22 @@ def render_toast_notification(notification: Notification, duration: int = 5000):
                     <span style="font-size: 18px;">{type_emoji}</span>
                     <span style="color: #ffffff !important;">{safe_title}</span>
                 </div>
-                <button class="toast-close" id="close-{toast_id}" type="button">×</button>
             </div>
             <div class="toast-message">{safe_message}</div>
             <div class="toast-meta">{meta_html}</div>
         </div>
     </div>
-    <script>
-    (function() {{
-        function initToast() {{
-            var toastId = '{toast_id}';
-            var container = document.getElementById(toastId);
-            if (!container) {{
-                setTimeout(initToast, 50);
-                return;
-            }}
-            
-            var closeBtn = document.getElementById('close-' + toastId);
-            var toastCard = document.getElementById('toast-notif-' + toastId);
-            
-            function dismissToast() {{
-                if (container) {{
-                    container.classList.add('toast-slide-out');
-                    setTimeout(function() {{
-                        if (container && container.parentElement) {{
-                            container.remove();
-                        }}
-                    }}, 300);
-                }}
-            }}
-            
-            // Close button handler
-            if (closeBtn) {{
-                closeBtn.onclick = function(e) {{
-                    e.stopPropagation();
-                    e.preventDefault();
-                    dismissToast();
-                    return false;
-                }};
-            }}
-            
-            // Card click handler
-            if (toastCard) {{
-                toastCard.onclick = function(e) {{
-                    if (!e.target.classList.contains('toast-close') && !e.target.closest('.toast-close')) {{
-                        dismissToast();
-                    }}
-                }};
-            }}
-            
-            // Auto-dismiss
-            setTimeout(function() {{
-                dismissToast();
-            }}, {duration});
-        }}
-        
-        // Try immediately, then retry if DOM not ready
-        if (document.readyState === 'loading') {{
-            document.addEventListener('DOMContentLoaded', initToast);
-        }} else {{
-            initToast();
-        }}
-        // Also retry after a short delay to catch dynamically added elements
-        setTimeout(initToast, 100);
-    }})();
-    </script>
     '''
     
     st.markdown(toast_html, unsafe_allow_html=True)
+    
+    # Add Streamlit button for dismissal (Python-based, reliable)
+    col1, col2, col3 = st.columns([1, 1, 1])
+    with col2:
+        if st.button("×", key=f"dismiss_{toast_id}", help="Dismiss notification"):
+            dismissed_toasts.add(notification.notification_id)
+            st.session_state.dismissed_toasts = dismissed_toasts
+            st.rerun()
 
 
 def render_toast_system():
@@ -332,6 +299,11 @@ def check_and_show_new_notifications(
     
     # Get newest notification
     newest = all_notifications[0]  # Already sorted by priority/time
+    
+    # Check if dismissed
+    dismissed_toasts = st.session_state.get('dismissed_toasts', set())
+    if newest.notification_id in dismissed_toasts:
+        return last_notification_id
     
     # If this is a new notification, show toast
     if newest.notification_id != last_notification_id and not newest.responded:
