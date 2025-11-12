@@ -12,7 +12,7 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 # App version - update this when deploying major changes
-APP_VERSION = "1.5.5"
+APP_VERSION = "1.5.6"
 APP_BUILD_DATE = "2025-11-12"
 
 from src.utils.config import Config
@@ -214,8 +214,6 @@ def render_multiple_bots_view(config):
         statuses = bot_manager.get_all_statuses()
         
         # Display bots in a table
-        import pandas as pd
-        
         if statuses:
             df = pd.DataFrame(statuses)
             
@@ -781,7 +779,6 @@ def render_backtest_view(bot, exchange, config):
         st.header("⚖️ Strategy Comparison Results")
         
         # Build comparison metrics table
-        import pandas as pd
         comparison_data = []
         
         for strategy_name, data in comparison_results.items():
