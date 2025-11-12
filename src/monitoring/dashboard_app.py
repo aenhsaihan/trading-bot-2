@@ -12,7 +12,7 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 # App version - update this when deploying major changes
-APP_VERSION = "1.3.1"
+APP_VERSION = "1.4.0"
 APP_BUILD_DATE = "2025-11-12"
 
 from src.utils.config import Config
@@ -110,6 +110,44 @@ def render_backtest_view(bot, exchange, config):
     if 'backtest_table_container' not in st.session_state:
         st.session_state['backtest_table_container'] = st.empty()
     
+    # Backtest mode selection
+    if 'backtest_mode' not in st.session_state:
+        st.session_state.backtest_mode = "single"
+    
+    backtest_mode = st.radio(
+        "Backtest Mode",
+        options=["single", "compare"],
+        format_func=lambda x: "📊 Single Strategy" if x == "single" else "⚖️ Compare Strategies",
+        index=0 if st.session_state.backtest_mode == "single" else 1,
+        key="backtest_mode_radio",
+        horizontal=True
+    )
+    
+    # Clear results when switching modes
+    if st.session_state.backtest_mode != backtest_mode:
+        if backtest_mode == "single":
+            # Switching to single mode - clear comparison results
+            if 'comparison_results' in st.session_state:
+                del st.session_state.comparison_results
+            if 'comparison_ohlcv' in st.session_state:
+                del st.session_state.comparison_ohlcv
+            if 'comparison_symbol' in st.session_state:
+                del st.session_state.comparison_symbol
+        else:
+            # Switching to compare mode - clear single strategy results
+            if 'backtest_results' in st.session_state:
+                del st.session_state.backtest_results
+            if 'backtest_ohlcv' in st.session_state:
+                del st.session_state.backtest_ohlcv
+            if 'backtest_result_symbol' in st.session_state:
+                del st.session_state.backtest_result_symbol
+            if 'backtest_result_strategy' in st.session_state:
+                del st.session_state.backtest_result_strategy
+            if 'last_rendered_results_id' in st.session_state:
+                del st.session_state.last_rendered_results_id
+    
+    st.session_state.backtest_mode = backtest_mode
+    
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         backtest_symbol = st.selectbox("Symbol", ["BTC/USDT", "ETH/USDT", "BNB/USDT"], key="backtest_symbol")
@@ -137,153 +175,196 @@ def render_backtest_view(bot, exchange, config):
             # Use the manual input value
             pass
     
-    # Strategy parameters - dynamic based on selected strategy
-    selected_strategy = st.session_state.get('selected_strategy', 'trend_following')
-    
-    with st.expander("⚙️ Strategy Parameters (Advanced)"):
-        # Use form to batch widget changes and prevent immediate reruns
-        with st.form(key="strategy_params_form", clear_on_submit=False):
-            if selected_strategy == "trend_following":
-                st.write("**Trend Following Parameters:**")
-                st.write("**Tip:** Shorter MA periods = more frequent signals but potentially more false signals")
-                
-                # Initialize MA preset in session state if not exists
-                if 'ma_preset' not in st.session_state:
-                    st.session_state.ma_preset = "Conservative (50/200)"
-                
-                ma_preset = st.selectbox(
-                    "MA Period Preset",
-                    ["Conservative (50/200)", "Moderate (20/50)", "Aggressive (10/20)", "Custom"],
-                    index=["Conservative (50/200)", "Moderate (20/50)", "Aggressive (10/20)", "Custom"].index(st.session_state.ma_preset) if st.session_state.ma_preset in ["Conservative (50/200)", "Moderate (20/50)", "Aggressive (10/20)", "Custom"] else 0,
-                    key="ma_preset_form"
+    # Strategy selection - different UI for single vs compare mode
+    if backtest_mode == "compare":
+        st.subheader("📋 Select Strategies to Compare")
+        available_strategies = StrategyRegistry.get_strategy_names()
+        strategy_display_names = {name: StrategyRegistry.get_display_name(name) for name in available_strategies}
+        
+        # Initialize selected strategies for comparison
+        if 'compare_strategies' not in st.session_state:
+            st.session_state.compare_strategies = ['trend_following']  # Default to at least one
+        
+        # Multi-select checkboxes for strategies
+        selected_compare_strategies = []
+        cols = st.columns(len(available_strategies))
+        for i, strategy_name in enumerate(available_strategies):
+            with cols[i]:
+                checked = strategy_name in st.session_state.compare_strategies
+                checkbox_value = st.checkbox(
+                    strategy_display_names[strategy_name],
+                    value=checked,
+                    key=f"compare_{strategy_name}"
                 )
-                
-                if ma_preset == "Custom":
-                    # Initialize custom values if not set
-                    if 'custom_short_ma' not in st.session_state:
-                        st.session_state.custom_short_ma = 50
-                    if 'custom_long_ma' not in st.session_state:
-                        st.session_state.custom_long_ma = 200
-                    short_ma = st.number_input("Short MA Period", min_value=5, max_value=100, value=st.session_state.custom_short_ma, key="custom_short_ma_form")
-                    long_ma = st.number_input("Long MA Period", min_value=10, max_value=300, value=st.session_state.custom_long_ma, key="custom_long_ma_form")
-                elif ma_preset == "Moderate (20/50)":
-                    short_ma = 20
-                    long_ma = 50
-                elif ma_preset == "Aggressive (10/20)":
-                    short_ma = 10
-                    long_ma = 20
-                else:  # Conservative
-                    short_ma = 50
-                    long_ma = 200
-                
-                # Initialize RSI threshold if not set
-                if 'rsi_threshold' not in st.session_state:
-                    st.session_state.rsi_threshold = 70
-                
-                rsi_threshold = st.slider("RSI Overbought Threshold", min_value=60, max_value=85, value=st.session_state.rsi_threshold, key="rsi_threshold_form")
-                st.caption(f"Signals rejected if RSI ≥ {rsi_threshold}")
-                
-                # Submit button to apply changes
-                form_submitted = st.form_submit_button("Apply Parameters", use_container_width=True)
-                
-                if form_submitted:
-                    st.session_state.ma_preset = ma_preset
+                if checkbox_value:
+                    selected_compare_strategies.append(strategy_name)
+        
+        # Update session state
+        if len(selected_compare_strategies) == 0:
+            st.warning("⚠️ Please select at least one strategy to compare")
+            # Keep at least one strategy selected
+            if not st.session_state.compare_strategies:
+                st.session_state.compare_strategies = ['trend_following']  # Default fallback
+        else:
+            st.session_state.compare_strategies = selected_compare_strategies
+        
+        st.info(f"📊 Comparing {len(st.session_state.compare_strategies)} strategy(ies): {', '.join([strategy_display_names[s] for s in st.session_state.compare_strategies])}")
+        
+        # Strategy parameters - show for all selected strategies
+        with st.expander("⚙️ Strategy Parameters (Advanced)", expanded=False):
+            st.write("**Note:** In comparison mode, strategies use their default parameters. Customize parameters in single strategy mode.")
+            for strategy_name in st.session_state.compare_strategies:
+                strategy_display = strategy_display_names[strategy_name]
+                strategy_desc = StrategyRegistry.list_strategies().get(strategy_name, "")
+                st.caption(f"**{strategy_display}:** {strategy_desc}")
+    else:
+        # Single strategy mode - show parameters as before
+        selected_strategy = st.session_state.get('selected_strategy', 'trend_following')
+        
+        with st.expander("⚙️ Strategy Parameters (Advanced)"):
+            # Use form to batch widget changes and prevent immediate reruns
+            with st.form(key="strategy_params_form", clear_on_submit=False):
+                if selected_strategy == "trend_following":
+                    st.write("**Trend Following Parameters:**")
+                    st.write("**Tip:** Shorter MA periods = more frequent signals but potentially more false signals")
+                    
+                    # Initialize MA preset in session state if not exists
+                    if 'ma_preset' not in st.session_state:
+                        st.session_state.ma_preset = "Conservative (50/200)"
+                    
+                    ma_preset = st.selectbox(
+                        "MA Period Preset",
+                        ["Conservative (50/200)", "Moderate (20/50)", "Aggressive (10/20)", "Custom"],
+                        index=["Conservative (50/200)", "Moderate (20/50)", "Aggressive (10/20)", "Custom"].index(st.session_state.ma_preset) if st.session_state.ma_preset in ["Conservative (50/200)", "Moderate (20/50)", "Aggressive (10/20)", "Custom"] else 0,
+                        key="ma_preset_form"
+                    )
+                    
                     if ma_preset == "Custom":
-                        st.session_state.custom_short_ma = short_ma
-                        st.session_state.custom_long_ma = long_ma
-                    st.session_state.rsi_threshold = rsi_threshold
-                    st.session_state['backtest_short_ma'] = short_ma
-                    st.session_state['backtest_long_ma'] = long_ma
-                    st.session_state['backtest_rsi_threshold'] = rsi_threshold
-                    st.success("✅ Parameters updated!")
+                        # Initialize custom values if not set
+                        if 'custom_short_ma' not in st.session_state:
+                            st.session_state.custom_short_ma = 50
+                        if 'custom_long_ma' not in st.session_state:
+                            st.session_state.custom_long_ma = 200
+                        short_ma = st.number_input("Short MA Period", min_value=5, max_value=100, value=st.session_state.custom_short_ma, key="custom_short_ma_form")
+                        long_ma = st.number_input("Long MA Period", min_value=10, max_value=300, value=st.session_state.custom_long_ma, key="custom_long_ma_form")
+                    elif ma_preset == "Moderate (20/50)":
+                        short_ma = 20
+                        long_ma = 50
+                    elif ma_preset == "Aggressive (10/20)":
+                        short_ma = 10
+                        long_ma = 20
+                    else:  # Conservative
+                        short_ma = 50
+                        long_ma = 200
+                    
+                    # Initialize RSI threshold if not set
+                    if 'rsi_threshold' not in st.session_state:
+                        st.session_state.rsi_threshold = 70
+                    
+                    rsi_threshold = st.slider("RSI Overbought Threshold", min_value=60, max_value=85, value=st.session_state.rsi_threshold, key="rsi_threshold_form")
+                    st.caption(f"Signals rejected if RSI ≥ {rsi_threshold}")
+                    
+                    # Submit button to apply changes
+                    form_submitted = st.form_submit_button("Apply Parameters", use_container_width=True)
+                    
+                    if form_submitted:
+                        st.session_state.ma_preset = ma_preset
+                        if ma_preset == "Custom":
+                            st.session_state.custom_short_ma = short_ma
+                            st.session_state.custom_long_ma = long_ma
+                        st.session_state.rsi_threshold = rsi_threshold
+                        st.session_state['backtest_short_ma'] = short_ma
+                        st.session_state['backtest_long_ma'] = long_ma
+                        st.session_state['backtest_rsi_threshold'] = rsi_threshold
+                        st.success("✅ Parameters updated!")
+                    
+                    # Display current values
+                    current_short_ma = st.session_state.get('backtest_short_ma', 50)
+                    current_long_ma = st.session_state.get('backtest_long_ma', 200)
+                    current_rsi = st.session_state.get('backtest_rsi_threshold', 70)
+                    st.info(f"📊 **Active Parameters:** Short MA: {current_short_ma}, Long MA: {current_long_ma}, RSI Threshold: {current_rsi}")
                 
-                # Display current values
-                current_short_ma = st.session_state.get('backtest_short_ma', 50)
-                current_long_ma = st.session_state.get('backtest_long_ma', 200)
-                current_rsi = st.session_state.get('backtest_rsi_threshold', 70)
-                st.info(f"📊 **Active Parameters:** Short MA: {current_short_ma}, Long MA: {current_long_ma}, RSI Threshold: {current_rsi}")
-            
-            elif selected_strategy == "mean_reversion":
-                st.write("**Mean Reversion Parameters:**")
-                st.write("**Tip:** Lower RSI oversold = more buy signals. Higher BB std = wider bands (less sensitive)")
+                elif selected_strategy == "mean_reversion":
+                    st.write("**Mean Reversion Parameters:**")
+                    st.write("**Tip:** Lower RSI oversold = more buy signals. Higher BB std = wider bands (less sensitive)")
+                    
+                    # Initialize parameters if not set
+                    if 'mr_rsi_oversold' not in st.session_state:
+                        st.session_state.mr_rsi_oversold = 30
+                    if 'mr_rsi_overbought' not in st.session_state:
+                        st.session_state.mr_rsi_overbought = 70
+                    if 'mr_bb_period' not in st.session_state:
+                        st.session_state.mr_bb_period = 20
+                    if 'mr_bb_std' not in st.session_state:
+                        st.session_state.mr_bb_std = 2.0
+                    
+                    rsi_oversold = st.slider("RSI Oversold Threshold (Buy Signal)", min_value=20, max_value=40, value=st.session_state.mr_rsi_oversold, key="mr_rsi_oversold_form")
+                    st.caption(f"Buy when RSI ≤ {rsi_oversold}")
+                    
+                    rsi_overbought = st.slider("RSI Overbought Threshold (Sell Signal)", min_value=60, max_value=80, value=st.session_state.mr_rsi_overbought, key="mr_rsi_overbought_form")
+                    st.caption(f"Sell when RSI ≥ {rsi_overbought}")
+                    
+                    bb_period = st.number_input("Bollinger Bands Period", min_value=10, max_value=50, value=st.session_state.mr_bb_period, key="mr_bb_period_form")
+                    st.caption(f"Period for calculating Bollinger Bands moving average")
+                    
+                    bb_std = st.slider("Bollinger Bands Std Deviation", min_value=1.0, max_value=3.0, value=float(st.session_state.mr_bb_std), step=0.1, key="mr_bb_std_form")
+                    st.caption(f"Standard deviation multiplier for band width")
+                    
+                    # Submit button
+                    form_submitted = st.form_submit_button("Apply Parameters", use_container_width=True)
+                    
+                    if form_submitted:
+                        st.session_state.mr_rsi_oversold = rsi_oversold
+                        st.session_state.mr_rsi_overbought = rsi_overbought
+                        st.session_state.mr_bb_period = bb_period
+                        st.session_state.mr_bb_std = bb_std
+                        st.session_state['backtest_mr_rsi_oversold'] = rsi_oversold
+                        st.session_state['backtest_mr_rsi_overbought'] = rsi_overbought
+                        st.session_state['backtest_mr_bb_period'] = bb_period
+                        st.session_state['backtest_mr_bb_std'] = bb_std
+                        st.success("✅ Parameters updated!")
+                    
+                    # Display current values
+                    st.info(f"📊 **Active Parameters:** RSI Oversold: {st.session_state.get('backtest_mr_rsi_oversold', 30)}, RSI Overbought: {st.session_state.get('backtest_mr_rsi_overbought', 70)}, BB Period: {st.session_state.get('backtest_mr_bb_period', 20)}, BB Std: {st.session_state.get('backtest_mr_bb_std', 2.0)}")
                 
-                # Initialize parameters if not set
-                if 'mr_rsi_oversold' not in st.session_state:
-                    st.session_state.mr_rsi_oversold = 30
-                if 'mr_rsi_overbought' not in st.session_state:
-                    st.session_state.mr_rsi_overbought = 70
-                if 'mr_bb_period' not in st.session_state:
-                    st.session_state.mr_bb_period = 20
-                if 'mr_bb_std' not in st.session_state:
-                    st.session_state.mr_bb_std = 2.0
+                elif selected_strategy == "momentum":
+                    st.write("**Momentum Parameters:**")
+                    st.write("**Tip:** Higher RSI buy threshold = fewer but stronger signals. Volume multiplier filters out low-volume moves")
+                    
+                    # Initialize parameters if not set
+                    if 'mom_rsi_buy' not in st.session_state:
+                        st.session_state.mom_rsi_buy = 55
+                    if 'mom_rsi_sell' not in st.session_state:
+                        st.session_state.mom_rsi_sell = 45
+                    if 'mom_volume_mult' not in st.session_state:
+                        st.session_state.mom_volume_mult = 1.2
+                    
+                    rsi_buy = st.slider("RSI Buy Threshold", min_value=50, max_value=70, value=st.session_state.mom_rsi_buy, key="mom_rsi_buy_form")
+                    st.caption(f"Buy when RSI is rising and above {rsi_buy}")
+                    
+                    rsi_sell = st.slider("RSI Sell Threshold", min_value=30, max_value=50, value=st.session_state.mom_rsi_sell, key="mom_rsi_sell_form")
+                    st.caption(f"Sell when RSI falls below {rsi_sell}")
+                    
+                    volume_mult = st.slider("Volume Multiplier", min_value=1.0, max_value=2.0, value=float(st.session_state.mom_volume_mult), step=0.1, key="mom_volume_mult_form")
+                    st.caption(f"Volume must be {volume_mult}x average for confirmation")
+                    
+                    # Submit button
+                    form_submitted = st.form_submit_button("Apply Parameters", use_container_width=True)
+                    
+                    if form_submitted:
+                        st.session_state.mom_rsi_buy = rsi_buy
+                        st.session_state.mom_rsi_sell = rsi_sell
+                        st.session_state.mom_volume_mult = volume_mult
+                        st.session_state['backtest_mom_rsi_buy'] = rsi_buy
+                        st.session_state['backtest_mom_rsi_sell'] = rsi_sell
+                        st.session_state['backtest_mom_volume_mult'] = volume_mult
+                        st.success("✅ Parameters updated!")
+                    
+                    # Display current values
+                    st.info(f"📊 **Active Parameters:** RSI Buy: {st.session_state.get('backtest_mom_rsi_buy', 55)}, RSI Sell: {st.session_state.get('backtest_mom_rsi_sell', 45)}, Volume Mult: {st.session_state.get('backtest_mom_volume_mult', 1.2)}")
                 
-                rsi_oversold = st.slider("RSI Oversold Threshold (Buy Signal)", min_value=20, max_value=40, value=st.session_state.mr_rsi_oversold, key="mr_rsi_oversold_form")
-                st.caption(f"Buy when RSI ≤ {rsi_oversold}")
-                
-                rsi_overbought = st.slider("RSI Overbought Threshold (Sell Signal)", min_value=60, max_value=80, value=st.session_state.mr_rsi_overbought, key="mr_rsi_overbought_form")
-                st.caption(f"Sell when RSI ≥ {rsi_overbought}")
-                
-                bb_period = st.number_input("Bollinger Bands Period", min_value=10, max_value=50, value=st.session_state.mr_bb_period, key="mr_bb_period_form")
-                st.caption(f"Period for calculating Bollinger Bands moving average")
-                
-                bb_std = st.slider("Bollinger Bands Std Deviation", min_value=1.0, max_value=3.0, value=float(st.session_state.mr_bb_std), step=0.1, key="mr_bb_std_form")
-                st.caption(f"Standard deviation multiplier for band width")
-                
-                # Submit button
-                form_submitted = st.form_submit_button("Apply Parameters", use_container_width=True)
-                
-                if form_submitted:
-                    st.session_state.mr_rsi_oversold = rsi_oversold
-                    st.session_state.mr_rsi_overbought = rsi_overbought
-                    st.session_state.mr_bb_period = bb_period
-                    st.session_state.mr_bb_std = bb_std
-                    st.session_state['backtest_mr_rsi_oversold'] = rsi_oversold
-                    st.session_state['backtest_mr_rsi_overbought'] = rsi_overbought
-                    st.session_state['backtest_mr_bb_period'] = bb_period
-                    st.session_state['backtest_mr_bb_std'] = bb_std
-                    st.success("✅ Parameters updated!")
-                
-                # Display current values
-                st.info(f"📊 **Active Parameters:** RSI Oversold: {st.session_state.get('backtest_mr_rsi_oversold', 30)}, RSI Overbought: {st.session_state.get('backtest_mr_rsi_overbought', 70)}, BB Period: {st.session_state.get('backtest_mr_bb_period', 20)}, BB Std: {st.session_state.get('backtest_mr_bb_std', 2.0)}")
-            
-            elif selected_strategy == "momentum":
-                st.write("**Momentum Parameters:**")
-                st.write("**Tip:** Higher RSI buy threshold = fewer but stronger signals. Volume multiplier filters out low-volume moves")
-                
-                # Initialize parameters if not set
-                if 'mom_rsi_buy' not in st.session_state:
-                    st.session_state.mom_rsi_buy = 55
-                if 'mom_rsi_sell' not in st.session_state:
-                    st.session_state.mom_rsi_sell = 45
-                if 'mom_volume_mult' not in st.session_state:
-                    st.session_state.mom_volume_mult = 1.2
-                
-                rsi_buy = st.slider("RSI Buy Threshold", min_value=50, max_value=70, value=st.session_state.mom_rsi_buy, key="mom_rsi_buy_form")
-                st.caption(f"Buy when RSI is rising and above {rsi_buy}")
-                
-                rsi_sell = st.slider("RSI Sell Threshold", min_value=30, max_value=50, value=st.session_state.mom_rsi_sell, key="mom_rsi_sell_form")
-                st.caption(f"Sell when RSI falls below {rsi_sell}")
-                
-                volume_mult = st.slider("Volume Multiplier", min_value=1.0, max_value=2.0, value=float(st.session_state.mom_volume_mult), step=0.1, key="mom_volume_mult_form")
-                st.caption(f"Volume must be {volume_mult}x average for confirmation")
-                
-                # Submit button
-                form_submitted = st.form_submit_button("Apply Parameters", use_container_width=True)
-                
-                if form_submitted:
-                    st.session_state.mom_rsi_buy = rsi_buy
-                    st.session_state.mom_rsi_sell = rsi_sell
-                    st.session_state.mom_volume_mult = volume_mult
-                    st.session_state['backtest_mom_rsi_buy'] = rsi_buy
-                    st.session_state['backtest_mom_rsi_sell'] = rsi_sell
-                    st.session_state['backtest_mom_volume_mult'] = volume_mult
-                    st.success("✅ Parameters updated!")
-                
-                # Display current values
-                st.info(f"📊 **Active Parameters:** RSI Buy: {st.session_state.get('backtest_mom_rsi_buy', 55)}, RSI Sell: {st.session_state.get('backtest_mom_rsi_sell', 45)}, Volume Mult: {st.session_state.get('backtest_mom_volume_mult', 1.2)}")
-            
-            else:
-                st.info("No customizable parameters for this strategy")
+                else:
+                    st.info("No customizable parameters for this strategy")
     
     if st.button("🚀 Run Backtest", width='stretch'):
         # Clear previous rendered results ID when starting new backtest
@@ -305,8 +386,68 @@ def render_backtest_view(bot, exchange, config):
             if not ohlcv_data:
                 st.error("Failed to fetch historical data")
                 return
+        
+        # Run backtest(s) based on mode
+        if backtest_mode == "compare":
+            # Comparison mode: run backtests for all selected strategies
+            compare_strategies = st.session_state.get('compare_strategies', [])
+            if not compare_strategies:
+                st.error("Please select at least one strategy to compare")
+                return
             
-            # Run backtest with custom strategy parameters if set
+            strategy_display_names = {name: StrategyRegistry.get_display_name(name) for name in StrategyRegistry.get_strategy_names()}
+            comparison_results = {}
+            risk_config = config.get_risk_config()
+            
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+            
+            for idx, strategy_name in enumerate(compare_strategies):
+                strategy_display = strategy_display_names[strategy_name]
+                status_text.text(f"Running backtest for {strategy_display}... ({idx + 1}/{len(compare_strategies)})")
+                progress_bar.progress((idx + 1) / len(compare_strategies))
+                
+                try:
+                    # Get default config for this strategy
+                    strategy_config = config.get_strategy_config().copy()
+                    
+                    # Create strategy instance
+                    strategy = StrategyRegistry.get_strategy(strategy_name, config=strategy_config)
+                    
+                    # Run backtest
+                    backtest_engine = BacktestEngine(
+                        strategy=strategy,
+                        initial_balance=Decimal('10000'),
+                        stop_loss_percent=risk_config.get('stop_loss_percent', 0.03),
+                        trailing_stop_percent=risk_config.get('trailing_stop_percent', 0.025)
+                    )
+                    
+                    results = backtest_engine.run(
+                        ohlcv_data,
+                        backtest_symbol,
+                        position_size_percent=risk_config.get('position_size_percent', 0.01)
+                    )
+                    
+                    comparison_results[strategy_name] = {
+                        'results': results,
+                        'display_name': strategy_display
+                    }
+                except Exception as e:
+                    st.error(f"Error running backtest for {strategy_display}: {e}")
+                    import traceback
+                    st.code(traceback.format_exc())
+            
+            progress_bar.empty()
+            status_text.empty()
+            
+            # Store comparison results
+            st.session_state['comparison_results'] = comparison_results
+            st.session_state['comparison_ohlcv'] = ohlcv_data
+            st.session_state['comparison_symbol'] = backtest_symbol
+            st.success(f"✅ Comparison completed for {len(comparison_results)} strategy(ies)!")
+        
+        else:
+            # Single strategy mode - existing logic
             strategy_config = config.get_strategy_config().copy()
             
             # Use selected strategy from session state or default to trend_following
@@ -371,7 +512,158 @@ def render_backtest_view(bot, exchange, config):
                 import traceback
                 st.code(traceback.format_exc())
     
-    # Display results if available (only if they're for the current strategy)
+    # Display comparison results if available
+    if 'comparison_results' in st.session_state and st.session_state.get('comparison_results'):
+        comparison_results = st.session_state['comparison_results']
+        comparison_ohlcv = st.session_state.get('comparison_ohlcv', [])
+        comparison_symbol = st.session_state.get('comparison_symbol', backtest_symbol)
+        
+        st.header("⚖️ Strategy Comparison Results")
+        
+        # Build comparison metrics table
+        import pandas as pd
+        comparison_data = []
+        
+        for strategy_name, data in comparison_results.items():
+            results = data['results']
+            display_name = data['display_name']
+            
+            if 'initial_balance' not in results:
+                # No trades executed
+                comparison_data.append({
+                    'Strategy': display_name,
+                    'Total Return %': 0.0,
+                    'Total P&L': 0.0,
+                    'Total Trades': 0,
+                    'Win Rate %': 0.0,
+                    'Sharpe Ratio': 0.0,
+                    'Final Balance': results.get('final_balance', 10000)
+                })
+            else:
+                initial_balance = float(results.get('initial_balance', 10000))
+                final_balance = float(results.get('final_balance', initial_balance))
+                total_pnl = float(results.get('total_pnl', 0))
+                return_pct = ((final_balance - initial_balance) / initial_balance * 100) if initial_balance > 0 else 0
+                total_trades = results.get('total_trades', 0)
+                win_rate = results.get('win_rate', 0) * 100
+                sharpe = results.get('sharpe_ratio', 0)
+                
+                comparison_data.append({
+                    'Strategy': display_name,
+                    'Total Return %': return_pct,
+                    'Total P&L': total_pnl,
+                    'Total Trades': total_trades,
+                    'Win Rate %': win_rate,
+                    'Sharpe Ratio': sharpe,
+                    'Final Balance': final_balance
+                })
+        
+        comparison_df = pd.DataFrame(comparison_data)
+        
+        # Sort by Total Return % descending
+        comparison_df = comparison_df.sort_values('Total Return %', ascending=False)
+        
+        # Display comparison table with color coding
+        st.subheader("📊 Performance Comparison")
+        
+        # Style the dataframe
+        def highlight_best(val, col_name):
+            if col_name == 'Strategy':
+                return ''
+            max_val = comparison_df[col_name].max()
+            if val == max_val and col_name in ['Total Return %', 'Total P&L', 'Win Rate %', 'Sharpe Ratio', 'Final Balance']:
+                return 'background-color: #90EE90'  # Light green
+            return ''
+        
+        styled_df = comparison_df.style.apply(
+            lambda x: [highlight_best(x[col], col) for col in comparison_df.columns],
+            axis=1
+        )
+        
+        st.dataframe(styled_df, use_container_width=True, height=200)
+        
+        # Find best performer
+        best_strategy = comparison_df.iloc[0]['Strategy']
+        best_return = comparison_df.iloc[0]['Total Return %']
+        st.success(f"🏆 **Best Performer:** {best_strategy} with {best_return:.2f}% return")
+        
+        # Comparison equity curves chart
+        st.subheader("📈 Equity Curves Comparison")
+        import plotly.graph_objects as go
+        
+        fig = go.Figure()
+        
+        colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd']
+        
+        for idx, (strategy_name, data) in enumerate(comparison_results.items()):
+            results = data['results']
+            display_name = data['display_name']
+            
+            if 'equity_curve' in results and results['equity_curve']:
+                equity_curve = results['equity_curve']
+                timestamps = [point['timestamp'] for point in equity_curve]
+                balances = [float(point['balance']) for point in equity_curve]
+                
+                fig.add_trace(go.Scatter(
+                    x=timestamps,
+                    y=balances,
+                    mode='lines',
+                    name=display_name,
+                    line=dict(color=colors[idx % len(colors)], width=2)
+                ))
+        
+        fig.update_layout(
+            title=f"Equity Curves Comparison - {comparison_symbol}",
+            xaxis_title="Time",
+            yaxis_title="Balance ($)",
+            hovermode='x unified',
+            height=500
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # Individual strategy details in expanders
+        st.subheader("📋 Detailed Results")
+        for strategy_name, data in comparison_results.items():
+            results = data['results']
+            display_name = data['display_name']
+            
+            with st.expander(f"📊 {display_name} - Detailed Results"):
+                if 'initial_balance' not in results:
+                    st.info("No trades were executed during this backtest period.")
+                    st.metric("Total Trades", results.get('total_trades', 0))
+                else:
+                    initial_balance = float(results.get('initial_balance', 10000))
+                    final_balance = float(results.get('final_balance', initial_balance))
+                    total_pnl = float(results.get('total_pnl', 0))
+                    return_pct = ((final_balance - initial_balance) / initial_balance * 100) if initial_balance > 0 else 0
+                    total_trades = results.get('total_trades', 0)
+                    win_rate = results.get('win_rate', 0) * 100
+                    sharpe = results.get('sharpe_ratio', 0)
+                    
+                    col1, col2, col3, col4 = st.columns(4)
+                    with col1:
+                        st.metric("Initial Balance", f"${initial_balance:,.2f}")
+                    with col2:
+                        st.metric("Final Balance", f"${final_balance:,.2f}")
+                    with col3:
+                        pnl_color = "🟢" if total_pnl >= 0 else "🔴"
+                        st.metric("Total P&L", f"{pnl_color} ${total_pnl:,.2f}")
+                    with col4:
+                        st.metric("Return %", f"{return_pct:.2f}%")
+                    
+                    col1, col2, col3, col4 = st.columns(4)
+                    with col1:
+                        st.metric("Total Trades", total_trades)
+                    with col2:
+                        st.metric("Win Rate", f"{win_rate:.2f}%")
+                    with col3:
+                        st.metric("Sharpe Ratio", f"{sharpe:.2f}")
+                    with col4:
+                        max_drawdown = results.get('max_drawdown', 0)
+                        st.metric("Max Drawdown", f"{max_drawdown:.2f}%")
+    
+    # Display single strategy results if available (only if they're for the current strategy)
     current_strategy = st.session_state.get('selected_strategy', 'trend_following')
     results_strategy = st.session_state.get('backtest_result_strategy', None)
     
