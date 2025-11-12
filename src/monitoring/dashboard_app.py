@@ -12,7 +12,7 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 # App version - update this when deploying major changes
-APP_VERSION = "1.5.7"
+APP_VERSION = "1.5.8"
 APP_BUILD_DATE = "2025-11-12"
 
 from src.utils.config import Config
@@ -656,12 +656,29 @@ def render_backtest_view(bot, exchange, config):
                         progress_bar.progress(overall_progress)
                         status_text.text(f"Running backtest for {strategy_display}... ({idx + 1}/{len(compare_strategies)}) - Processing {current:,}/{total:,} candles ({current/total*100:.1f}%)")
                     
-                    results = backtest_engine.run(
-                        ohlcv_data,
-                        backtest_symbol,
-                        position_size_percent=risk_config.get('position_size_percent', 0.01),
-                        progress_callback=update_progress_compare
-                    )
+                    # Check if BacktestEngine supports progress_callback
+                    import inspect
+                    run_signature = inspect.signature(backtest_engine.run)
+                    supports_progress = 'progress_callback' in run_signature.parameters
+                    
+                    if supports_progress:
+                        results = backtest_engine.run(
+                            ohlcv_data,
+                            backtest_symbol,
+                            position_size_percent=risk_config.get('position_size_percent', 0.01),
+                            progress_callback=update_progress_compare
+                        )
+                    else:
+                        # Fallback for older versions
+                        status_text.text(f"Running backtest for {strategy_display}... ({idx + 1}/{len(compare_strategies)})")
+                        results = backtest_engine.run(
+                            ohlcv_data,
+                            backtest_symbol,
+                            position_size_percent=risk_config.get('position_size_percent', 0.01)
+                        )
+                        # Update progress after completion
+                        overall_progress = (idx + 1) / len(compare_strategies)
+                        progress_bar.progress(overall_progress)
                     
                     comparison_results[strategy_name] = {
                         'results': results,
@@ -740,12 +757,27 @@ def render_backtest_view(bot, exchange, config):
                     progress_bar.progress(progress)
                     status_text.info(f"🔄 Processing candle {current:,} of {total:,} ({progress*100:.1f}%)...")
                 
-                results = backtest_engine.run(
-                    ohlcv_data,
-                    backtest_symbol,
-                    position_size_percent=risk_config.get('position_size_percent', 0.01),
-                    progress_callback=update_progress
-                )
+                # Check if BacktestEngine supports progress_callback (for backward compatibility)
+                import inspect
+                run_signature = inspect.signature(backtest_engine.run)
+                supports_progress = 'progress_callback' in run_signature.parameters
+                
+                if supports_progress:
+                    results = backtest_engine.run(
+                        ohlcv_data,
+                        backtest_symbol,
+                        position_size_percent=risk_config.get('position_size_percent', 0.01),
+                        progress_callback=update_progress
+                    )
+                else:
+                    # Fallback for older versions without progress_callback
+                    status_text.info("🔄 Running backtest...")
+                    results = backtest_engine.run(
+                        ohlcv_data,
+                        backtest_symbol,
+                        position_size_percent=risk_config.get('position_size_percent', 0.01)
+                    )
+                    progress_bar.progress(1.0)
                 
                 # Store results in session state for animation (use different keys to avoid widget conflicts)
                 current_strategy = st.session_state.get('selected_strategy', 'trend_following')
