@@ -39,6 +39,17 @@ from src.monitoring.dashboard import (
     get_pnl_color,
     render_tooltip_icon
 )
+from src.monitoring.notifications import (
+    render_notification_center,
+    render_system_status_indicator,
+    render_notification_badge
+)
+from src.notifications.notification_manager import NotificationManager
+from src.notifications.notification_types import (
+    NotificationType,
+    NotificationPriority,
+    NotificationSource
+)
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import pandas as pd
@@ -1773,11 +1784,17 @@ def main():
     st.divider()
     
     # Add tabs for Live Trading and Backtesting
-    tab1, tab2, tab3 = st.tabs(["📈 Live Trading", "📊 Backtesting", "🤖 Multiple Bots"])
+    tab1, tab2, tab3, tab4 = st.tabs(["📈 Live Trading", "📊 Backtesting", "🤖 Multiple Bots", "🔔 Notifications"])
     
     # Initialize other components
     if 'metrics_collector' not in st.session_state:
         st.session_state.metrics_collector = MetricsCollector()
+    
+    # Initialize notification manager
+    if 'notification_manager' not in st.session_state:
+        config = Config()
+        notification_config = config.get_notification_config() if hasattr(config, 'get_notification_config') else {}
+        st.session_state.notification_manager = NotificationManager(config=notification_config)
     
     # Initialize streamer lazily - only create it, don't start it yet
     # We'll start it conditionally based on which tab is active
@@ -2096,6 +2113,113 @@ def main():
     
     with tab3:
         render_multiple_bots_view(config)
+    
+    with tab4:
+        # Notification Center
+        notification_manager = st.session_state.notification_manager
+        
+        # System status indicator at top
+        status = notification_manager.get_system_status()
+        render_system_status_indicator(status)
+        
+        st.divider()
+        
+        # Filters and controls
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            show_unread_only = st.checkbox("Show unread only", value=False)
+        with col2:
+            priority_filter = st.selectbox(
+                "Filter by priority",
+                options=["All", "Critical", "High", "Medium", "Low", "Info"],
+                index=0
+            )
+        with col3:
+            if st.button("🔄 Refresh", width='stretch'):
+                st.rerun()
+        
+        # Get notifications
+        all_notifications = notification_manager.get_all(unread_only=show_unread_only)
+        
+        # Filter by priority if selected
+        if priority_filter != "All":
+            priority_map = {
+                "Critical": NotificationPriority.CRITICAL,
+                "High": NotificationPriority.HIGH,
+                "Medium": NotificationPriority.MEDIUM,
+                "Low": NotificationPriority.LOW,
+                "Info": NotificationPriority.INFO
+            }
+            selected_priority = priority_map.get(priority_filter)
+            all_notifications = [n for n in all_notifications if n.priority == selected_priority]
+        
+        # Render notification center
+        action, notif_id = render_notification_center(
+            all_notifications,
+            title="🔔 Notification Center",
+            max_display=20,
+            show_unread_only=show_unread_only
+        )
+        
+        # Handle user actions
+        if action and notif_id:
+            notification_manager.respond(notif_id, action)
+            notification_manager.mark_read(notif_id)
+            st.success(f"✅ Action '{action}' recorded for notification")
+            st.rerun()
+        
+        # Demo notifications (for testing - remove in production)
+        st.divider()
+        with st.expander("🧪 Demo: Create Test Notification"):
+            col1, col2 = st.columns(2)
+            with col1:
+                demo_type = st.selectbox(
+                    "Notification Type",
+                    options=["Combined Signal", "Technical Breakout", "Social Surge", "News Event", "Risk Alert"],
+                    key="demo_type"
+                )
+                demo_priority = st.selectbox(
+                    "Priority",
+                    options=["Critical", "High", "Medium", "Low", "Info"],
+                    key="demo_priority"
+                )
+            with col2:
+                demo_symbol = st.text_input("Symbol", value="BTC/USDT", key="demo_symbol")
+                demo_confidence = st.slider("Confidence Score", 0, 100, 85, key="demo_confidence")
+            
+            demo_title = st.text_input("Title", value=f"{demo_type} - {demo_symbol}", key="demo_title")
+            demo_message = st.text_area("Message", value=f"Sample notification for {demo_symbol} with {demo_confidence}% confidence.", key="demo_message")
+            
+            if st.button("Create Demo Notification", type="primary"):
+                type_map = {
+                    "Combined Signal": NotificationType.COMBINED_SIGNAL,
+                    "Technical Breakout": NotificationType.TECHNICAL_BREAKOUT,
+                    "Social Surge": NotificationType.SOCIAL_SURGE,
+                    "News Event": NotificationType.NEWS_EVENT,
+                    "Risk Alert": NotificationType.RISK_ALERT
+                }
+                priority_map = {
+                    "Critical": NotificationPriority.CRITICAL,
+                    "High": NotificationPriority.HIGH,
+                    "Medium": NotificationPriority.MEDIUM,
+                    "Low": NotificationPriority.LOW,
+                    "Info": NotificationPriority.INFO
+                }
+                
+                notification_manager.notify(
+                    notification_type=type_map[demo_type],
+                    priority=priority_map[demo_priority],
+                    title=demo_title,
+                    message=demo_message,
+                    source=NotificationSource.TECHNICAL,
+                    symbol=demo_symbol,
+                    confidence_score=demo_confidence,
+                    urgency_score=demo_confidence - 10 if demo_confidence > 10 else demo_confidence,
+                    promise_score=demo_confidence + 5 if demo_confidence < 95 else demo_confidence,
+                    actions=["Approve", "Reject", "Custom"]
+                )
+                st.success("✅ Demo notification created!")
+                st.rerun()
     
     # Auto-refresh only on Live Trading tab (with error handling for graceful shutdown)
     # Use a session state variable to track active tab and disable refresh on backtesting tab
