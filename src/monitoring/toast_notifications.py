@@ -246,14 +246,6 @@ def render_toast_notification(notification: Notification, duration: int = 5000):
     # Dismiss button key
     dismiss_key = f"dismiss_{toast_id}"
     
-    # Check if button was clicked (before rendering)
-    if dismiss_key in st.session_state and st.session_state[dismiss_key]:
-        dismissed_toasts.add(notification.notification_id)
-        st.session_state.dismissed_toasts = dismissed_toasts
-        # Reset the button state
-        st.session_state[dismiss_key] = False
-        return  # Don't render if dismissed
-    
     # HTML for the toast notification with close button embedded
     # Use columns to position button next to toast
     col1, col2 = st.columns([0.92, 0.08])
@@ -280,7 +272,8 @@ def render_toast_notification(notification: Notification, duration: int = 5000):
         # Close button positioned next to toast
         if st.button("×", key=dismiss_key, help="Dismiss notification", 
                     use_container_width=True):
-            st.session_state[dismiss_key] = True
+            dismissed_toasts.add(notification.notification_id)
+            st.session_state.dismissed_toasts = dismissed_toasts
             st.rerun()
         
         # Style the button to look like a close button
