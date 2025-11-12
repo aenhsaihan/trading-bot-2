@@ -12,12 +12,13 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 # App version - update this when deploying major changes
-APP_VERSION = "1.2.0"
+APP_VERSION = "1.2.1"
 APP_BUILD_DATE = "2025-11-12"
 
 from src.utils.config import Config
 from src.exchanges.binance import BinanceExchange
 from src.strategies.trend_following import TrendFollowingStrategy
+from src.strategies.registry import StrategyRegistry
 from src.bot import TradingBot
 from src.monitoring.metrics import MetricsCollector
 from src.monitoring.streaming import DataStreamer
@@ -45,8 +46,8 @@ from datetime import datetime
 import time
 
 
-def initialize_bot(exchange_name: str):
-    """Initialize bot components with selected exchange"""
+def initialize_bot(exchange_name: str, strategy_name: str = "trend_following"):
+    """Initialize bot components with selected exchange and strategy"""
     config = Config()
     is_paper = config.is_paper_trading()
     
@@ -85,9 +86,13 @@ def initialize_bot(exchange_name: str):
     if exchange is None or connection_error:
         return None, None, config, None, connection_error
     
-    # Initialize strategy
-    strategy_config = config.get_strategy_config()
-    strategy = TrendFollowingStrategy(config=strategy_config)
+    # Initialize strategy using registry
+    try:
+        strategy_config = config.get_strategy_config()
+        strategy = StrategyRegistry.get_strategy(strategy_name, config=strategy_config)
+    except Exception as e:
+        connection_error = f"Error initializing strategy '{strategy_name}': {str(e)}"
+        return None, None, config, None, connection_error
     
     # Initialize bot
     bot = TradingBot(exchange, strategy, config, is_paper_trading=is_paper)
@@ -196,7 +201,9 @@ def render_backtest_view(bot, exchange, config):
             if 'backtest_rsi_threshold' in st.session_state:
                 strategy_config['rsi_overbought'] = st.session_state['backtest_rsi_threshold']
             
-            strategy = TrendFollowingStrategy(config=strategy_config)
+            # Use selected strategy from session state or default to trend_following
+            backtest_strategy_name = st.session_state.get('selected_strategy', 'trend_following')
+            strategy = StrategyRegistry.get_strategy(backtest_strategy_name, config=strategy_config)
             
             risk_config = config.get_risk_config()
             backtest_engine = BacktestEngine(
@@ -913,22 +920,75 @@ def main():
             st.rerun()
         
         st.divider()
+        
+        # Strategy selector
+        st.subheader("📈 Trading Strategy")
+        
+        # Initialize selected strategy in session state
+        if 'selected_strategy' not in st.session_state:
+            st.session_state.selected_strategy = "trend_following"
+        
+        # Get available strategies
+        available_strategies = StrategyRegistry.get_strategy_names()
+        strategy_descriptions = StrategyRegistry.list_strategies()
+        
+        # Create display names for dropdown
+        strategy_display_names = {name: StrategyRegistry.get_display_name(name) for name in available_strategies}
+        strategy_options = [strategy_display_names[name] for name in available_strategies]
+        
+        # Find current selection index
+        current_strategy_name = st.session_state.selected_strategy
+        current_index = available_strategies.index(current_strategy_name) if current_strategy_name in available_strategies else 0
+        
+        # Strategy dropdown
+        selected_strategy_display = st.selectbox(
+            "Select Strategy",
+            options=strategy_options,
+            index=current_index,
+            key="strategy_selector"
+        )
+        
+        # Get the strategy name from display name
+        selected_strategy_name = [name for name, display in strategy_display_names.items() if display == selected_strategy_display][0]
+        
+        # Show strategy description
+        if selected_strategy_name in strategy_descriptions:
+            st.caption(strategy_descriptions[selected_strategy_name])
+        
+        # Update session state if strategy changed
+        if selected_strategy_name != st.session_state.selected_strategy:
+            st.session_state.selected_strategy = selected_strategy_name
+            # Clear cached bot/exchange when strategy changes
+            if 'cached_bot' in st.session_state:
+                del st.session_state.cached_bot
+            if 'cached_exchange' in st.session_state:
+                del st.session_state.cached_exchange
+            if 'cached_config' in st.session_state:
+                del st.session_state.cached_config
+            # Stop streamer if running
+            if 'streamer' in st.session_state and st.session_state.streamer.running:
+                st.session_state.streamer.stop()
+            st.rerun()
+        
+        st.divider()
     
     # Show connection status at the top (before tabs)
     connection_status_container = st.container()
     
     with connection_status_container:
         # Show connecting status
-        with st.spinner(f"🔄 Connecting to {selected_exchange}..."):
+        selected_strategy_name = st.session_state.get('selected_strategy', 'trend_following')
+        strategy_display = StrategyRegistry.get_display_name(selected_strategy_name)
+        with st.spinner(f"🔄 Connecting to {selected_exchange} with {strategy_display} strategy..."):
             try:
-                bot, exchange, config, connected_exchange, connection_error = initialize_bot(selected_exchange)
+                bot, exchange, config, connected_exchange, connection_error = initialize_bot(selected_exchange, selected_strategy_name)
             except Exception as e:
                 st.error(f"❌ **Failed to initialize bot: {e}**")
                 st.stop()
         
         # Display connection status prominently at the top
         if connected_exchange:
-            st.success(f"✅ **Connected to {connected_exchange}**")
+            st.success(f"✅ **Connected to {connected_exchange}** | 📈 **Strategy: {strategy_display}**")
             st.caption(f"📡 Using {connected_exchange} API for market data")
         elif connection_error:
             st.error(f"❌ **Connection Failed: {connection_error}**")
