@@ -827,6 +827,8 @@ def main():
         # Symbol selection
         symbol = st.selectbox("Trading Pair", ["BTC/USDT", "ETH/USDT", "BNB/USDT"], index=0)
         
+        st.divider()
+        
         # Bot controls
         st.subheader("Bot Controls")
         col1, col2 = st.columns(2)
