@@ -379,7 +379,7 @@ def render_backtest_view(bot, exchange, config):
             
                 col1, col2, col3, col4 = st.columns(4)
                 with col1:
-                st.markdown("""
+                    st.markdown("""
                 <strong>Initial Balance</strong> <span class="tooltip-container" style="display: inline-block;">
                     <span class="tooltip-icon">ℹ</span>
                     <span class="tooltip-text">Starting capital for the backtest.</span>
@@ -387,7 +387,7 @@ def render_backtest_view(bot, exchange, config):
                 """, unsafe_allow_html=True)
                 st.metric("Initial Balance", f"${results.get('initial_balance', 0):,.2f}", label_visibility="hidden")
                 with col2:
-                st.markdown("""
+                    st.markdown("""
                 <strong>Final Balance</strong> <span class="tooltip-container" style="display: inline-block;">
                     <span class="tooltip-icon">ℹ</span>
                     <span class="tooltip-text">Ending capital after all trades.</span>
@@ -395,7 +395,7 @@ def render_backtest_view(bot, exchange, config):
                 """, unsafe_allow_html=True)
                 st.metric("Final Balance", f"${results.get('final_balance', 0):,.2f}", label_visibility="hidden")
                 with col3:
-                return_pct = results.get('total_return', 0)
+                    return_pct = results.get('total_return', 0)
                 st.markdown("""
                 <strong>Total Return</strong> <span class="tooltip-container" style="display: inline-block;">
                     <span class="tooltip-icon">ℹ</span>
@@ -404,7 +404,7 @@ def render_backtest_view(bot, exchange, config):
                 """, unsafe_allow_html=True)
                 st.metric("Total Return", f"{return_pct:.2f}%", delta=f"{return_pct:.2f}%", label_visibility="hidden")
                 with col4:
-                st.markdown("""
+                    st.markdown("""
                 <strong>Total Trades</strong> <span class="tooltip-container" style="display: inline-block;">
                     <span class="tooltip-icon">ℹ</span>
                     <span class="tooltip-text">Number of completed buy-sell trade pairs.</span>
@@ -414,7 +414,7 @@ def render_backtest_view(bot, exchange, config):
             
                 col1, col2, col3 = st.columns(3)
                 with col1:
-                win_rate = results.get('win_rate', 0)
+                    win_rate = results.get('win_rate', 0)
                 st.markdown("""
                 <strong>Win Rate</strong> <span class="tooltip-container" style="display: inline-block;">
                     <span class="tooltip-icon">ℹ</span>
@@ -423,7 +423,7 @@ def render_backtest_view(bot, exchange, config):
                 """, unsafe_allow_html=True)
                 st.metric("Win Rate", f"{win_rate:.1%}", label_visibility="hidden")
                 with col2:
-                sharpe = results.get('sharpe_ratio', 0)
+                    sharpe = results.get('sharpe_ratio', 0)
                 sharpe_interpretation = ""
                 if sharpe >= 2:
                     sharpe_interpretation = "🟢 Excellent"
@@ -439,7 +439,7 @@ def render_backtest_view(bot, exchange, config):
                 """, unsafe_allow_html=True)
                 st.metric("Sharpe Ratio", f"{sharpe:.2f}", label_visibility="hidden")
                 with col3:
-                total_pnl = results.get('total_pnl', 0)
+                    total_pnl = results.get('total_pnl', 0)
                 pnl_color = "🟢" if total_pnl > 0 else "🔴"
                 st.markdown("""
                 <strong>Total P&L</strong> <span class="tooltip-container" style="display: inline-block;">
@@ -452,8 +452,8 @@ def render_backtest_view(bot, exchange, config):
                 # Signal analysis
                 signal_analysis = results.get('signal_analysis', {})
                 if signal_analysis:
-                st.divider()
-                st.subheader("📊 Signal Analysis")
+                    st.divider()
+                    st.subheader("📊 Signal Analysis")
                 col1, col2 = st.columns(2)
                 with col1:
                     potential_buys = signal_analysis.get('potential_buys', 0)
@@ -487,7 +487,7 @@ def render_backtest_view(bot, exchange, config):
             
                 # Only render chart and table if results have changed
                 if 'last_rendered_results_id' not in st.session_state or st.session_state.get('last_rendered_results_id') != results_id:
-                st.session_state['last_rendered_results_id'] = results_id
+                    st.session_state['last_rendered_results_id'] = results_id
                 
                 # Animated chart - render in container
                 with st.session_state['backtest_chart_container'].container():
@@ -923,10 +923,10 @@ def render_backtest_view(bot, exchange, config):
                                 st.caption(f"... and {len(rejected_buys) - 5} more rejected signals")
                     else:
                         st.info("No trades executed during backtest")
-        except Exception as e:
-            st.error(f"Error displaying backtest results: {e}")
-            import traceback
-            st.code(traceback.format_exc())
+            except Exception as e:
+                st.error(f"Error displaying backtest results: {e}")
+                import traceback
+                st.code(traceback.format_exc())
 
 
 def main():
