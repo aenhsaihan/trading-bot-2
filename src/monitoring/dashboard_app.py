@@ -12,7 +12,7 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 # App version - update this when deploying major changes
-APP_VERSION = "1.1.5"
+APP_VERSION = "1.2.0"
 APP_BUILD_DATE = "2025-11-12"
 
 from src.utils.config import Config
@@ -45,38 +45,45 @@ from datetime import datetime
 import time
 
 
-@st.cache_resource
-def initialize_bot():
-    """Initialize bot components (cached)"""
+def initialize_bot(exchange_name: str):
+    """Initialize bot components with selected exchange"""
     config = Config()
     is_paper = config.is_paper_trading()
     
-    # Initialize exchange (using Binance as default)
-    api_key = config.get_exchange_api_key("binance")
-    api_secret = config.get_exchange_api_secret("binance")
-    # For paper trading without API keys, don't use sandbox (use public API)
-    use_sandbox = is_paper and api_key is not None
-    exchange = BinanceExchange(api_key=api_key, api_secret=api_secret, sandbox=use_sandbox)
+    # Initialize exchange based on selection
+    exchange = None
+    connection_error = None
     
-    # Try to connect - status will be shown at top of page
-    connected_exchange = None
-    if not exchange.connect():
-        # Binance may be blocked in some regions (e.g., Streamlit Cloud servers)
-        # Try Coinbase as fallback
-        from src.exchanges.coinbase import CoinbaseExchange
-        exchange = CoinbaseExchange(api_key=None, api_secret=None, sandbox=False)
-        if not exchange.connect():
-            # Try Kraken as last resort
-            from src.exchanges.kraken import KrakenExchange
-            exchange = KrakenExchange(api_key=None, api_secret=None, sandbox=False)
+    try:
+        if exchange_name == "Binance":
+            api_key = config.get_exchange_api_key("binance")
+            api_secret = config.get_exchange_api_secret("binance")
+            use_sandbox = is_paper and api_key is not None
+            exchange = BinanceExchange(api_key=api_key, api_secret=api_secret, sandbox=use_sandbox)
             if not exchange.connect():
-                connected_exchange = None  # Failed
-            else:
-                connected_exchange = "Kraken"
+                connection_error = "Binance connection failed. This may be due to regional restrictions or API downtime."
+        elif exchange_name == "Coinbase":
+            from src.exchanges.coinbase import CoinbaseExchange
+            api_key = config.get_exchange_api_key("coinbase")
+            api_secret = config.get_exchange_api_secret("coinbase")
+            exchange = CoinbaseExchange(api_key=api_key, api_secret=api_secret, sandbox=False)
+            if not exchange.connect():
+                connection_error = "Coinbase connection failed. Check your network connection or API credentials."
+        elif exchange_name == "Kraken":
+            from src.exchanges.kraken import KrakenExchange
+            api_key = config.get_exchange_api_key("kraken")
+            api_secret = config.get_exchange_api_secret("kraken")
+            exchange = KrakenExchange(api_key=api_key, api_secret=api_secret, sandbox=False)
+            if not exchange.connect():
+                connection_error = "Kraken connection failed. Check your network connection or API credentials."
         else:
-            connected_exchange = "Coinbase"
-    else:
-        connected_exchange = "Binance"
+            connection_error = f"Unknown exchange: {exchange_name}"
+    except Exception as e:
+        connection_error = f"Error initializing {exchange_name}: {str(e)}"
+        exchange = None
+    
+    if exchange is None or connection_error:
+        return None, None, config, None, connection_error
     
     # Initialize strategy
     strategy_config = config.get_strategy_config()
@@ -85,7 +92,7 @@ def initialize_bot():
     # Initialize bot
     bot = TradingBot(exchange, strategy, config, is_paper_trading=is_paper)
     
-    return bot, exchange, config, connected_exchange
+    return bot, exchange, config, exchange_name, None
 
 
 def render_backtest_view(bot, exchange, config):
@@ -873,26 +880,67 @@ def main():
         st.caption(f"📦 Version {APP_VERSION}")
         st.caption(f"🔨 Build: {APP_BUILD_DATE}")
         st.divider()
+        
+        # Exchange selector
+        st.subheader("🔌 Exchange Connection")
+        
+        # Initialize selected exchange in session state
+        if 'selected_exchange' not in st.session_state:
+            st.session_state.selected_exchange = "Binance"
+        
+        # Exchange dropdown
+        exchange_options = ["Binance", "Coinbase", "Kraken"]
+        selected_exchange = st.selectbox(
+            "Select Exchange",
+            options=exchange_options,
+            index=exchange_options.index(st.session_state.selected_exchange) if st.session_state.selected_exchange in exchange_options else 0,
+            key="exchange_selector"
+        )
+        
+        # Update session state if exchange changed
+        if selected_exchange != st.session_state.selected_exchange:
+            st.session_state.selected_exchange = selected_exchange
+            # Clear cached bot/exchange when exchange changes
+            if 'cached_bot' in st.session_state:
+                del st.session_state.cached_bot
+            if 'cached_exchange' in st.session_state:
+                del st.session_state.cached_exchange
+            if 'cached_config' in st.session_state:
+                del st.session_state.cached_config
+            # Stop streamer if running
+            if 'streamer' in st.session_state and st.session_state.streamer.running:
+                st.session_state.streamer.stop()
+            st.rerun()
+        
+        st.divider()
     
     # Show connection status at the top (before tabs)
-    with st.spinner("🔄 Connecting to exchange..."):
-        try:
-            bot, exchange, config, connected_exchange = initialize_bot()
-        except Exception as e:
-            st.error(f"Failed to initialize bot: {e}")
-            st.stop()
+    connection_status_container = st.container()
     
-    # Display connection status prominently at the top
-    if connected_exchange:
-        st.success(f"✅ **Connected to {connected_exchange}**")
-    else:
-        st.error("❌ **Failed to connect to any exchange**")
-        st.error("This may be due to:")
-        st.error("1. Network connectivity issues")
-        st.error("2. Exchange API restrictions (Binance blocks some regions)")
-        st.error("3. Exchange API downtime")
-        st.info("💡 **Tip:** Try refreshing the page or check if exchanges are accessible from your location.")
-        st.stop()
+    with connection_status_container:
+        # Show connecting status
+        with st.spinner(f"🔄 Connecting to {selected_exchange}..."):
+            try:
+                bot, exchange, config, connected_exchange, connection_error = initialize_bot(selected_exchange)
+            except Exception as e:
+                st.error(f"❌ **Failed to initialize bot: {e}**")
+                st.stop()
+        
+        # Display connection status prominently at the top
+        if connected_exchange:
+            st.success(f"✅ **Connected to {connected_exchange}**")
+            st.caption(f"📡 Using {connected_exchange} API for market data")
+        elif connection_error:
+            st.error(f"❌ **Connection Failed: {connection_error}**")
+            st.info("💡 **Tips:**")
+            st.info("• Check your internet connection")
+            st.info("• Some exchanges may be blocked in certain regions")
+            st.info("• Try selecting a different exchange")
+            st.info("• For paper trading, API keys are optional (public data only)")
+            st.stop()
+        else:
+            st.error("❌ **Failed to connect to exchange**")
+            st.stop()
     
     st.divider()
     
@@ -905,11 +953,16 @@ def main():
     
     # Initialize streamer lazily - only create it, don't start it yet
     # We'll start it conditionally based on which tab is active
-    if 'streamer' not in st.session_state:
+    # Recreate streamer if exchange changed
+    if 'streamer' not in st.session_state or 'last_exchange' not in st.session_state or st.session_state.last_exchange != connected_exchange:
+        # Stop old streamer if it exists
+        if 'streamer' in st.session_state and st.session_state.streamer.running:
+            st.session_state.streamer.stop()
         # Use much longer update interval to avoid rate limits (30 seconds for Kraken)
         # OHLCV data is fetched even less frequently (every 6 iterations = 3 minutes)
         st.session_state.streamer = DataStreamer(exchange, update_interval=30.0)
         st.session_state.streamer_started = False  # Track if we've started it
+        st.session_state.last_exchange = connected_exchange
     
     # Use query parameter or session state to track active tab
     # Streamlit tabs don't expose which one is active directly
