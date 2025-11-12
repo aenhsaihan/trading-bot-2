@@ -984,10 +984,10 @@ def main():
                 col_ind1, col_ind2 = st.columns(2)
                 with col_ind1:
                     st.metric("Short MA", f"${short_ma:.2f}")
-                            st.metric("RSI", f"{rsi:.1f}")
-                        with col_ind2:
-                            st.metric("Long MA", f"${long_ma:.2f}")
-                            st.metric("MACD", f"{macd_line:.4f}")
+                    st.metric("RSI", f"{rsi:.1f}")
+                with col_ind2:
+                    st.metric("Long MA", f"${long_ma:.2f}")
+                    st.metric("MACD", f"{macd_line:.4f}")
                         
                         # Show why it's holding (if not trading)
                         if current_signal == "HOLD":
