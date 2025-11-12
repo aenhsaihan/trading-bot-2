@@ -21,34 +21,55 @@ from datetime import datetime
 class NotificationService:
     """Service layer for notifications API"""
     
+    # Singleton instance
+    _instance = None
+    _websocket_clients: List = []  # Shared across all instances
+    
+    def __new__(cls, config: Optional[Dict] = None):
+        """Singleton pattern - ensure only one instance exists"""
+        if cls._instance is None:
+            cls._instance = super(NotificationService, cls).__new__(cls)
+            cls._instance.manager = NotificationManager(config)
+            cls._instance._initialized = False
+        return cls._instance
+    
     def __init__(self, config: Optional[Dict] = None):
-        """Initialize notification service"""
-        self.manager = NotificationManager(config)
-        self._websocket_clients: List = []  # Will store WebSocket connections
+        """Initialize notification service (only once)"""
+        if self._initialized:
+            return
+        self._initialized = True
+        # _websocket_clients is a class variable, shared across instances
     
     def add_websocket_client(self, websocket):
         """Add a WebSocket client for real-time updates"""
-        self._websocket_clients.append(websocket)
+        if websocket not in NotificationService._websocket_clients:
+            NotificationService._websocket_clients.append(websocket)
+            print(f"WebSocket client added. Total clients: {len(NotificationService._websocket_clients)}")
     
     def remove_websocket_client(self, websocket):
         """Remove a WebSocket client"""
-        if websocket in self._websocket_clients:
-            self._websocket_clients.remove(websocket)
+        if websocket in NotificationService._websocket_clients:
+            NotificationService._websocket_clients.remove(websocket)
+            print(f"WebSocket client removed. Total clients: {len(NotificationService._websocket_clients)}")
     
     async def broadcast_notification(self, notification):
         """Broadcast notification to all WebSocket clients"""
-        if not self._websocket_clients:
+        if not NotificationService._websocket_clients:
+            print("No WebSocket clients connected, skipping broadcast")
             return
         
         notification_dict = notification.to_dict()
+        print(f"Broadcasting notification to {len(NotificationService._websocket_clients)} client(s): {notification_dict.get('title', 'N/A')}")
         
         # Send to all connected clients
         disconnected = []
-        for client in self._websocket_clients:
+        for client in NotificationService._websocket_clients:
             try:
                 await client.send_json(notification_dict)
+                print(f"Sent notification to client successfully")
             except Exception as e:
                 # Client disconnected, mark for removal
+                print(f"Error sending to client: {e}")
                 disconnected.append(client)
         
         # Remove disconnected clients
