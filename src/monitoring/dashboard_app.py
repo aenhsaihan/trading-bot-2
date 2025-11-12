@@ -2159,18 +2159,24 @@ def main():
     
     with tab4:
         # Notification Center
-        notification_manager = st.session_state.notification_manager
+        notification_adapter = st.session_state.notification_adapter
+        
+        # Show API connection status
+        if st.session_state.get('api_connected', False):
+            st.success("✅ Connected to FastAPI backend")
+        else:
+            st.info("ℹ️ Using direct NotificationManager (FastAPI backend not available)")
         
         # Check for new notifications and show toast + voice alert
         new_notif_id = check_and_show_new_notifications(
-            notification_manager,
+            notification_adapter,
             st.session_state.last_toast_notification_id
         )
         
         # If new notification, play voice alert
         if new_notif_id and new_notif_id != st.session_state.last_toast_notification_id:
             # Get the notification
-            all_notifications = notification_manager.get_all()
+            all_notifications = notification_adapter.get_all()
             new_notification = next((n for n in all_notifications if n.notification_id == new_notif_id), None)
             if new_notification:
                 # Play voice alert with the actual notification message
@@ -2194,7 +2200,7 @@ def main():
                 st.session_state.last_toast_notification_id = new_notif_id
         
         # System status indicator at top
-        status = notification_manager.get_system_status()
+        status = notification_adapter.get_system_status()
         render_system_status_indicator(status)
         
         st.divider()
@@ -2214,7 +2220,7 @@ def main():
                 st.rerun()
         
         # Get notifications
-        all_notifications = notification_manager.get_all(unread_only=show_unread_only)
+        all_notifications = notification_adapter.get_all(unread_only=show_unread_only)
         
         # Filter out responded notifications (they've been handled)
         all_notifications = [n for n in all_notifications if not n.responded]
@@ -2236,8 +2242,8 @@ def main():
         if 'pending_notification_action' in st.session_state:
             action, notif_id = st.session_state.pending_notification_action
             if action and notif_id:
-                notification_manager.respond(notif_id, action)
-                notification_manager.mark_read(notif_id)
+                notification_adapter.respond(notif_id, action)
+                notification_adapter.mark_as_read(notif_id)
                 # Remove from session state
                 del st.session_state.pending_notification_action
                 st.success(f"✅ Action '{action}' recorded for notification")
