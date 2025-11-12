@@ -1812,11 +1812,24 @@ def main():
     if 'metrics_collector' not in st.session_state:
         st.session_state.metrics_collector = MetricsCollector()
     
-    # Initialize notification manager
-    if 'notification_manager' not in st.session_state:
+    # Initialize notification adapter (unifies API client and direct manager)
+    if 'notification_adapter' not in st.session_state:
+        # Initialize API client
+        api_client = NotificationAPIClient()
+        
+        # Initialize direct manager as fallback
         config = Config()
         notification_config = config.get_notification_config() if hasattr(config, 'get_notification_config') else {}
-        st.session_state.notification_manager = NotificationManager(config=notification_config)
+        direct_manager = NotificationManager(config=notification_config)
+        
+        # Create adapter that uses API if available, falls back to direct manager
+        st.session_state.notification_adapter = NotificationAdapter(api_client, direct_manager)
+        
+        # Show connection status
+        if api_client.health_check():
+            st.session_state.api_connected = True
+        else:
+            st.session_state.api_connected = False
     
     # Initialize voice alert system
     if 'voice_alert' not in st.session_state:

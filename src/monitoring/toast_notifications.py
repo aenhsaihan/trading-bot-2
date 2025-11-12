@@ -312,20 +312,20 @@ def render_toast_system():
 
 
 def check_and_show_new_notifications(
-    notification_manager,
+    notification_adapter,
     last_notification_id: Optional[str] = None
 ) -> Optional[str]:
     """
     Check for new notifications and show toast for them.
     
     Args:
-        notification_manager: NotificationManager instance
+        notification_adapter: NotificationAdapter instance (works with API or direct manager)
         last_notification_id: ID of last shown notification
         
     Returns:
         ID of newest notification (if any)
     """
-    all_notifications = notification_manager.get_all()
+    all_notifications = notification_adapter.get_all()
     if not all_notifications:
         return last_notification_id
     
