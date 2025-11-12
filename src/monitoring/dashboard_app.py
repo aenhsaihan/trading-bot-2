@@ -12,7 +12,7 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 # App version - update this when deploying major changes
-APP_VERSION = "1.5.3"
+APP_VERSION = "1.5.4"
 APP_BUILD_DATE = "2025-11-12"
 
 from src.utils.config import Config
@@ -723,6 +723,10 @@ def render_backtest_view(bot, exchange, config):
             )
             
             try:
+                # Show progress indicator
+                progress_container = st.empty()
+                progress_container.info("🔄 Running backtest... This may take a moment for large datasets.")
+                
                 results = backtest_engine.run(
                     ohlcv_data,
                     backtest_symbol,
@@ -735,7 +739,16 @@ def render_backtest_view(bot, exchange, config):
                 st.session_state['backtest_ohlcv'] = ohlcv_data
                 st.session_state['backtest_result_symbol'] = backtest_symbol  # Different key to avoid widget conflict
                 st.session_state['backtest_result_strategy'] = current_strategy  # Track which strategy these results are for
-                st.success("✅ Backtest completed!")
+                
+                # Clear progress indicator
+                progress_container.empty()
+                
+                # Show completion message with trade count
+                total_trades = results.get('total_trades', 0)
+                st.success(f"✅ Backtest completed! Executed {total_trades} trade(s).")
+                
+                # Force rerun to display results
+                st.rerun()
             except Exception as e:
                 st.error(f"Error running backtest: {e}")
                 import traceback
