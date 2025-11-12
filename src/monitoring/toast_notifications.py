@@ -243,8 +243,8 @@ def render_toast_notification(notification: Notification, duration: int = 5000):
         st.session_state.dismissed_toasts = dismissed_toasts
         return
     
-    # HTML for the toast notification
-    # Use Streamlit buttons for dismissal (Python-based, more reliable)
+    # HTML for the toast notification with integrated close button
+    # The close button will be handled via Streamlit button below, styled to match
     toast_html = f'''
     <div id="{toast_id}" class="toast-container" style="--priority-color: {priority_color};" data-toast-id="{toast_id}">
         <div class="toast-notification" id="toast-notif-{toast_id}" style="border-left-color: {priority_color} !important;">
@@ -263,13 +263,49 @@ def render_toast_notification(notification: Notification, duration: int = 5000):
     
     st.markdown(toast_html, unsafe_allow_html=True)
     
-    # Add Streamlit button for dismissal (Python-based, reliable)
-    col1, col2, col3 = st.columns([1, 1, 1])
-    with col2:
-        if st.button("×", key=f"dismiss_{toast_id}", help="Dismiss notification"):
+    # Add Streamlit button styled to look like close button, positioned absolutely
+    # Use columns to position it in top right
+    with st.container():
+        # Create a container with relative positioning for the button
+        st.markdown(f'''
+        <div style="position: relative; margin-top: -60px; margin-bottom: 20px;">
+            <div style="position: absolute; top: 0; right: 20px; z-index: 10000;">
+        ''', unsafe_allow_html=True)
+        
+        # Check if dismiss button was clicked
+        dismiss_key = f"dismiss_{toast_id}"
+        if dismiss_key not in st.session_state:
+            st.session_state[dismiss_key] = False
+        
+        if st.button("×", key=dismiss_key, help="Dismiss notification", 
+                    use_container_width=False):
             dismissed_toasts.add(notification.notification_id)
             st.session_state.dismissed_toasts = dismissed_toasts
+            st.session_state[dismiss_key] = True
             st.rerun()
+        
+        st.markdown('</div></div>', unsafe_allow_html=True)
+        
+        # Also add CSS to style the button
+        st.markdown(f'''
+        <style>
+        button[key="{dismiss_key}"] {{
+            background: rgba(255, 255, 255, 0.2) !important;
+            border: none !important;
+            border-radius: 50% !important;
+            width: 24px !important;
+            height: 24px !important;
+            color: #ffffff !important;
+            font-size: 16px !important;
+            line-height: 1 !important;
+            padding: 0 !important;
+            margin: 0 !important;
+        }}
+        button[key="{dismiss_key}"]:hover {{
+            background: rgba(255, 255, 255, 0.3) !important;
+        }}
+        </style>
+        ''', unsafe_allow_html=True)
 
 
 def render_toast_system():
