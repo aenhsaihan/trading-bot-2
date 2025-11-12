@@ -1032,6 +1032,10 @@ def main():
                 del st.session_state.backtest_results
             if 'backtest_result_symbol' in st.session_state:
                 del st.session_state.backtest_result_symbol
+            if 'backtest_result_strategy' in st.session_state:
+                del st.session_state.backtest_result_strategy
+            if 'backtest_ohlcv' in st.session_state:
+                del st.session_state.backtest_ohlcv
             if 'last_rendered_results_id' in st.session_state:
                 del st.session_state.last_rendered_results_id
             # Stop streamer if running
