@@ -12,7 +12,7 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 # App version - update this when deploying major changes
-APP_VERSION = "1.5.2"
+APP_VERSION = "1.5.3"
 APP_BUILD_DATE = "2025-11-12"
 
 from src.utils.config import Config
@@ -135,7 +135,16 @@ def render_multiple_bots_view(config):
             col1, col2 = st.columns(2)
             with col1:
                 bot_name = st.text_input("Bot Name", value=f"Bot {len(all_bots) + 1}", key="new_bot_name")
-                bot_symbol = st.selectbox("Symbol", ["BTC/USDT", "ETH/USDT", "BNB/USDT"], key="new_bot_symbol")
+                bot_symbol = st.selectbox(
+                    "Symbol", 
+                    [
+                        "BTC/USDT", "ETH/USDT", "BNB/USDT",  # Major coins
+                        "SOL/USDT", "DOGE/USDT", "ADA/USDT",  # High volatility
+                        "MATIC/USDT", "AVAX/USDT", "XRP/USDT",  # Active markets
+                        "DOT/USDT", "LINK/USDT", "UNI/USDT"  # DeFi tokens
+                    ], 
+                    key="new_bot_symbol"
+                )
             
             with col2:
                 bot_exchange_name = st.selectbox("Exchange", ["Binance", "Coinbase", "Kraken"], key="new_bot_exchange")
@@ -361,12 +370,21 @@ def render_backtest_view(bot, exchange, config):
     
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        backtest_symbol = st.selectbox("Symbol", ["BTC/USDT", "ETH/USDT", "BNB/USDT"], key="backtest_symbol")
+        backtest_symbol = st.selectbox(
+            "Symbol", 
+            [
+                "BTC/USDT", "ETH/USDT", "BNB/USDT",  # Major coins
+                "SOL/USDT", "DOGE/USDT", "ADA/USDT",  # High volatility
+                "MATIC/USDT", "AVAX/USDT", "XRP/USDT",  # Active markets
+                "DOT/USDT", "LINK/USDT", "UNI/USDT"  # DeFi tokens
+            ], 
+            key="backtest_symbol"
+        )
     with col2:
         timeframe = st.selectbox("Timeframe", ["1h", "4h", "1d"], index=2, key="backtest_timeframe")
     with col3:
         # Calculate approximate date range based on candles
-        timeframe_days = {"1h": 1/24, "4h": 1/6, "1d": 1}.get(timeframe, 1)
+        timeframe_days = {"15m": 1/96, "1h": 1/24, "4h": 1/6, "1d": 1}.get(timeframe, 1)
         max_candles = 10000
         max_days = int(max_candles * timeframe_days)
         limit = st.number_input("Candles", min_value=100, max_value=max_candles, value=1000, step=100, key="backtest_limit")
@@ -1762,7 +1780,17 @@ def main():
         st.divider()
         
         # Symbol selection
-        symbol = st.selectbox("Trading Pair", ["BTC/USDT", "ETH/USDT", "BNB/USDT"], index=0)
+        symbol = st.selectbox(
+            "Trading Pair", 
+            [
+                "BTC/USDT", "ETH/USDT", "BNB/USDT",  # Major coins
+                "SOL/USDT", "DOGE/USDT", "ADA/USDT",  # High volatility
+                "MATIC/USDT", "AVAX/USDT", "XRP/USDT",  # Active markets
+                "DOT/USDT", "LINK/USDT", "UNI/USDT"  # DeFi tokens
+            ], 
+            index=0
+        )
+        st.caption("💡 Tip: Altcoins (SOL, DOGE, etc.) tend to generate more frequent signals due to higher volatility")
         
         st.divider()
         
