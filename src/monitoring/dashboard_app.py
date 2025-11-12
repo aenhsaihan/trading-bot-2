@@ -12,7 +12,7 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 # App version - update this when deploying major changes
-APP_VERSION = "1.5.4"
+APP_VERSION = "1.5.5"
 APP_BUILD_DATE = "2025-11-12"
 
 from src.utils.config import Config
@@ -723,14 +723,22 @@ def render_backtest_view(bot, exchange, config):
             )
             
             try:
-                # Show progress indicator
-                progress_container = st.empty()
-                progress_container.info("🔄 Running backtest... This may take a moment for large datasets.")
+                # Create progress bar and status text
+                progress_bar = st.progress(0)
+                status_text = st.empty()
+                status_text.info("🔄 Initializing backtest...")
+                
+                # Progress callback function
+                def update_progress(current, total):
+                    progress = current / total
+                    progress_bar.progress(progress)
+                    status_text.info(f"🔄 Processing candle {current:,} of {total:,} ({progress*100:.1f}%)...")
                 
                 results = backtest_engine.run(
                     ohlcv_data,
                     backtest_symbol,
-                    position_size_percent=risk_config.get('position_size_percent', 0.01)
+                    position_size_percent=risk_config.get('position_size_percent', 0.01),
+                    progress_callback=update_progress
                 )
                 
                 # Store results in session state for animation (use different keys to avoid widget conflicts)
@@ -740,8 +748,10 @@ def render_backtest_view(bot, exchange, config):
                 st.session_state['backtest_result_symbol'] = backtest_symbol  # Different key to avoid widget conflict
                 st.session_state['backtest_result_strategy'] = current_strategy  # Track which strategy these results are for
                 
-                # Clear progress indicator
-                progress_container.empty()
+                # Update progress to 100% and clear
+                progress_bar.progress(1.0)
+                status_text.empty()
+                progress_bar.empty()
                 
                 # Show completion message with trade count
                 total_trades = results.get('total_trades', 0)

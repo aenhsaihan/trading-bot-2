@@ -49,7 +49,8 @@ class BacktestEngine:
         self,
         ohlcv_data: List[Dict],
         symbol: str,
-        position_size_percent: float = 0.01
+        position_size_percent: float = 0.01,
+        progress_callback: Optional[callable] = None
     ) -> Dict:
         """
         Run backtest on historical data.
@@ -58,6 +59,7 @@ class BacktestEngine:
             ohlcv_data: Historical OHLCV data
             symbol: Trading pair symbol
             position_size_percent: Position size as percentage of balance
+            progress_callback: Optional callback function(current, total) called periodically
             
         Returns:
             Backtest results dictionary
@@ -66,9 +68,17 @@ class BacktestEngine:
         
         current_position = None
         position_id = None
+        total_candles = len(ohlcv_data)
         
         # Process each candle
-        for i in range(len(ohlcv_data)):
+        for i in range(total_candles):
+            # Call progress callback every 10 candles or at start/end
+            if progress_callback and (i == 0 or i % 10 == 0 or i == total_candles - 1):
+                try:
+                    progress_callback(i + 1, total_candles)
+                except Exception as e:
+                    # Don't let progress callback errors break the backtest
+                    self.logger.debug(f"Progress callback error: {e}")
             candle = ohlcv_data[i]
             current_price = candle['close']
             timestamp = candle['timestamp']
