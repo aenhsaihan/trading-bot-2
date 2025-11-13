@@ -98,9 +98,14 @@ class PriceUpdateService:
                     continue
                 
                 # Fetch prices for all monitored symbols
+                # Add small delay between requests to avoid rate limiting
                 price_updates: Dict[str, float] = {}
-                for symbol in self.monitored_symbols:
+                for idx, symbol in enumerate(self.monitored_symbols):
                     try:
+                        # Small delay between requests to respect rate limits (50ms per symbol)
+                        if idx > 0:
+                            await asyncio.sleep(0.05)
+                        
                         price = self.price_service.get_current_price(symbol)
                         if price and price > 0:
                             # Check if price changed
@@ -109,7 +114,11 @@ class PriceUpdateService:
                                 price_updates[symbol] = float(price)
                                 self.current_prices[symbol] = price
                     except Exception as e:
-                        self.logger.warning(f"Error fetching price for {symbol}: {e}")
+                        # Don't log every error to avoid spam - only log if it's a new error
+                        error_str = str(e)
+                        if 'rate limit' not in error_str.lower() and '429' not in error_str:
+                            self.logger.warning(f"Error fetching price for {symbol}: {e}")
+                        # Continue with other symbols even if one fails
                 
                 # Broadcast price updates to all connected clients
                 if price_updates and self.websocket_clients:
