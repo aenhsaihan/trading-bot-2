@@ -197,6 +197,18 @@ class WebSocketManager:
                 # Remove disconnected clients
                 for ws in disconnected:
                     try:
+                        # Check if WebSocket is actually disconnected before removing
+                        try:
+                            ws_state = getattr(ws, 'client_state', None)
+                            if ws_state is not None:
+                                state_name = getattr(ws_state, 'name', None)
+                                if state_name != 'DISCONNECTED':
+                                    # Not actually disconnected, skip
+                                    continue
+                        except (AttributeError, Exception):
+                            # Can't check state, proceed with removal
+                            pass
+                        
                         self.remove_client(ws)
                     except Exception as e:
                         # Client might already be removed or WebSocket is invalid

@@ -121,11 +121,29 @@ class PriceUpdateService:
                     
                     # Send to all clients (remove disconnected ones)
                     disconnected_clients = set()
-                    for client in self.websocket_clients:
+                    # Create a copy of the set to iterate over (since we'll be modifying it)
+                    clients_to_check = list(self.websocket_clients)
+                    
+                    for client in clients_to_check:
+                        # Check if client is still in the set (might have been removed)
+                        if client not in self.websocket_clients:
+                            continue
+                        
+                        # Check WebSocket state before sending
                         try:
+                            # Check if WebSocket is still open
+                            client_state = getattr(client, 'client_state', None)
+                            if client_state is not None:
+                                state_name = getattr(client_state, 'name', None)
+                                if state_name == 'DISCONNECTED':
+                                    disconnected_clients.add(client)
+                                    continue
+                            
+                            # Try to send
                             await client.send_json(message)
                         except Exception as e:
-                            self.logger.warning(f"Error sending price update to client: {e}")
+                            # Client disconnected or error sending
+                            self.logger.debug(f"Error sending price update to client: {e}")
                             disconnected_clients.add(client)
                     
                     # Remove disconnected clients
