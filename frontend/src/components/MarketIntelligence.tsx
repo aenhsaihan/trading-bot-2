@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { Notification } from "../types/notification";
 import { marketDataAPI, OHLCVData } from "../services/api";
+import { PriceChart } from "./PriceChart";
 
 interface Indicator {
   name: string;
@@ -53,6 +54,9 @@ export function MarketIntelligence({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ohlcvData, setOhlcvData] = useState<OHLCVData | null>(null);
+  const [chartType, setChartType] = useState<"candles" | "line" | "area">(
+    "candles"
+  );
 
   // Persist symbol to localStorage when it changes
   useEffect(() => {
@@ -76,15 +80,15 @@ export function MarketIntelligence({
     const fetchMarketData = async () => {
       setLoading(true);
       setError(null);
-      
+
       try {
         // Fetch ticker data for current price and 24h stats
         const ticker = await marketDataAPI.getTicker(symbol);
-        
+
         // Fetch OHLCV data for chart and indicators
         const ohlcv = await marketDataAPI.getOHLCV(symbol, timeframe, 100);
         setOhlcvData(ohlcv);
-        
+
         // Calculate 24h change from OHLCV data
         const candles = ohlcv.candles;
         if (candles.length >= 2) {
@@ -92,13 +96,16 @@ export function MarketIntelligence({
           const previousPrice = candles[candles.length - 2].close;
           const change24h = currentPrice - previousPrice;
           const changePercent24h = (change24h / previousPrice) * 100;
-          
+
           // Calculate 24h high/low from candles
           const last24hCandles = candles.slice(-24); // Assuming 1h timeframe
-          const high24h = Math.max(...last24hCandles.map(c => c.high));
-          const low24h = Math.min(...last24hCandles.map(c => c.low));
-          const volume24h = last24hCandles.reduce((sum, c) => sum + c.volume, 0);
-          
+          const high24h = Math.max(...last24hCandles.map((c) => c.high));
+          const low24h = Math.min(...last24hCandles.map((c) => c.low));
+          const volume24h = last24hCandles.reduce(
+            (sum, c) => sum + c.volume,
+            0
+          );
+
           setMarketData({
             symbol: symbol,
             price: currentPrice,
@@ -108,28 +115,44 @@ export function MarketIntelligence({
             high24h: high24h,
             low24h: low24h,
           });
-          
+
           // Calculate simple indicators from OHLCV data
-          const closes = candles.map(c => c.close);
+          const closes = candles.map((c) => c.close);
           const currentClose = closes[closes.length - 1];
-          
+
           // Simple Moving Averages
-          const ma50 = closes.slice(-50).reduce((a, b) => a + b, 0) / Math.min(50, closes.length);
-          const ma200 = closes.slice(-200).reduce((a, b) => a + b, 0) / Math.min(200, closes.length);
-          
+          const ma50 =
+            closes.slice(-50).reduce((a, b) => a + b, 0) /
+            Math.min(50, closes.length);
+          const ma200 =
+            closes.slice(-200).reduce((a, b) => a + b, 0) /
+            Math.min(200, closes.length);
+
           // Simple RSI calculation (simplified)
-          const gains = closes.slice(-14).map((c, i) => i > 0 && c > closes[i - 1] ? c - closes[i - 1] : 0);
-          const losses = closes.slice(-14).map((c, i) => i > 0 && c < closes[i - 1] ? closes[i - 1] - c : 0);
+          const gains = closes
+            .slice(-14)
+            .map((c, i) =>
+              i > 0 && c > closes[i - 1] ? c - closes[i - 1] : 0
+            );
+          const losses = closes
+            .slice(-14)
+            .map((c, i) =>
+              i > 0 && c < closes[i - 1] ? closes[i - 1] - c : 0
+            );
           const avgGain = gains.reduce((a, b) => a + b, 0) / 14;
           const avgLoss = losses.reduce((a, b) => a + b, 0) / 14;
           const rs = avgGain / (avgLoss || 1);
-          const rsi = 100 - (100 / (1 + rs));
-          
+          const rsi = 100 - 100 / (1 + rs);
+
           // Simple MACD (simplified)
-          const ema12 = closes.slice(-12).reduce((a, b) => a + b, 0) / Math.min(12, closes.length);
-          const ema26 = closes.slice(-26).reduce((a, b) => a + b, 0) / Math.min(26, closes.length);
+          const ema12 =
+            closes.slice(-12).reduce((a, b) => a + b, 0) /
+            Math.min(12, closes.length);
+          const ema26 =
+            closes.slice(-26).reduce((a, b) => a + b, 0) /
+            Math.min(26, closes.length);
           const macd = ema12 - ema26;
-          
+
           // Bollinger Bands (simplified)
           const stdDev = Math.sqrt(
             closes.slice(-20).reduce((sum, c) => {
@@ -138,16 +161,46 @@ export function MarketIntelligence({
             }, 0) / 20
           );
           const bbMiddle = closes.slice(-20).reduce((a, b) => a + b, 0) / 20;
-          const bbUpper = bbMiddle + (2 * stdDev);
-          const bbLower = bbMiddle - (2 * stdDev);
-          
+          const bbUpper = bbMiddle + 2 * stdDev;
+          const bbLower = bbMiddle - 2 * stdDev;
+
           setIndicators([
-            { name: "RSI (14)", value: rsi, change: rsi - 50, trend: rsi > 50 ? "up" : "down" },
-            { name: "MACD", value: macd, change: macd, trend: macd > 0 ? "up" : "down" },
-            { name: "MA (50)", value: ma50, change: ma50 - currentClose, trend: ma50 > currentClose ? "up" : "down" },
-            { name: "MA (200)", value: ma200, change: ma200 - currentClose, trend: ma200 > currentClose ? "up" : "down" },
-            { name: "Bollinger Upper", value: bbUpper, change: bbUpper - currentClose, trend: "up" },
-            { name: "Bollinger Lower", value: bbLower, change: currentClose - bbLower, trend: "down" },
+            {
+              name: "RSI (14)",
+              value: rsi,
+              change: rsi - 50,
+              trend: rsi > 50 ? "up" : "down",
+            },
+            {
+              name: "MACD",
+              value: macd,
+              change: macd,
+              trend: macd > 0 ? "up" : "down",
+            },
+            {
+              name: "MA (50)",
+              value: ma50,
+              change: ma50 - currentClose,
+              trend: ma50 > currentClose ? "up" : "down",
+            },
+            {
+              name: "MA (200)",
+              value: ma200,
+              change: ma200 - currentClose,
+              trend: ma200 > currentClose ? "up" : "down",
+            },
+            {
+              name: "Bollinger Upper",
+              value: bbUpper,
+              change: bbUpper - currentClose,
+              trend: "up",
+            },
+            {
+              name: "Bollinger Lower",
+              value: bbLower,
+              change: currentClose - bbLower,
+              trend: "down",
+            },
             { name: "Volume", value: volume24h, change: 0, trend: "neutral" },
           ]);
         } else {
@@ -164,7 +217,9 @@ export function MarketIntelligence({
         }
       } catch (err) {
         console.error("Error fetching market data:", err);
-        setError(err instanceof Error ? err.message : "Failed to fetch market data");
+        setError(
+          err instanceof Error ? err.message : "Failed to fetch market data"
+        );
         // Keep previous data on error
       } finally {
         setLoading(false);
@@ -261,9 +316,7 @@ export function MarketIntelligence({
       {/* Error Message */}
       {error && (
         <div className="bg-red-500/20 border border-red-500 rounded-lg p-3 mb-4">
-          <div className="text-red-400 text-sm">
-            ⚠️ {error}
-          </div>
+          <div className="text-red-400 text-sm">⚠️ {error}</div>
         </div>
       )}
 
@@ -359,46 +412,123 @@ export function MarketIntelligence({
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {/* Chart Area - Left Column (2/3 width) */}
           <div className="lg:col-span-2 space-y-4">
-            {/* Chart Placeholder */}
-            <div className="bg-dark-card rounded-lg p-4 border border-gray-700 h-96 flex flex-col">
+            {/* Price Chart */}
+            <div className="bg-dark-card rounded-lg p-4 border border-gray-700 flex flex-col">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-sm font-semibold text-white flex items-center gap-2">
                   <BarChart3 size={18} />
                   Price Chart
                 </h3>
                 <div className="flex gap-2">
-                  <button className="px-2 py-1 text-xs bg-gray-700 hover:bg-gray-600 rounded text-white">
+                  <button
+                    onClick={() => setChartType("candles")}
+                    className={`px-2 py-1 text-xs rounded text-white transition-colors ${
+                      chartType === "candles"
+                        ? "bg-blue-600 hover:bg-blue-700"
+                        : "bg-gray-700 hover:bg-gray-600"
+                    }`}
+                  >
                     Candles
                   </button>
-                  <button className="px-2 py-1 text-xs bg-gray-700 hover:bg-gray-600 rounded text-white">
+                  <button
+                    onClick={() => setChartType("line")}
+                    className={`px-2 py-1 text-xs rounded text-white transition-colors ${
+                      chartType === "line"
+                        ? "bg-blue-600 hover:bg-blue-700"
+                        : "bg-gray-700 hover:bg-gray-600"
+                    }`}
+                  >
                     Line
                   </button>
-                  <button className="px-2 py-1 text-xs bg-gray-700 hover:bg-gray-600 rounded text-white">
+                  <button
+                    onClick={() => setChartType("area")}
+                    className={`px-2 py-1 text-xs rounded text-white transition-colors ${
+                      chartType === "area"
+                        ? "bg-blue-600 hover:bg-blue-700"
+                        : "bg-gray-700 hover:bg-gray-600"
+                    }`}
+                  >
                     Area
                   </button>
                 </div>
               </div>
-              <div className="flex-1 bg-dark-bg rounded border border-gray-800 flex items-center justify-center">
-                <div className="text-center text-gray-500">
-                  <BarChart3 size={48} className="mx-auto mb-2 opacity-50" />
-                  <div className="text-sm">Chart Integration Ready</div>
-                  <div className="text-xs mt-1">
-                    Ready for TradingView, Chart.js, or custom charting library
+              <div className="bg-dark-bg rounded border border-gray-800 min-h-[400px]">
+                {loading ? (
+                  <div className="flex items-center justify-center h-96 text-gray-500">
+                    <div className="text-center">
+                      <div className="text-sm">Loading chart data...</div>
+                    </div>
                   </div>
-                </div>
+                ) : ohlcvData &&
+                  ohlcvData.candles &&
+                  ohlcvData.candles.length > 0 ? (
+                  <PriceChart
+                    candles={ohlcvData.candles}
+                    symbol={symbol}
+                    chartType={chartType}
+                    height={400}
+                  />
+                ) : error ? (
+                  <div className="flex items-center justify-center h-96 text-red-400">
+                    <div className="text-center">
+                      <div className="text-sm">Error: {error}</div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center h-96 text-gray-500">
+                    <div className="text-center">
+                      <BarChart3
+                        size={48}
+                        className="mx-auto mb-2 opacity-50"
+                      />
+                      <div className="text-sm">No chart data available</div>
+                      {ohlcvData && (
+                        <div className="text-xs mt-2 text-gray-600">
+                          Debug: ohlcvData exists but candles array is empty or
+                          missing
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
             {/* Volume Chart */}
-            <div className="bg-dark-card rounded-lg p-4 border border-gray-700 h-32">
+            <div className="bg-dark-card rounded-lg p-4 border border-gray-700">
               <h3 className="text-sm font-semibold text-white mb-2 flex items-center gap-2">
                 <Activity size={16} />
                 Volume
               </h3>
-              <div className="h-full bg-dark-bg rounded border border-gray-800 flex items-center justify-center">
-                <div className="text-center text-gray-500 text-xs">
-                  Volume chart placeholder
-                </div>
+              <div className="h-32 bg-dark-bg rounded border border-gray-800 flex items-center justify-center">
+                {ohlcvData && ohlcvData.candles.length > 0 ? (
+                  <div className="w-full h-full p-2">
+                    <div className="grid grid-cols-10 gap-1 h-full">
+                      {ohlcvData.candles.slice(-10).map((candle, idx) => {
+                        const maxVolume = Math.max(
+                          ...ohlcvData.candles.slice(-10).map((c) => c.volume)
+                        );
+                        const heightPercent = (candle.volume / maxVolume) * 100;
+                        return (
+                          <div
+                            key={idx}
+                            className="flex items-end justify-center"
+                            title={`Volume: ${candle.volume.toLocaleString()}`}
+                          >
+                            <div
+                              className="w-full bg-blue-500/50 rounded-t transition-all hover:bg-blue-500"
+                              style={{ height: `${heightPercent}%` }}
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center text-gray-500 text-xs">
+                    Volume chart placeholder
+                  </div>
+                )}
               </div>
             </div>
           </div>
