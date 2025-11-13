@@ -17,6 +17,7 @@ interface Position {
 
 interface WarRoomProps {
   selectedNotification?: Notification | null;
+  prefillSymbol?: string | null;
   onOpenPosition?: (symbol: string, side: 'long' | 'short', amount: number) => void;
   onClosePosition?: (positionId: string) => void;
   onSetStopLoss?: (positionId: string, stopLoss: number) => void;
@@ -25,6 +26,7 @@ interface WarRoomProps {
 
 export function WarRoom({
   selectedNotification,
+  prefillSymbol,
   onOpenPosition,
   onClosePosition,
   onSetStopLoss,
@@ -85,6 +87,16 @@ export function WarRoom({
       setShowOrderForm(true);
     }
   }, [selectedNotification]);
+
+  useEffect(() => {
+    if (prefillSymbol) {
+      setOrderForm((prev) => ({
+        ...prev,
+        symbol: prefillSymbol,
+      }));
+      setShowOrderForm(true);
+    }
+  }, [prefillSymbol]);
 
   const handleOpenPosition = () => {
     if (!orderForm.symbol || !orderForm.amount) return;

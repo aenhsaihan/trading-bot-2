@@ -15,6 +15,7 @@ type Tab = 'command' | 'warroom' | 'intelligence';
 export function Workspace({ selectedNotification, onActionRequest }: WorkspaceProps) {
   const [activeTab, setActiveTab] = useState<Tab>('command');
   const [analysisSymbol, setAnalysisSymbol] = useState<string | null>(null);
+  const [prefillSymbol, setPrefillSymbol] = useState<string | null>(null);
 
   // Create synthetic notification for symbol analysis
   const analysisNotification = useMemo<Notification | null>(() => {
@@ -44,10 +45,16 @@ export function Workspace({ selectedNotification, onActionRequest }: WorkspacePr
     setActiveTab('command');
   };
 
+  const handleOpenPosition = (symbol: string) => {
+    setPrefillSymbol(symbol);
+    setActiveTab('warroom');
+  };
+
   // Clear analysis symbol when a real notification is selected
   useEffect(() => {
     if (selectedNotification) {
       setAnalysisSymbol(null);
+      setPrefillSymbol(null);
     }
   }, [selectedNotification]);
 
@@ -101,9 +108,11 @@ export function Workspace({ selectedNotification, onActionRequest }: WorkspacePr
         {activeTab === 'warroom' && (
           <WarRoom
             selectedNotification={selectedNotification}
+            prefillSymbol={prefillSymbol}
             onOpenPosition={(symbol, side, amount) => {
               console.log('Open position:', { symbol, side, amount });
               onActionRequest?.('open_position', { symbol, side, amount });
+              setPrefillSymbol(null); // Clear after opening position
             }}
             onClosePosition={(positionId) => {
               console.log('Close position:', positionId);
@@ -123,6 +132,7 @@ export function Workspace({ selectedNotification, onActionRequest }: WorkspacePr
           <MarketIntelligence
             selectedNotification={selectedNotification}
             onAnalyzeInCommandCenter={handleAnalyzeInCommandCenter}
+            onOpenPosition={handleOpenPosition}
           />
         )}
       </div>

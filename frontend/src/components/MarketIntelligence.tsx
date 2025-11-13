@@ -29,17 +29,37 @@ interface MarketData {
 interface MarketIntelligenceProps {
   selectedNotification?: Notification | null;
   onAnalyzeInCommandCenter?: (symbol: string) => void;
+  onOpenPosition?: (symbol: string) => void;
 }
 
 export function MarketIntelligence({
   selectedNotification,
   onAnalyzeInCommandCenter,
+  onOpenPosition,
 }: MarketIntelligenceProps) {
-  const [symbol, setSymbol] = useState<string>("BTC/USDT");
-  const [timeframe, setTimeframe] = useState<string>("1h");
+  const [symbol, setSymbol] = useState<string>(() => {
+    // Load saved symbol from localStorage, default to BTC/USDT
+    const saved = localStorage.getItem("marketIntelligenceSymbol");
+    return saved || "BTC/USDT";
+  });
+  const [timeframe, setTimeframe] = useState<string>(() => {
+    // Load saved timeframe from localStorage, default to 1h
+    const saved = localStorage.getItem("marketIntelligenceTimeframe");
+    return saved || "1h";
+  });
   const [marketData, setMarketData] = useState<MarketData | null>(null);
   const [indicators, setIndicators] = useState<Indicator[]>([]);
   // const [loading, setLoading] = useState(false); // TODO: Use when implementing real API calls
+
+  // Persist symbol to localStorage when it changes
+  useEffect(() => {
+    localStorage.setItem("marketIntelligenceSymbol", symbol);
+  }, [symbol]);
+
+  // Persist timeframe to localStorage when it changes
+  useEffect(() => {
+    localStorage.setItem("marketIntelligenceTimeframe", timeframe);
+  }, [timeframe]);
 
   // Update symbol when notification is selected
   useEffect(() => {
@@ -225,7 +245,10 @@ export function MarketIntelligence({
             >
               Analyze in Command Center
             </button>
-            <button className="px-3 py-2 bg-green-600 hover:bg-green-700 rounded text-sm font-medium text-white transition-colors">
+            <button
+              onClick={() => onOpenPosition?.(symbol)}
+              className="px-3 py-2 bg-green-600 hover:bg-green-700 rounded text-sm font-medium text-white transition-colors"
+            >
               Open Position
             </button>
             <button className="px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded text-sm font-medium text-white transition-colors">
