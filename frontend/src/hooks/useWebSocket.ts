@@ -1,5 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 
+// Global connection registry to prevent duplicate connections in StrictMode
+// Maps URL to active WebSocket instance
+const globalConnections = new Map<string, WebSocket>();
+
 export type WebSocketStatus = "connecting" | "connected" | "disconnected" | "error";
 
 export interface UseWebSocketOptions {
@@ -75,6 +79,18 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
       return;
     }
 
+    // Use ref to get latest URL
+    const currentUrl = urlRef.current;
+
+    // Check if there's already a global connection for this URL (StrictMode protection)
+    const existingGlobalConnection = globalConnections.get(currentUrl);
+    if (existingGlobalConnection && existingGlobalConnection.readyState === WebSocket.OPEN) {
+      console.log("WebSocket: Reusing existing global connection (StrictMode protection)");
+      wsRef.current = existingGlobalConnection;
+      setStatus("connected");
+      return;
+    }
+
     // If already connected, don't reconnect
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       console.log("WebSocket: Already connected, skipping...");
@@ -100,10 +116,11 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
     setStatus("connecting");
 
     try {
-      // Use ref to get latest URL without recreating function
-      const currentUrl = urlRef.current;
       const ws = new WebSocket(currentUrl);
       wsRef.current = ws;
+      
+      // Register in global connections map (for StrictMode protection)
+      globalConnections.set(currentUrl, ws);
 
       ws.onopen = () => {
         console.log("WebSocket connected:", currentUrl);
@@ -154,6 +171,10 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
       ws.onclose = () => {
         console.log("WebSocket disconnected:", currentUrl);
         isConnectingRef.current = false; // Release connection lock
+        // Remove from global connections map
+        if (globalConnections.get(currentUrl) === ws) {
+          globalConnections.delete(currentUrl);
+        }
         setStatus("disconnected");
         onDisconnectRef.current?.();
 
@@ -202,10 +223,15 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
     }
 
     if (wsRef.current) {
+      const currentUrl = urlRef.current;
       try {
         wsRef.current.close();
       } catch (e) {
         // Ignore errors when closing
+      }
+      // Remove from global connections map
+      if (globalConnections.get(currentUrl) === wsRef.current) {
+        globalConnections.delete(currentUrl);
       }
       wsRef.current = null;
     }
