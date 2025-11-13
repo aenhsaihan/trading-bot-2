@@ -482,3 +482,7 @@ export class MarketDataAPI {
 }
 
 export const marketDataAPI = new MarketDataAPI();
+
+// Price Update WebSocket (for real-time position updates)
+// The usePriceUpdates hook handles WebSocket connections
+// This is just for reference/documentation

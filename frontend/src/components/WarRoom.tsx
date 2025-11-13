@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { TrendingUp, TrendingDown, DollarSign, Target, Shield } from 'lucide-react';
 import { Notification, NotificationType } from '../types/notification';
 import { tradingAPI, Position as APIPosition, Balance } from '../services/api';
+import { usePriceUpdates } from '../hooks/usePriceUpdates';
 
 interface Position {
   id: string;
@@ -79,7 +80,39 @@ export function WarRoom({
     'COMP/USDT',
   ];
 
-  // Fetch positions and balance on mount and periodically
+  // Get symbols from positions for price monitoring
+  const positionSymbols = useMemo(() => {
+    return positions.map(p => p.symbol);
+  }, [positions]);
+
+  // Real-time price updates via WebSocket
+  const { prices: livePrices, isConnected: priceWsConnected } = usePriceUpdates({
+    symbols: positionSymbols,
+    onPriceUpdate: (prices) => {
+      // Update positions with live prices
+      setPositions(prev => prev.map(pos => {
+        const livePrice = prices[pos.symbol];
+        if (livePrice && livePrice !== pos.currentPrice) {
+          // Recalculate P&L with live price
+          const priceDiff = livePrice - pos.entryPrice;
+          const pnl = pos.side === 'long' 
+            ? priceDiff * pos.amount
+            : -priceDiff * pos.amount;
+          const pnlPercent = (pnl / (pos.entryPrice * pos.amount)) * 100;
+          
+          return {
+            ...pos,
+            currentPrice: livePrice,
+            pnl,
+            pnlPercent,
+          };
+        }
+        return pos;
+      }));
+    },
+  });
+
+  // Fetch positions and balance on mount and periodically (fallback/refresh)
   const fetchData = async () => {
     try {
       setLoading(true);
@@ -93,19 +126,36 @@ export function WarRoom({
       setTotalPnlPercent(balanceData.total_pnl_percent);
       
       // Map API positions to component Position format
-      const mappedPositions: Position[] = positionsData.positions.map((pos: APIPosition) => ({
-        id: pos.id,
-        symbol: pos.symbol,
-        side: pos.side as 'long' | 'short',
-        amount: pos.amount,
-        entryPrice: pos.entry_price,
-        currentPrice: pos.current_price,
-        pnl: pos.pnl,
-        pnlPercent: pos.pnl_percent,
-        stopLoss: pos.stop_loss,
-        stopLossPercent: pos.stop_loss_percent,
-        trailingStop: pos.trailing_stop,
-      }));
+      // Use live prices if available, otherwise use API prices
+      const mappedPositions: Position[] = positionsData.positions.map((pos: APIPosition) => {
+        const livePrice = livePrices[pos.symbol];
+        const currentPrice = livePrice || pos.current_price;
+        
+        // Recalculate P&L if using live price
+        let pnl = pos.pnl;
+        let pnlPercent = pos.pnl_percent;
+        if (livePrice && livePrice !== pos.current_price) {
+          const priceDiff = currentPrice - pos.entry_price;
+          pnl = pos.side === 'long' 
+            ? priceDiff * pos.amount
+            : -priceDiff * pos.amount;
+          pnlPercent = (pnl / (pos.entry_price * pos.amount)) * 100;
+        }
+        
+        return {
+          id: pos.id,
+          symbol: pos.symbol,
+          side: pos.side as 'long' | 'short',
+          amount: pos.amount,
+          entryPrice: pos.entry_price,
+          currentPrice,
+          pnl,
+          pnlPercent,
+          stopLoss: pos.stop_loss,
+          stopLossPercent: pos.stop_loss_percent,
+          trailingStop: pos.trailing_stop,
+        };
+      });
       
       setPositions(mappedPositions);
     } catch (error) {
@@ -118,8 +168,8 @@ export function WarRoom({
   useEffect(() => {
     fetchData();
     
-    // Refresh data every 5 seconds
-    const interval = setInterval(fetchData, 5000);
+    // Refresh data every 30 seconds (reduced frequency since we have WebSocket updates)
+    const interval = setInterval(fetchData, 30000);
     return () => clearInterval(interval);
   }, []);
 
@@ -301,6 +351,12 @@ export function WarRoom({
           <div className="bg-dark-card rounded-lg p-3 border border-gray-700">
             <div className="text-xs text-gray-400 mb-1">Open Positions</div>
             <div className="text-lg font-bold text-white">{positions.length}</div>
+            {priceWsConnected && (
+              <div className="text-xs text-green-400 mt-1 flex items-center gap-1">
+                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+                Live
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -407,10 +463,18 @@ export function WarRoom({
           </div>
         ) : (
           <div className="space-y-3">
-            {positions.map((position) => (
+            {positions.map((position) => {
+              const isProfit = position.pnl >= 0;
+              const pnlIntensity = Math.min(Math.abs(position.pnlPercent) / 10, 1); // 0-1 scale
+              
+              return (
               <div
                 key={position.id}
-                className="bg-dark-card rounded-lg p-4 border border-gray-700"
+                className={`bg-dark-card rounded-lg p-4 border transition-all duration-300 ${
+                  isProfit 
+                    ? `border-green-500/30 ${pnlIntensity > 0.5 ? 'ring-1 ring-green-500/20' : ''}` 
+                    : `border-red-500/30 ${pnlIntensity > 0.5 ? 'ring-1 ring-red-500/20' : ''}`
+                }`}
               >
                 <div className="flex items-start justify-between mb-2">
                   <div>
@@ -435,11 +499,12 @@ export function WarRoom({
                       </div>
                     </div>
                   </div>
-                  <div className={`text-right ${position.pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                    <div className="font-bold">
+                  <div className={`text-right ${isProfit ? 'text-green-400' : 'text-red-400'}`}>
+                    <div className="font-bold flex items-center justify-end gap-1">
+                      {isProfit ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
                       {position.pnl >= 0 ? '+' : ''}${position.pnl.toFixed(2)}
                     </div>
-                    <div className="text-xs">
+                    <div className={`text-xs ${isProfit ? 'text-green-300' : 'text-red-300'}`}>
                       {position.pnlPercent >= 0 ? '+' : ''}
                       {position.pnlPercent.toFixed(2)}%
                     </div>
@@ -498,7 +563,8 @@ export function WarRoom({
                   </button>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

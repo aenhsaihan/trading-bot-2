@@ -130,6 +130,11 @@ class TradingService:
         
         return positions
     
+    def get_position_symbols(self) -> List[str]:
+        """Get list of symbols from all open positions (for price monitoring)"""
+        paper_positions = self.paper_trading.get_positions()
+        return list(paper_positions.keys())
+    
     def open_position(
         self,
         symbol: str,
