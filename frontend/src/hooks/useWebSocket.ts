@@ -84,11 +84,19 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
 
     // Check if there's already a global connection for this URL (StrictMode protection)
     const existingGlobalConnection = globalConnections.get(currentUrl);
-    if (existingGlobalConnection && existingGlobalConnection.readyState === WebSocket.OPEN) {
-      console.log("WebSocket: Reusing existing global connection (StrictMode protection)");
-      wsRef.current = existingGlobalConnection;
-      setStatus("connected");
-      return;
+    if (existingGlobalConnection) {
+      const state = existingGlobalConnection.readyState;
+      // Reuse if OPEN or CONNECTING (don't create duplicate)
+      if (state === WebSocket.OPEN || state === WebSocket.CONNECTING) {
+        console.log("WebSocket: Reusing existing global connection (StrictMode protection)", state === WebSocket.OPEN ? "OPEN" : "CONNECTING");
+        wsRef.current = existingGlobalConnection;
+        setStatus(state === WebSocket.OPEN ? "connected" : "connecting");
+        // Don't set isConnectingRef since we're reusing
+        return;
+      } else {
+        // Connection is closed, remove from registry
+        globalConnections.delete(currentUrl);
+      }
     }
 
     // If already connected, don't reconnect
@@ -274,11 +282,17 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
     }
 
     return () => {
-      // Only disconnect on unmount if autoConnect is false or we're explicitly disconnecting
-      // Don't disconnect if autoConnect is true and component is just re-rendering
+      // In StrictMode, components unmount and remount immediately
+      // Don't disconnect on unmount if autoConnect is true - let the global registry handle it
+      // Only disconnect if autoConnect is explicitly false
       if (!autoConnect) {
         hasAttemptedConnectRef.current = false;
         disconnect();
+      } else {
+        // autoConnect is true - don't disconnect on unmount (StrictMode will remount)
+        // The global registry will handle connection reuse
+        // Just reset the attempt flag so it can reconnect if needed
+        hasAttemptedConnectRef.current = false;
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
