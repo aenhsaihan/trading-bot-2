@@ -18,10 +18,11 @@ export function Workspace({ selectedNotification, onActionRequest }: WorkspacePr
   const [prefillSymbol, setPrefillSymbol] = useState<string | null>(null);
 
   // Create synthetic notification for symbol analysis
+  // Use a stable ID based on symbol only (not timestamp) to prevent re-analysis
   const analysisNotification = useMemo<Notification | null>(() => {
     if (!analysisSymbol) return null;
     return {
-      id: `analysis-${analysisSymbol}-${Date.now()}`,
+      id: `analysis-${analysisSymbol}`,  // Stable ID - same symbol = same ID
       type: NotificationType.TECHNICAL_BREAKOUT,
       priority: NotificationPriority.HIGH,
       title: `Market Analysis: ${analysisSymbol}`,
