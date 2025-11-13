@@ -136,8 +136,8 @@ async def websocket_market_data(websocket: WebSocket):
                         logger.warning(f"Received non-JSON message: {data}")
             
             except WebSocketDisconnect:
-                # Re-raise to be handled by outer handler
-                raise
+                # Break out of loop immediately on disconnect
+                break
             except Exception as e:
                 logger.error(f"Error handling WebSocket message: {e}", exc_info=True)
                 # Continue loop for non-disconnect errors
@@ -195,8 +195,8 @@ async def websocket_prices(websocket: WebSocket):
                         "symbols": symbols
                     })
             except WebSocketDisconnect:
-                # Re-raise to be handled by outer handler
-                raise
+                # Break out of loop immediately on disconnect
+                break
             except Exception as e:
                 # Log error but keep connection alive for non-disconnect errors
                 logger.error(f"Error handling WebSocket message: {e}", exc_info=True)
