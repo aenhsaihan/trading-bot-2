@@ -1,12 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-
-// Global connection registry to prevent duplicate connections in StrictMode
-// Maps URL to active WebSocket instance
-const globalConnections = new Map<string, WebSocket>();
-
-// Connection locks to prevent race conditions during startup
-// Maps URL to a promise that resolves when connection is ready
-const connectionLocks = new Map<string, Promise<WebSocket>>();
+import { websocketSingleton, WebSocketCallbacks } from "../utils/websocketSingleton";
 
 export type WebSocketStatus = "connecting" | "connected" | "disconnected" | "error";
 
@@ -270,7 +263,7 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
 
   const disconnect = useCallback(() => {
     shouldReconnectRef.current = false;
-    isConnectingRef.current = false; // Release connection lock
+    isConnectingRef.current = false;
 
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
@@ -282,20 +275,34 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
       pingIntervalRef.current = null;
     }
 
-    if (wsRef.current) {
-      const currentUrl = urlRef.current;
-      try {
-        wsRef.current.close();
-      } catch (e) {
-        // Ignore errors when closing
-      }
-      // Remove from global connections map
-      if (globalConnections.get(currentUrl) === wsRef.current) {
-        globalConnections.delete(currentUrl);
-      }
-      wsRef.current = null;
-    }
-
+    // Remove callbacks from singleton (will close connection if no more callbacks)
+    const currentUrl = urlRef.current;
+    const callbacks: WebSocketCallbacks = {
+      onMessage: (data) => {
+        setLastMessage(data);
+        onMessageRef.current?.(data);
+      },
+      onConnect: () => {
+        isConnectingRef.current = false;
+        setStatus("connected");
+        setError(null);
+        reconnectCountRef.current = 0;
+        onConnectRef.current?.();
+      },
+      onDisconnect: () => {
+        isConnectingRef.current = false;
+        setStatus("disconnected");
+        onDisconnectRef.current?.();
+      },
+      onError: (error) => {
+        setError(error);
+        setStatus("error");
+        onErrorRef.current?.(error);
+        isConnectingRef.current = false;
+      },
+    };
+    websocketSingleton.disconnect(currentUrl, callbacks);
+    wsRef.current = null;
     setStatus("disconnected");
   }, []);
 
