@@ -46,6 +46,7 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
   const reconnectCountRef = useRef(0);
   const shouldReconnectRef = useRef(true);
   const pingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const isConnectingRef = useRef(false); // Lock to prevent multiple simultaneous connection attempts
   
   // Use refs for callbacks to avoid recreating connect function
   const onMessageRef = useRef(onMessage);
@@ -68,6 +69,18 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
   }, [onMessage, onConnect, onDisconnect, onError, reconnectInterval, reconnectAttempts, url]);
 
   const connect = useCallback(() => {
+    // Prevent multiple simultaneous connection attempts
+    if (isConnectingRef.current) {
+      console.log("WebSocket: Connection already in progress, skipping...");
+      return;
+    }
+
+    // If already connected, don't reconnect
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      console.log("WebSocket: Already connected, skipping...");
+      return;
+    }
+
     // Close existing connection if any (including CONNECTING state)
     if (wsRef.current) {
       const currentState = wsRef.current.readyState;
@@ -82,6 +95,7 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
       }
     }
 
+    isConnectingRef.current = true;
     shouldReconnectRef.current = true;
     setStatus("connecting");
 
@@ -93,6 +107,7 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
 
       ws.onopen = () => {
         console.log("WebSocket connected:", currentUrl);
+        isConnectingRef.current = false; // Release connection lock
         setStatus("connected");
         setError(null);
         reconnectCountRef.current = 0;
@@ -138,6 +153,7 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
 
       ws.onclose = () => {
         console.log("WebSocket disconnected:", currentUrl);
+        isConnectingRef.current = false; // Release connection lock
         setStatus("disconnected");
         onDisconnectRef.current?.();
 
@@ -166,12 +182,14 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
       };
     } catch (err) {
       console.error("Error creating WebSocket:", err);
+      isConnectingRef.current = false; // Release connection lock on error
       setStatus("error");
     }
   }, []); // No dependencies - use refs for all values to prevent unnecessary reconnections
 
   const disconnect = useCallback(() => {
     shouldReconnectRef.current = false;
+    isConnectingRef.current = false; // Release connection lock
 
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
@@ -184,7 +202,11 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
     }
 
     if (wsRef.current) {
-      wsRef.current.close();
+      try {
+        wsRef.current.close();
+      } catch (e) {
+        // Ignore errors when closing
+      }
       wsRef.current = null;
     }
 
