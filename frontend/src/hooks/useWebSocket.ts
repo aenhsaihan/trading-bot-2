@@ -224,22 +224,36 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
 
   // Track if we've already attempted to connect to prevent multiple connections
   const hasAttemptedConnectRef = useRef(false);
+  const lastAutoConnectRef = useRef(autoConnect);
 
   // Auto-connect on mount if enabled
   useEffect(() => {
     // Only connect if:
     // 1. autoConnect is true
-    // 2. We haven't already attempted to connect
-    // 3. We're not already connected
-    if (autoConnect && !hasAttemptedConnectRef.current && wsRef.current?.readyState !== WebSocket.OPEN) {
-      hasAttemptedConnectRef.current = true;
-      connect();
+    // 2. autoConnect changed from false to true (or is initial mount)
+    // 3. We haven't already attempted to connect for this autoConnect value
+    // 4. We're not already connected
+    const autoConnectChanged = lastAutoConnectRef.current !== autoConnect;
+    lastAutoConnectRef.current = autoConnect;
+
+    if (autoConnect && (autoConnectChanged || !hasAttemptedConnectRef.current) && wsRef.current?.readyState !== WebSocket.OPEN) {
+      if (!isConnectingRef.current) {
+        hasAttemptedConnectRef.current = true;
+        connect();
+      }
+    } else if (!autoConnect && wsRef.current?.readyState === WebSocket.OPEN) {
+      // If autoConnect changed to false, disconnect
+      disconnect();
+      hasAttemptedConnectRef.current = false;
     }
 
     return () => {
-      // Cleanup: disconnect when component unmounts
-      hasAttemptedConnectRef.current = false;
-      disconnect();
+      // Only disconnect on unmount if autoConnect is false or we're explicitly disconnecting
+      // Don't disconnect if autoConnect is true and component is just re-rendering
+      if (!autoConnect) {
+        hasAttemptedConnectRef.current = false;
+        disconnect();
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoConnect]); // Only depend on autoConnect - connect/disconnect are stable
