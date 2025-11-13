@@ -18,7 +18,7 @@ try:
 except ImportError:
     pass  # python-dotenv not installed, skip
 
-from .routes import notifications, websocket, trading, ai
+from .routes import notifications, websocket, trading, ai, market_data
 
 # Create FastAPI app
 app = FastAPI(
@@ -41,6 +41,7 @@ app.include_router(notifications.router)
 app.include_router(websocket.router)
 app.include_router(trading.router)
 app.include_router(ai.router)
+app.include_router(market_data.router)
 
 
 @app.exception_handler(RequestValidationError)

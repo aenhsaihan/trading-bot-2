@@ -8,6 +8,7 @@ import {
   Target,
 } from "lucide-react";
 import { Notification } from "../types/notification";
+import { marketDataAPI, OHLCVData } from "../services/api";
 
 interface Indicator {
   name: string;
@@ -49,7 +50,9 @@ export function MarketIntelligence({
   });
   const [marketData, setMarketData] = useState<MarketData | null>(null);
   const [indicators, setIndicators] = useState<Indicator[]>([]);
-  // const [loading, setLoading] = useState(false); // TODO: Use when implementing real API calls
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [ohlcvData, setOhlcvData] = useState<OHLCVData | null>(null);
 
   // Persist symbol to localStorage when it changes
   useEffect(() => {
@@ -68,29 +71,109 @@ export function MarketIntelligence({
     }
   }, [selectedNotification]);
 
-  // TODO: Replace with actual API call in Phase 2
+  // Fetch real market data
   useEffect(() => {
-    // Mock market data
-    setMarketData({
-      symbol: symbol,
-      price: 46500,
-      change24h: 1250,
-      changePercent24h: 2.76,
-      volume24h: 2500000000,
-      high24h: 47000,
-      low24h: 45200,
-    });
+    const fetchMarketData = async () => {
+      setLoading(true);
+      setError(null);
+      
+      try {
+        // Fetch ticker data for current price and 24h stats
+        const ticker = await marketDataAPI.getTicker(symbol);
+        
+        // Fetch OHLCV data for chart and indicators
+        const ohlcv = await marketDataAPI.getOHLCV(symbol, timeframe, 100);
+        setOhlcvData(ohlcv);
+        
+        // Calculate 24h change from OHLCV data
+        const candles = ohlcv.candles;
+        if (candles.length >= 2) {
+          const currentPrice = ticker.last;
+          const previousPrice = candles[candles.length - 2].close;
+          const change24h = currentPrice - previousPrice;
+          const changePercent24h = (change24h / previousPrice) * 100;
+          
+          // Calculate 24h high/low from candles
+          const last24hCandles = candles.slice(-24); // Assuming 1h timeframe
+          const high24h = Math.max(...last24hCandles.map(c => c.high));
+          const low24h = Math.min(...last24hCandles.map(c => c.low));
+          const volume24h = last24hCandles.reduce((sum, c) => sum + c.volume, 0);
+          
+          setMarketData({
+            symbol: symbol,
+            price: currentPrice,
+            change24h: change24h,
+            changePercent24h: changePercent24h,
+            volume24h: volume24h,
+            high24h: high24h,
+            low24h: low24h,
+          });
+          
+          // Calculate simple indicators from OHLCV data
+          const closes = candles.map(c => c.close);
+          const currentClose = closes[closes.length - 1];
+          
+          // Simple Moving Averages
+          const ma50 = closes.slice(-50).reduce((a, b) => a + b, 0) / Math.min(50, closes.length);
+          const ma200 = closes.slice(-200).reduce((a, b) => a + b, 0) / Math.min(200, closes.length);
+          
+          // Simple RSI calculation (simplified)
+          const gains = closes.slice(-14).map((c, i) => i > 0 && c > closes[i - 1] ? c - closes[i - 1] : 0);
+          const losses = closes.slice(-14).map((c, i) => i > 0 && c < closes[i - 1] ? closes[i - 1] - c : 0);
+          const avgGain = gains.reduce((a, b) => a + b, 0) / 14;
+          const avgLoss = losses.reduce((a, b) => a + b, 0) / 14;
+          const rs = avgGain / (avgLoss || 1);
+          const rsi = 100 - (100 / (1 + rs));
+          
+          // Simple MACD (simplified)
+          const ema12 = closes.slice(-12).reduce((a, b) => a + b, 0) / Math.min(12, closes.length);
+          const ema26 = closes.slice(-26).reduce((a, b) => a + b, 0) / Math.min(26, closes.length);
+          const macd = ema12 - ema26;
+          
+          // Bollinger Bands (simplified)
+          const stdDev = Math.sqrt(
+            closes.slice(-20).reduce((sum, c) => {
+              const mean = closes.slice(-20).reduce((a, b) => a + b, 0) / 20;
+              return sum + Math.pow(c - mean, 2);
+            }, 0) / 20
+          );
+          const bbMiddle = closes.slice(-20).reduce((a, b) => a + b, 0) / 20;
+          const bbUpper = bbMiddle + (2 * stdDev);
+          const bbLower = bbMiddle - (2 * stdDev);
+          
+          setIndicators([
+            { name: "RSI (14)", value: rsi, change: rsi - 50, trend: rsi > 50 ? "up" : "down" },
+            { name: "MACD", value: macd, change: macd, trend: macd > 0 ? "up" : "down" },
+            { name: "MA (50)", value: ma50, change: ma50 - currentClose, trend: ma50 > currentClose ? "up" : "down" },
+            { name: "MA (200)", value: ma200, change: ma200 - currentClose, trend: ma200 > currentClose ? "up" : "down" },
+            { name: "Bollinger Upper", value: bbUpper, change: bbUpper - currentClose, trend: "up" },
+            { name: "Bollinger Lower", value: bbLower, change: currentClose - bbLower, trend: "down" },
+            { name: "Volume", value: volume24h, change: 0, trend: "neutral" },
+          ]);
+        } else {
+          // Fallback if not enough data
+          setMarketData({
+            symbol: symbol,
+            price: ticker.last,
+            change24h: 0,
+            changePercent24h: 0,
+            volume24h: ticker.volume,
+            high24h: ticker.last,
+            low24h: ticker.last,
+          });
+        }
+      } catch (err) {
+        console.error("Error fetching market data:", err);
+        setError(err instanceof Error ? err.message : "Failed to fetch market data");
+        // Keep previous data on error
+      } finally {
+        setLoading(false);
+      }
+    };
 
-    // Mock indicators
-    setIndicators([
-      { name: "RSI (14)", value: 58.5, change: 2.3, trend: "up" },
-      { name: "MACD", value: 125.8, change: -5.2, trend: "down" },
-      { name: "MA (50)", value: 45800, change: 200, trend: "up" },
-      { name: "MA (200)", value: 44500, change: 150, trend: "up" },
-      { name: "Bollinger Upper", value: 47500, change: 300, trend: "up" },
-      { name: "Bollinger Lower", value: 43500, change: -200, trend: "down" },
-      { name: "Volume", value: 2500000000, change: 5.5, trend: "up" },
-    ]);
+    if (symbol) {
+      fetchMarketData();
+    }
   }, [symbol, timeframe]);
 
   const timeframes = ["1m", "5m", "15m", "1h", "4h", "1d", "1w"];
@@ -174,6 +257,22 @@ export function MarketIntelligence({
           </div>
         </div>
       </div>
+
+      {/* Error Message */}
+      {error && (
+        <div className="bg-red-500/20 border border-red-500 rounded-lg p-3 mb-4">
+          <div className="text-red-400 text-sm">
+            ⚠️ {error}
+          </div>
+        </div>
+      )}
+
+      {/* Loading State */}
+      {loading && !marketData && (
+        <div className="text-center py-12 text-gray-400">
+          Loading market data...
+        </div>
+      )}
 
       {/* Market Data Summary */}
       {marketData && (

@@ -16,23 +16,26 @@ from src.utils.paper_trading import PaperTrading
 from src.risk.stop_loss import StopLoss
 from src.risk.trailing_stop import TrailingStopLoss
 from src.utils.logger import setup_logger
+from .price_service import get_price_service
 
 
 class TradingService:
     """Service layer for trading operations"""
     
-    def __init__(self, initial_balance: Decimal = Decimal('10000')):
+    def __init__(self, initial_balance: Decimal = Decimal('10000'), exchange_name: str = "binance"):
         """
         Initialize trading service.
         
         Args:
             initial_balance: Starting balance for paper trading
+            exchange_name: Exchange to use for price data (default: 'binance')
         """
         self.paper_trading = PaperTrading(initial_balance)
         self.stop_loss = StopLoss(stop_loss_percent=0.03)  # 3% default
         self.trailing_stop = TrailingStopLoss(trailing_percent=0.025)  # 2.5% default
         self.positions: Dict[str, Dict] = {}  # {position_id: position_data}
         self.logger = setup_logger(f"{__name__}.TradingService")
+        self.price_service = get_price_service(exchange_name)
     
     def get_balance(self) -> Dict:
         """Get account balance and portfolio value"""
@@ -365,12 +368,21 @@ class TradingService:
     
     def _get_current_price(self, symbol: str) -> Decimal:
         """
-        Get current price for a symbol.
+        Get current price for a symbol from exchange.
         
-        NOTE: Currently using MOCK prices for development.
-        TODO: Integrate with real exchange API (Binance, Coinbase, etc.)
+        Falls back to mock prices if exchange is not available.
         """
-        # Mock prices for development/testing
+        if self.price_service and self.price_service.is_connected():
+            try:
+                price = self.price_service.get_current_price(symbol)
+                if price > 0:
+                    return price
+                else:
+                    self.logger.warning(f"Got zero price for {symbol}, falling back to mock")
+            except Exception as e:
+                self.logger.error(f"Error fetching real price for {symbol}: {e}, falling back to mock")
+        
+        # Fallback to mock prices if exchange unavailable
         mock_prices = {
             'BTC/USDT': Decimal('46500'),
             'ETH/USDT': Decimal('2500'),
@@ -399,14 +411,31 @@ class TradingService:
     
     def _get_current_prices(self) -> Dict[str, Decimal]:
         """
-        Get current prices for all symbols.
+        Get current prices for all symbols from exchange.
         
-        NOTE: Currently using MOCK prices for development.
-        TODO: Integrate with real exchange API (Binance, Coinbase, etc.)
+        Falls back to mock prices if exchange is not available.
         """
-        prices = {}
         paper_positions = self.paper_trading.get_positions()
-        for symbol in paper_positions.keys():
+        symbols = list(paper_positions.keys())
+        
+        if self.price_service and self.price_service.is_connected() and symbols:
+            try:
+                prices = self.price_service.get_current_prices(symbols)
+                # Filter out zero prices and use fallback
+                result = {}
+                for symbol in symbols:
+                    price = prices.get(symbol, Decimal('0'))
+                    if price > 0:
+                        result[symbol] = price
+                    else:
+                        result[symbol] = self._get_current_price(symbol)  # Fallback
+                return result
+            except Exception as e:
+                self.logger.error(f"Error fetching real prices: {e}, falling back to mocks")
+        
+        # Fallback: fetch individually (which will use mocks if needed)
+        prices = {}
+        for symbol in symbols:
             prices[symbol] = self._get_current_price(symbol)
         return prices
     

@@ -1,22 +1,26 @@
-import { Notification } from '../types/notification';
+import { Notification } from "../types/notification";
 
-const API_BASE_URL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:8000';
+const API_BASE_URL =
+  (import.meta as any).env?.VITE_API_URL || "http://localhost:8000";
 
 export class NotificationAPI {
   private baseUrl: string;
 
   constructor(baseUrl: string = API_BASE_URL) {
-    this.baseUrl = baseUrl.replace(/\/$/, '');
+    this.baseUrl = baseUrl.replace(/\/$/, "");
   }
 
-  async getNotifications(limit?: number, unreadOnly: boolean = false): Promise<{
+  async getNotifications(
+    limit?: number,
+    unreadOnly: boolean = false
+  ): Promise<{
     notifications: Notification[];
     total: number;
     unread_count: number;
   }> {
     const params = new URLSearchParams();
-    if (limit) params.append('limit', limit.toString());
-    if (unreadOnly) params.append('unread_only', 'true');
+    if (limit) params.append("limit", limit.toString());
+    if (unreadOnly) params.append("unread_only", "true");
 
     const response = await fetch(`${this.baseUrl}/notifications?${params}`);
     if (!response.ok) {
@@ -47,9 +51,9 @@ export class NotificationAPI {
     actions?: string[];
   }): Promise<Notification> {
     const response = await fetch(`${this.baseUrl}/notifications`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       body: JSON.stringify(data),
     });
@@ -61,9 +65,9 @@ export class NotificationAPI {
 
   async markAsRead(id: string): Promise<Notification> {
     const response = await fetch(`${this.baseUrl}/notifications/${id}`, {
-      method: 'PATCH',
+      method: "PATCH",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({ read: true }),
     });
@@ -79,12 +83,12 @@ export class NotificationAPI {
     customMessage?: string
   ): Promise<Notification> {
     const params = new URLSearchParams({ action });
-    if (customMessage) params.append('custom_message', customMessage);
+    if (customMessage) params.append("custom_message", customMessage);
 
     const response = await fetch(
       `${this.baseUrl}/notifications/${id}/respond?${params}`,
       {
-        method: 'POST',
+        method: "POST",
       }
     );
     if (!response.ok) {
@@ -95,7 +99,7 @@ export class NotificationAPI {
 
   async deleteNotification(id: string): Promise<void> {
     const response = await fetch(`${this.baseUrl}/notifications/${id}`, {
-      method: 'DELETE',
+      method: "DELETE",
     });
     if (!response.ok) {
       throw new Error(`Failed to delete notification: ${response.statusText}`);
@@ -126,15 +130,15 @@ export const notificationAPI = new NotificationAPI();
 export interface Position {
   id: string;
   symbol: string;
-  side: 'long' | 'short';
+  side: "long" | "short";
   amount: number;
   entry_price: number;
   current_price: number;
   pnl: number;
   pnl_percent: number;
-  stop_loss?: number;  // Stop loss price
-  stop_loss_percent?: number;  // Stop loss percentage
-  trailing_stop?: number;  // Trailing stop percentage
+  stop_loss?: number; // Stop loss price
+  stop_loss_percent?: number; // Stop loss percentage
+  trailing_stop?: number; // Trailing stop percentage
   entry_time: string;
   created_at: string;
 }
@@ -158,7 +162,7 @@ export class TradingAPI {
   private baseUrl: string;
 
   constructor(baseUrl: string = API_BASE_URL) {
-    this.baseUrl = baseUrl.replace(/\/$/, '');
+    this.baseUrl = baseUrl.replace(/\/$/, "");
   }
 
   async getBalance(): Promise<Balance> {
@@ -180,7 +184,9 @@ export class TradingAPI {
   async getPosition(positionId: string): Promise<Position> {
     // URL encode the position ID to handle special characters like '/' in symbols
     const encodedPositionId = encodeURIComponent(positionId);
-    const response = await fetch(`${this.baseUrl}/trading/positions/${encodedPositionId}`);
+    const response = await fetch(
+      `${this.baseUrl}/trading/positions/${encodedPositionId}`
+    );
     if (!response.ok) {
       throw new Error(`Failed to fetch position: ${response.statusText}`);
     }
@@ -189,15 +195,15 @@ export class TradingAPI {
 
   async openPosition(data: {
     symbol: string;
-    side: 'long' | 'short';
+    side: "long" | "short";
     amount: number;
     stop_loss_percent?: number;
     trailing_stop_percent?: number;
   }): Promise<Position> {
     const response = await fetch(`${this.baseUrl}/trading/positions`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       body: JSON.stringify(data),
     });
@@ -208,7 +214,9 @@ export class TradingAPI {
         const errorData = await response.json();
         if (errorData.detail) {
           if (Array.isArray(errorData.detail)) {
-            errorMessage = errorData.detail.map((e: any) => `${e.field}: ${e.message}`).join(', ');
+            errorMessage = errorData.detail
+              .map((e: any) => `${e.field}: ${e.message}`)
+              .join(", ");
           } else {
             errorMessage = errorData.detail;
           }
@@ -224,9 +232,12 @@ export class TradingAPI {
   async closePosition(positionId: string): Promise<void> {
     // URL encode the position ID to handle special characters like '/' in symbols
     const encodedPositionId = encodeURIComponent(positionId);
-    const response = await fetch(`${this.baseUrl}/trading/positions/${encodedPositionId}`, {
-      method: 'DELETE',
-    });
+    const response = await fetch(
+      `${this.baseUrl}/trading/positions/${encodedPositionId}`,
+      {
+        method: "DELETE",
+      }
+    );
     if (!response.ok) {
       // Try to get detailed error message from response
       let errorMessage = response.statusText;
@@ -242,16 +253,22 @@ export class TradingAPI {
     }
   }
 
-  async setStopLoss(positionId: string, stopLossPercent: number): Promise<Position> {
+  async setStopLoss(
+    positionId: string,
+    stopLossPercent: number
+  ): Promise<Position> {
     // URL encode the position ID to handle special characters like '/' in symbols
     const encodedPositionId = encodeURIComponent(positionId);
-    const response = await fetch(`${this.baseUrl}/trading/positions/${encodedPositionId}/stop-loss`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ stop_loss_percent: stopLossPercent }),
-    });
+    const response = await fetch(
+      `${this.baseUrl}/trading/positions/${encodedPositionId}/stop-loss`,
+      {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ stop_loss_percent: stopLossPercent }),
+      }
+    );
     if (!response.ok) {
       let errorMessage = response.statusText;
       try {
@@ -267,16 +284,22 @@ export class TradingAPI {
     return response.json();
   }
 
-  async setTrailingStop(positionId: string, trailingStopPercent: number): Promise<Position> {
+  async setTrailingStop(
+    positionId: string,
+    trailingStopPercent: number
+  ): Promise<Position> {
     // URL encode the position ID to handle special characters like '/' in symbols
     const encodedPositionId = encodeURIComponent(positionId);
-    const response = await fetch(`${this.baseUrl}/trading/positions/${encodedPositionId}/trailing-stop`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ trailing_stop_percent: trailingStopPercent }),
-    });
+    const response = await fetch(
+      `${this.baseUrl}/trading/positions/${encodedPositionId}/trailing-stop`,
+      {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ trailing_stop_percent: trailingStopPercent }),
+      }
+    );
     if (!response.ok) {
       let errorMessage = response.statusText;
       try {
@@ -297,7 +320,7 @@ export const tradingAPI = new TradingAPI();
 
 // AI API
 export interface ChatMessage {
-  role: 'user' | 'assistant' | 'system';
+  role: "user" | "assistant" | "system";
   content: string;
 }
 
@@ -311,7 +334,7 @@ export class AIAPI {
   private baseUrl: string;
 
   constructor(baseUrl: string = API_BASE_URL) {
-    this.baseUrl = baseUrl.replace(/\/$/, '');
+    this.baseUrl = baseUrl.replace(/\/$/, "");
   }
 
   async getStatus(): Promise<{ enabled: boolean; available: boolean }> {
@@ -328,9 +351,9 @@ export class AIAPI {
     context?: ChatContext
   ): Promise<string> {
     const response = await fetch(`${this.baseUrl}/ai/chat`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({
         message,
@@ -350,9 +373,9 @@ export class AIAPI {
     context?: ChatContext
   ): Promise<string> {
     const response = await fetch(`${this.baseUrl}/ai/analyze-notification`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({
         notification,
@@ -369,3 +392,93 @@ export class AIAPI {
 
 export const aiAPI = new AIAPI();
 
+// Market Data API
+export interface TickerData {
+  symbol: string;
+  last: number;
+  bid: number;
+  ask: number;
+  volume: number;
+  timestamp: number;
+}
+
+export interface Candle {
+  timestamp: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
+
+export interface OHLCVData {
+  symbol: string;
+  timeframe: string;
+  candles: Candle[];
+}
+
+export class MarketDataAPI {
+  private baseUrl: string;
+
+  constructor(baseUrl: string = API_BASE_URL) {
+    this.baseUrl = baseUrl.replace(/\/$/, "");
+  }
+
+  async getPrice(symbol: string): Promise<{ symbol: string; price: number }> {
+    const response = await fetch(
+      `${this.baseUrl}/market-data/price/${encodeURIComponent(symbol)}`
+    );
+    if (!response.ok) {
+      throw new Error(`Failed to fetch price: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  async getPrices(
+    symbols: string[]
+  ): Promise<{ prices: Record<string, number | null> }> {
+    const response = await fetch(`${this.baseUrl}/market-data/prices`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(symbols),
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to fetch prices: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  async getTicker(symbol: string): Promise<TickerData> {
+    const response = await fetch(
+      `${this.baseUrl}/market-data/ticker/${encodeURIComponent(symbol)}`
+    );
+    if (!response.ok) {
+      throw new Error(`Failed to fetch ticker: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  async getOHLCV(
+    symbol: string,
+    timeframe: string = "1h",
+    limit: number = 100
+  ): Promise<OHLCVData> {
+    const params = new URLSearchParams({
+      timeframe,
+      limit: limit.toString(),
+    });
+    const response = await fetch(
+      `${this.baseUrl}/market-data/ohlcv/${encodeURIComponent(
+        symbol
+      )}?${params}`
+    );
+    if (!response.ok) {
+      throw new Error(`Failed to fetch OHLCV data: ${response.statusText}`);
+    }
+    return response.json();
+  }
+}
+
+export const marketDataAPI = new MarketDataAPI();
