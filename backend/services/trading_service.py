@@ -205,7 +205,13 @@ class TradingService:
         # Get stop loss and trailing stop
         stop_loss_price = None
         if stop_loss_percent:
-            stop_loss_price = float(self.stop_loss.calculate_stop_price(entry_price, side))
+            # Calculate stop loss price directly using the provided percentage
+            # Don't modify the global StopLoss instance to avoid affecting other positions
+            stop_loss_decimal = Decimal(str(stop_loss_percent / 100))
+            if side.lower() == 'long':
+                stop_loss_price = float(entry_price * (Decimal('1') - stop_loss_decimal))
+            else:  # short
+                stop_loss_price = float(entry_price * (Decimal('1') + stop_loss_decimal))
         
         trailing_stop_price = None
         if trailing_stop_percent and position_id in self.trailing_stop.positions:
