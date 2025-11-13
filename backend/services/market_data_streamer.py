@@ -113,17 +113,25 @@ class MarketDataStreamer:
                             "timestamp": datetime.now().timestamp()
                         }
                     
+                    # Helper function to convert Decimal to float for JSON serialization
+                    def to_float(value):
+                        if isinstance(value, Decimal):
+                            return float(value)
+                        elif value is None:
+                            return 0.0
+                        return float(value)
+                    
                     # Broadcast price update
                     await self.ws_manager.broadcast(
                         {
                             "type": "price_update",
                             "symbol": symbol,
-                            "price": float(current_price),
+                            "price": to_float(current_price),
                             "ticker": {
-                                "last": ticker.get("last", float(current_price)),
-                                "bid": ticker.get("bid", float(current_price)),
-                                "ask": ticker.get("ask", float(current_price)),
-                                "volume": ticker.get("volume", 0),
+                                "last": to_float(ticker.get("last", current_price)),
+                                "bid": to_float(ticker.get("bid", current_price)),
+                                "ask": to_float(ticker.get("ask", current_price)),
+                                "volume": to_float(ticker.get("volume", 0)),
                                 "timestamp": ticker.get("timestamp", datetime.now().timestamp())
                             },
                             "timestamp": datetime.now().isoformat()
@@ -149,13 +157,26 @@ class MarketDataStreamer:
                             "timestamp": datetime.now().timestamp()
                         }
                         
+                        # Convert OHLCV candles to JSON-serializable format (Decimal -> float)
+                        def convert_candle(candle):
+                            """Convert candle dict with Decimal values to float"""
+                            return {
+                                "timestamp": candle.get("timestamp", 0),
+                                "open": to_float(candle.get("open", 0)),
+                                "high": to_float(candle.get("high", 0)),
+                                "low": to_float(candle.get("low", 0)),
+                                "close": to_float(candle.get("close", 0)),
+                                "volume": to_float(candle.get("volume", 0))
+                            }
+                        
                         # Broadcast OHLCV update
+                        serializable_candles = [convert_candle(c) for c in ohlcv_data[-10:]]
                         await self.ws_manager.broadcast(
                             {
                                 "type": "ohlcv_update",
                                 "symbol": symbol,
                                 "timeframe": "1h",
-                                "candles": ohlcv_data[-10:],  # Last 10 candles
+                                "candles": serializable_candles,
                                 "timestamp": datetime.now().isoformat()
                             },
                             client_type="market_data",
