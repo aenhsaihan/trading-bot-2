@@ -34,31 +34,47 @@ export function WarRoom({
   const [balance] = useState<number>(10000); // TODO: Fetch from API in Phase 2
   const [showOrderForm, setShowOrderForm] = useState(false);
   const [orderForm, setOrderForm] = useState({
-    symbol: '',
+    symbol: 'BTC/USDT',
     side: 'long' as 'long' | 'short',
     amount: '',
     stopLoss: '',
     trailingStop: '',
   });
 
+  // Popular trading pairs
+  const tradingPairs = [
+    // Major coins
+    'BTC/USDT',
+    'ETH/USDT',
+    'BNB/USDT',
+    // High volatility
+    'SOL/USDT',
+    'DOGE/USDT',
+    'ADA/USDT',
+    // Active markets
+    'MATIC/USDT',
+    'AVAX/USDT',
+    'XRP/USDT',
+    // DeFi tokens
+    'DOT/USDT',
+    'LINK/USDT',
+    'UNI/USDT',
+    // Additional popular pairs
+    'ATOM/USDT',
+    'ALGO/USDT',
+    'LTC/USDT',
+    'BCH/USDT',
+    'ETC/USDT',
+    'XLM/USDT',
+    'FIL/USDT',
+    'AAVE/USDT',
+    'SUSHI/USDT',
+    'COMP/USDT',
+  ];
+
   // TODO: Replace with actual API call in Phase 2
-  useEffect(() => {
-    // Mock positions for now
-    setPositions([
-      {
-        id: '1',
-        symbol: 'BTC/USDT',
-        side: 'long',
-        amount: 0.1,
-        entryPrice: 45000,
-        currentPrice: 46500,
-        pnl: 150,
-        pnlPercent: 3.33,
-        stopLoss: 43000,
-        trailingStop: 2.5,
-      },
-    ]);
-  }, []);
+  // Positions are now managed via handleOpenPosition and handleClosePosition
+  // Removed mock data - positions start empty and are added when orders are executed
 
   useEffect(() => {
     if (selectedNotification?.symbol) {
@@ -76,20 +92,76 @@ export function WarRoom({
     const amount = parseFloat(orderForm.amount);
     if (isNaN(amount) || amount <= 0) return;
 
-    // TODO: Call actual API in Phase 2
+    // Mock entry price (TODO: Get real price from API in Phase 2)
+    // For now, use a mock price based on symbol
+    const mockPrices: Record<string, number> = {
+      'BTC/USDT': 46500,
+      'ETH/USDT': 2500,
+      'BNB/USDT': 320,
+      'SOL/USDT': 100,
+      'DOGE/USDT': 0.08,
+      'ADA/USDT': 0.5,
+      'MATIC/USDT': 0.8,
+      'AVAX/USDT': 35,
+      'XRP/USDT': 0.6,
+      'DOT/USDT': 7,
+      'LINK/USDT': 15,
+      'UNI/USDT': 6,
+      'ATOM/USDT': 10,
+      'ALGO/USDT': 0.2,
+      'LTC/USDT': 70,
+      'BCH/USDT': 250,
+      'ETC/USDT': 20,
+      'XLM/USDT': 0.12,
+      'FIL/USDT': 5,
+      'AAVE/USDT': 90,
+      'SUSHI/USDT': 1.5,
+      'COMP/USDT': 50,
+    };
+    const entryPrice = mockPrices[orderForm.symbol] || 1000;
+    const currentPrice = entryPrice; // New position, so current = entry
+
+    // Create new position
+    const newPosition: Position = {
+      id: `${orderForm.symbol}_${Date.now()}`,
+      symbol: orderForm.symbol,
+      side: orderForm.side,
+      amount: amount,
+      entryPrice: entryPrice,
+      currentPrice: currentPrice,
+      pnl: 0, // New position has no P&L yet
+      pnlPercent: 0,
+      stopLoss: orderForm.stopLoss ? entryPrice * (1 - parseFloat(orderForm.stopLoss) / 100) : undefined,
+      trailingStop: orderForm.trailingStop ? parseFloat(orderForm.trailingStop) : undefined,
+    };
+
+    // Add position to state
+    setPositions((prev) => [...prev, newPosition]);
+
+    // Call callback for API integration (Phase 2)
     if (onOpenPosition) {
       onOpenPosition(orderForm.symbol, orderForm.side, amount);
     }
 
     // Reset form
     setOrderForm({
-      symbol: '',
+      symbol: 'BTC/USDT',
       side: 'long',
       amount: '',
       stopLoss: '',
       trailingStop: '',
     });
     setShowOrderForm(false);
+  };
+
+  const handleClosePosition = (positionId: string) => {
+    // Remove position from state
+    setPositions((prev) => prev.filter((p) => p.id !== positionId));
+    
+    // Call callback for API integration (Phase 2)
+    if (onClosePosition) {
+      onClosePosition(positionId);
+    }
   };
 
   const totalPnl = positions.reduce((sum, pos) => sum + pos.pnl, 0);
@@ -151,13 +223,17 @@ export function WarRoom({
           <div className="space-y-3">
             <div>
               <label className="text-xs text-gray-400 mb-1 block">Symbol</label>
-              <input
-                type="text"
+              <select
                 value={orderForm.symbol}
-                onChange={(e) => setOrderForm({ ...orderForm, symbol: e.target.value.toUpperCase() })}
-                placeholder="BTC/USDT"
-                className="w-full bg-dark-bg border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
-              />
+                onChange={(e) => setOrderForm({ ...orderForm, symbol: e.target.value })}
+                className="w-full bg-dark-bg border border-gray-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+              >
+                {tradingPairs.map((pair) => (
+                  <option key={pair} value={pair}>
+                    {pair}
+                  </option>
+                ))}
+              </select>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -291,7 +367,7 @@ export function WarRoom({
                     Set Trailing
                   </button>
                   <button
-                    onClick={() => onClosePosition?.(position.id)}
+                    onClick={() => handleClosePosition(position.id)}
                     className="flex-1 px-3 py-1.5 bg-red-600/20 hover:bg-red-600/30 text-red-400 rounded text-xs font-medium transition-colors"
                   >
                     Close

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from "react";
 
 interface ResizableSplitViewProps {
   left: React.ReactNode;
@@ -26,10 +26,14 @@ export function ResizableSplitView({
       if (!isDragging || !containerRef.current) return;
 
       const containerRect = containerRef.current.getBoundingClientRect();
-      const newLeftWidth = ((e.clientX - containerRect.left) / containerRect.width) * 100;
+      const newLeftWidth =
+        ((e.clientX - containerRect.left) / containerRect.width) * 100;
 
       // Clamp between min and max
-      const clampedWidth = Math.max(minLeftWidth, Math.min(maxLeftWidth, newLeftWidth));
+      const clampedWidth = Math.max(
+        minLeftWidth,
+        Math.min(maxLeftWidth, newLeftWidth)
+      );
       setLeftWidth(clampedWidth);
     };
 
@@ -38,17 +42,17 @@ export function ResizableSplitView({
     };
 
     if (isDragging) {
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
-      document.body.style.cursor = 'col-resize';
-      document.body.style.userSelect = 'none';
+      document.addEventListener("mousemove", handleMouseMove);
+      document.addEventListener("mouseup", handleMouseUp);
+      document.body.style.cursor = "col-resize";
+      document.body.style.userSelect = "none";
     }
 
     return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
     };
   }, [isDragging, minLeftWidth, maxLeftWidth]);
 
@@ -57,7 +61,7 @@ export function ResizableSplitView({
       {/* Left Panel */}
       <div
         className="h-full overflow-hidden transition-all duration-300"
-        style={{ width: rightCollapsed ? '100%' : `${leftWidth}%` }}
+        style={{ width: rightCollapsed ? "100%" : `${leftWidth}%` }}
       >
         {left}
       </div>
@@ -78,7 +82,7 @@ export function ResizableSplitView({
       {/* Right Panel */}
       <div
         className={`h-full overflow-hidden transition-all duration-300 ${
-          rightCollapsed ? 'w-0' : ''
+          rightCollapsed ? "w-0" : ""
         }`}
         style={rightCollapsed ? {} : { width: `${100 - leftWidth}%` }}
       >
@@ -87,4 +91,3 @@ export function ResizableSplitView({
     </div>
   );
 }
-
