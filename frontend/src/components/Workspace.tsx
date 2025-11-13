@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { MessageSquare, Target, BarChart3 } from 'lucide-react';
 import { CommandCenter } from './CommandCenter';
 import { WarRoom } from './WarRoom';
 import { MarketIntelligence } from './MarketIntelligence';
-import { Notification } from '../types/notification';
+import { Notification, NotificationType, NotificationPriority, NotificationSource } from '../types/notification';
 
 interface WorkspaceProps {
   selectedNotification?: Notification | null;
@@ -14,6 +14,42 @@ type Tab = 'command' | 'warroom' | 'intelligence';
 
 export function Workspace({ selectedNotification, onActionRequest }: WorkspaceProps) {
   const [activeTab, setActiveTab] = useState<Tab>('command');
+  const [analysisSymbol, setAnalysisSymbol] = useState<string | null>(null);
+
+  // Create synthetic notification for symbol analysis
+  const analysisNotification = useMemo<Notification | null>(() => {
+    if (!analysisSymbol) return null;
+    return {
+      id: `analysis-${analysisSymbol}-${Date.now()}`,
+      type: NotificationType.TECHNICAL_BREAKOUT,
+      priority: NotificationPriority.HIGH,
+      title: `Market Analysis: ${analysisSymbol}`,
+      message: `Analyzing ${analysisSymbol} market conditions and technical indicators.`,
+      source: NotificationSource.TECHNICAL,
+      symbol: analysisSymbol,
+      confidence_score: 75,
+      metadata: {},
+      actions: [],
+      created_at: new Date().toISOString(),
+      read: false,
+      responded: false,
+    };
+  }, [analysisSymbol]);
+
+  // Use analysis notification if available, otherwise use selected notification
+  const currentNotification = analysisNotification || selectedNotification;
+
+  const handleAnalyzeInCommandCenter = (symbol: string) => {
+    setAnalysisSymbol(symbol);
+    setActiveTab('command');
+  };
+
+  // Clear analysis symbol when a real notification is selected
+  useEffect(() => {
+    if (selectedNotification) {
+      setAnalysisSymbol(null);
+    }
+  }, [selectedNotification]);
 
   return (
     <div className="flex flex-col h-full bg-gradient-to-br from-[#0f0f1e] via-[#1a1a2e] to-[#0f0f1e]">
@@ -58,7 +94,7 @@ export function Workspace({ selectedNotification, onActionRequest }: WorkspacePr
       <div className="flex-1 overflow-hidden">
         {activeTab === 'command' && (
           <CommandCenter
-            selectedNotification={selectedNotification}
+            selectedNotification={currentNotification}
             onActionRequest={onActionRequest}
           />
         )}
@@ -84,7 +120,10 @@ export function Workspace({ selectedNotification, onActionRequest }: WorkspacePr
           />
         )}
         {activeTab === 'intelligence' && (
-          <MarketIntelligence selectedNotification={selectedNotification} />
+          <MarketIntelligence
+            selectedNotification={selectedNotification}
+            onAnalyzeInCommandCenter={handleAnalyzeInCommandCenter}
+          />
         )}
       </div>
     </div>
