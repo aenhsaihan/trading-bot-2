@@ -82,8 +82,16 @@ export function useNotifications() {
             console.error("Error parsing WebSocket message:", err);
           }
         };
+        // Set up ping interval for reused connection
+        const pingInterval = setInterval(() => {
+          if (existingGlobalConnection.readyState === WebSocket.OPEN) {
+            existingGlobalConnection.send("ping");
+          }
+        }, 30000);
+        
         // Don't create new connection, return early
         return () => {
+          clearInterval(pingInterval);
           // Don't close on unmount - let global registry handle it
           wsRef.current = null;
         };
