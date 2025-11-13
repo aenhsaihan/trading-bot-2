@@ -203,10 +203,11 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
     }
 
     return () => {
+      // Cleanup: disconnect when component unmounts or autoConnect changes
       disconnect();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoConnect]); // Only depend on autoConnect, connect/disconnect are stable
+  }, [autoConnect, url]); // Depend on url too to reconnect if URL changes
 
   return {
     status,

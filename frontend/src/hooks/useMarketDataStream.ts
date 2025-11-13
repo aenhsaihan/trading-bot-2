@@ -90,8 +90,14 @@ export function useMarketDataStream(
     (import.meta as any).env?.VITE_WS_URL?.replace("http://", "ws://").replace("https://", "wss://") ||
     "ws://localhost:8000/ws/market-data";
 
+  // Memoize the WebSocket URL to prevent unnecessary reconnections
+  const wsUrlRef = useRef(wsUrl);
+  useEffect(() => {
+    wsUrlRef.current = wsUrl;
+  }, [wsUrl]);
+
   const { status, send, connect, disconnect, lastMessage } = useWebSocket({
-    url: wsUrl,
+    url: wsUrlRef.current, // Use ref to prevent URL changes from causing reconnections
     autoConnect,
     onMessage: (data: any) => {
       // Handle connection message
