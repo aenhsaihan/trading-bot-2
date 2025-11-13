@@ -93,12 +93,31 @@ class BinanceExchange(ExchangeBase):
         """Get ticker data"""
         try:
             ticker = self.exchange.fetch_ticker(symbol)
+            
+            # Helper function to safely convert to Decimal, handling None, NaN, and invalid values
+            def safe_decimal(value, default='0'):
+                if value is None:
+                    return Decimal(default)
+                # Handle NaN values
+                if isinstance(value, float) and (value != value):  # NaN check
+                    return Decimal(default)
+                try:
+                    # Try to convert to string first, then to Decimal
+                    str_value = str(value)
+                    # Check for invalid string representations
+                    if str_value.lower() in ['nan', 'none', 'null', '']:
+                        return Decimal(default)
+                    return Decimal(str_value)
+                except (ValueError, TypeError, Exception) as e:
+                    self.logger.warning(f"Could not convert {value} to Decimal, using default {default}: {e}")
+                    return Decimal(default)
+            
             return {
-                'last': Decimal(str(ticker['last'])),
-                'bid': Decimal(str(ticker['bid'])),
-                'ask': Decimal(str(ticker['ask'])),
-                'volume': Decimal(str(ticker['quoteVolume'])),
-                'timestamp': ticker['timestamp']
+                'last': safe_decimal(ticker.get('last')),
+                'bid': safe_decimal(ticker.get('bid')),
+                'ask': safe_decimal(ticker.get('ask')),
+                'volume': safe_decimal(ticker.get('quoteVolume') or ticker.get('volume')),
+                'timestamp': ticker.get('timestamp', 0)
             }
         except Exception as e:
             # Log full error details for debugging
