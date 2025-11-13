@@ -262,4 +262,3 @@ export async function checkApiHealth(baseUrl: string): Promise<boolean> {
     return false;
   }
 }
-

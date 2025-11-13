@@ -21,11 +21,15 @@ from backend.api.models.trading import (
     TrailingStopUpdate
 )
 from backend.services.trading_service import TradingService
+from src.utils.logger import setup_logger
 
 router = APIRouter(prefix="/trading", tags=["trading"])
 
 # Global service instance (in production, use dependency injection)
 trading_service = TradingService()
+
+# Setup logger for this module
+logger = setup_logger(f"{__name__}.TradingRoutes")
 
 
 @router.get("/balance", response_model=BalanceResponse)
@@ -35,10 +39,11 @@ async def get_balance():
         balance_data = trading_service.get_balance()
         return BalanceResponse(**balance_data)
     except Exception as e:
-        import traceback
-        error_detail = f"Failed to get balance: {str(e)}\n{traceback.format_exc()}"
-        print(error_detail)  # Log to console for debugging
-        raise HTTPException(status_code=500, detail=f"Failed to get balance: {str(e)}")
+        logger.error(f"Failed to get balance: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500, 
+            detail="Failed to retrieve account balance. Please try again later."
+        )
 
 
 @router.get("/positions", response_model=PositionListResponse)
@@ -56,7 +61,11 @@ async def get_positions():
             total_pnl_percent=total_pnl_percent
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get positions: {str(e)}")
+        logger.error(f"Failed to get positions: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500, 
+            detail="Failed to retrieve positions. Please try again later."
+        )
 
 
 @router.get("/positions/{position_id:path}", response_model=PositionResponse)
@@ -74,39 +83,27 @@ async def get_position(position_id: str):
         position = next((p for p in positions if p['id'] == position_id), None)
         
         if not position:
-            raise HTTPException(status_code=404, detail="Position not found")
+            raise HTTPException(
+                status_code=404, 
+                detail=f"Position '{position_id}' not found. It may have been closed or never existed."
+            )
         
         return PositionResponse(**position)
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get position: {str(e)}")
+        logger.error(f"Failed to get position {position_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500, 
+            detail="Failed to retrieve position. Please try again later."
+        )
 
 
 @router.post("/positions", response_model=PositionResponse, status_code=201)
 async def create_position(position_data: PositionCreate):
     """Open a new position"""
     try:
-        # Additional validation
-        if position_data.amount <= 0:
-            raise HTTPException(status_code=400, detail="Amount must be greater than 0")
-        
-        if position_data.side not in ['long', 'short']:
-            raise HTTPException(status_code=400, detail="Side must be 'long' or 'short'")
-        
-        # Validate symbol format (basic check)
-        if not position_data.symbol or '/' not in position_data.symbol:
-            raise HTTPException(status_code=400, detail="Symbol must be in format 'BASE/QUOTE' (e.g., 'BTC/USDT')")
-        
-        # Validate stop loss and trailing stop percentages
-        if position_data.stop_loss_percent is not None:
-            if position_data.stop_loss_percent < 0 or position_data.stop_loss_percent > 100:
-                raise HTTPException(status_code=400, detail="Stop loss percentage must be between 0 and 100")
-        
-        if position_data.trailing_stop_percent is not None:
-            if position_data.trailing_stop_percent < 0 or position_data.trailing_stop_percent > 100:
-                raise HTTPException(status_code=400, detail="Trailing stop percentage must be between 0 and 100")
-        
+        logger.info(f"Opening {position_data.side} position: {position_data.amount} {position_data.symbol}")
         position = trading_service.open_position(
             symbol=position_data.symbol,
             side=position_data.side,
@@ -114,16 +111,18 @@ async def create_position(position_data: PositionCreate):
             stop_loss_percent=position_data.stop_loss_percent,
             trailing_stop_percent=position_data.trailing_stop_percent
         )
+        logger.info(f"Successfully opened position: {position['id']}")
         return PositionResponse(**position)
-    except HTTPException:
-        raise
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        error_msg = str(e)
+        logger.warning(f"Validation error opening position: {error_msg}")
+        raise HTTPException(status_code=400, detail=error_msg)
     except Exception as e:
-        import traceback
-        error_detail = f"Failed to open position: {str(e)}\n{traceback.format_exc()}"
-        print(error_detail)  # Log to console for debugging
-        raise HTTPException(status_code=500, detail=f"Failed to open position: {str(e)}")
+        logger.error(f"Failed to open position: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500, 
+            detail="Failed to open position. Please try again later."
+        )
 
 
 @router.delete("/positions/{position_id:path}")
@@ -137,18 +136,20 @@ async def close_position(position_id: str):
         # URL decode in case it was double-encoded
         from urllib.parse import unquote
         position_id = unquote(position_id)
-        
-        if not position_id or len(position_id.strip()) == 0:
-            raise HTTPException(status_code=400, detail="Position ID cannot be empty")
-        
+        logger.info(f"Closing position: {position_id}")
         result = trading_service.close_position(position_id)
+        logger.info(f"Successfully closed position: {position_id}")
         return {"message": "Position closed successfully", "result": result}
-    except HTTPException:
-        raise
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        error_msg = str(e)
+        logger.warning(f"Error closing position {position_id}: {error_msg}")
+        raise HTTPException(status_code=404, detail=error_msg)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to close position: {str(e)}")
+        logger.error(f"Failed to close position {position_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500, 
+            detail="Failed to close position. Please try again later."
+        )
 
 
 @router.patch("/positions/{position_id:path}/stop-loss", response_model=PositionResponse)
@@ -159,25 +160,22 @@ async def set_stop_loss(position_id: str, data: StopLossUpdate):
     Note: Using :path to allow '/' in position_id
     """
     try:
-        # Validate stop loss percentage
-        if data.stop_loss_percent < 0 or data.stop_loss_percent > 100:
-            raise HTTPException(status_code=400, detail="Stop loss percentage must be between 0 and 100")
-        
         # URL decode in case it was double-encoded
         from urllib.parse import unquote
         position_id = unquote(position_id)
-        
-        if not position_id or len(position_id.strip()) == 0:
-            raise HTTPException(status_code=400, detail="Position ID cannot be empty")
-        
+        logger.info(f"Setting stop loss for position {position_id}: {data.stop_loss_percent}%")
         position = trading_service.set_stop_loss(position_id, data.stop_loss_percent)
         return PositionResponse(**position)
-    except HTTPException:
-        raise
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        error_msg = str(e)
+        logger.warning(f"Error setting stop loss for {position_id}: {error_msg}")
+        raise HTTPException(status_code=404, detail=error_msg)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to set stop loss: {str(e)}")
+        logger.error(f"Failed to set stop loss for {position_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500, 
+            detail="Failed to set stop loss. Please try again later."
+        )
 
 
 @router.patch("/positions/{position_id:path}/trailing-stop", response_model=PositionResponse)
@@ -188,23 +186,20 @@ async def set_trailing_stop(position_id: str, data: TrailingStopUpdate):
     Note: Using :path to allow '/' in position_id
     """
     try:
-        # Validate trailing stop percentage
-        if data.trailing_stop_percent < 0 or data.trailing_stop_percent > 100:
-            raise HTTPException(status_code=400, detail="Trailing stop percentage must be between 0 and 100")
-        
         # URL decode in case it was double-encoded
         from urllib.parse import unquote
         position_id = unquote(position_id)
-        
-        if not position_id or len(position_id.strip()) == 0:
-            raise HTTPException(status_code=400, detail="Position ID cannot be empty")
-        
+        logger.info(f"Setting trailing stop for position {position_id}: {data.trailing_stop_percent}%")
         position = trading_service.set_trailing_stop(position_id, data.trailing_stop_percent)
         return PositionResponse(**position)
-    except HTTPException:
-        raise
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        error_msg = str(e)
+        logger.warning(f"Error setting trailing stop for {position_id}: {error_msg}")
+        raise HTTPException(status_code=404, detail=error_msg)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to set trailing stop: {str(e)}")
+        logger.error(f"Failed to set trailing stop for {position_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500, 
+            detail="Failed to set trailing stop. Please try again later."
+        )
 
