@@ -54,6 +54,7 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
   const onErrorRef = useRef(onError);
   const reconnectIntervalRef = useRef(reconnectInterval);
   const reconnectAttemptsRef = useRef(reconnectAttempts);
+  const urlRef = useRef(url); // Store URL in ref to prevent unnecessary reconnections
 
   // Update refs when they change
   useEffect(() => {
@@ -63,7 +64,8 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
     onErrorRef.current = onError;
     reconnectIntervalRef.current = reconnectInterval;
     reconnectAttemptsRef.current = reconnectAttempts;
-  }, [onMessage, onConnect, onDisconnect, onError, reconnectInterval, reconnectAttempts]);
+    urlRef.current = url; // Update URL ref
+  }, [onMessage, onConnect, onDisconnect, onError, reconnectInterval, reconnectAttempts, url]);
 
   const connect = useCallback(() => {
     // Close existing connection if any (including CONNECTING state)
@@ -84,11 +86,13 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
     setStatus("connecting");
 
     try {
-      const ws = new WebSocket(url);
+      // Use ref to get latest URL without recreating function
+      const currentUrl = urlRef.current;
+      const ws = new WebSocket(currentUrl);
       wsRef.current = ws;
 
       ws.onopen = () => {
-        console.log("WebSocket connected:", url);
+        console.log("WebSocket connected:", currentUrl);
         setStatus("connected");
         setError(null);
         reconnectCountRef.current = 0;
@@ -133,7 +137,7 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
       };
 
       ws.onclose = () => {
-        console.log("WebSocket disconnected:", url);
+        console.log("WebSocket disconnected:", currentUrl);
         setStatus("disconnected");
         onDisconnectRef.current?.();
 
@@ -164,7 +168,7 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
       console.error("Error creating WebSocket:", err);
       setStatus("error");
     }
-  }, [url]); // Only depend on url, use refs for everything else
+  }, []); // No dependencies - use refs for all values to prevent unnecessary reconnections
 
   const disconnect = useCallback(() => {
     shouldReconnectRef.current = false;
@@ -196,18 +200,25 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
     }
   }, []);
 
+  // Track autoConnect in ref to detect changes
+  const autoConnectRef = useRef(autoConnect);
+  useEffect(() => {
+    autoConnectRef.current = autoConnect;
+  }, [autoConnect]);
+
   // Auto-connect on mount if enabled
   useEffect(() => {
-    if (autoConnect) {
+    // Only connect if autoConnect is true and we're not already connected
+    if (autoConnectRef.current && wsRef.current?.readyState !== WebSocket.OPEN) {
       connect();
     }
 
     return () => {
-      // Cleanup: disconnect when component unmounts or autoConnect changes
+      // Cleanup: disconnect when component unmounts
       disconnect();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoConnect, url]); // Depend on url too to reconnect if URL changes
+  }, []); // Only run once on mount - use refs for values
 
   return {
     status,
