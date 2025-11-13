@@ -133,9 +133,10 @@ export function usePriceUpdates(options: UsePriceUpdatesOptions = {}) {
       console.log("Price update WebSocket disconnected");
       setIsConnected(false);
       
-      // Remove from global connections map
-      if (globalPriceConnections.get(fullUrl) === ws) {
-        globalPriceConnections.delete(fullUrl);
+      // Remove from global connections map (fullUrl is in closure)
+      const currentUrl = `${(import.meta as any).env?.VITE_API_URL || "http://localhost:8000"}`.replace("http://", "ws://").replace("https://", "wss://") + "/ws/prices";
+      if (globalPriceConnections.get(currentUrl) === ws) {
+        globalPriceConnections.delete(currentUrl);
       }
 
       // Attempt to reconnect after delay (using ref to get latest value)
