@@ -87,6 +87,26 @@ async def get_position(position_id: str):
 async def create_position(position_data: PositionCreate):
     """Open a new position"""
     try:
+        # Additional validation
+        if position_data.amount <= 0:
+            raise HTTPException(status_code=400, detail="Amount must be greater than 0")
+        
+        if position_data.side not in ['long', 'short']:
+            raise HTTPException(status_code=400, detail="Side must be 'long' or 'short'")
+        
+        # Validate symbol format (basic check)
+        if not position_data.symbol or '/' not in position_data.symbol:
+            raise HTTPException(status_code=400, detail="Symbol must be in format 'BASE/QUOTE' (e.g., 'BTC/USDT')")
+        
+        # Validate stop loss and trailing stop percentages
+        if position_data.stop_loss_percent is not None:
+            if position_data.stop_loss_percent < 0 or position_data.stop_loss_percent > 100:
+                raise HTTPException(status_code=400, detail="Stop loss percentage must be between 0 and 100")
+        
+        if position_data.trailing_stop_percent is not None:
+            if position_data.trailing_stop_percent < 0 or position_data.trailing_stop_percent > 100:
+                raise HTTPException(status_code=400, detail="Trailing stop percentage must be between 0 and 100")
+        
         position = trading_service.open_position(
             symbol=position_data.symbol,
             side=position_data.side,
@@ -95,6 +115,8 @@ async def create_position(position_data: PositionCreate):
             trailing_stop_percent=position_data.trailing_stop_percent
         )
         return PositionResponse(**position)
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -115,8 +137,14 @@ async def close_position(position_id: str):
         # URL decode in case it was double-encoded
         from urllib.parse import unquote
         position_id = unquote(position_id)
+        
+        if not position_id or len(position_id.strip()) == 0:
+            raise HTTPException(status_code=400, detail="Position ID cannot be empty")
+        
         result = trading_service.close_position(position_id)
         return {"message": "Position closed successfully", "result": result}
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
@@ -131,11 +159,21 @@ async def set_stop_loss(position_id: str, data: StopLossUpdate):
     Note: Using :path to allow '/' in position_id
     """
     try:
+        # Validate stop loss percentage
+        if data.stop_loss_percent < 0 or data.stop_loss_percent > 100:
+            raise HTTPException(status_code=400, detail="Stop loss percentage must be between 0 and 100")
+        
         # URL decode in case it was double-encoded
         from urllib.parse import unquote
         position_id = unquote(position_id)
+        
+        if not position_id or len(position_id.strip()) == 0:
+            raise HTTPException(status_code=400, detail="Position ID cannot be empty")
+        
         position = trading_service.set_stop_loss(position_id, data.stop_loss_percent)
         return PositionResponse(**position)
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
@@ -150,11 +188,21 @@ async def set_trailing_stop(position_id: str, data: TrailingStopUpdate):
     Note: Using :path to allow '/' in position_id
     """
     try:
+        # Validate trailing stop percentage
+        if data.trailing_stop_percent < 0 or data.trailing_stop_percent > 100:
+            raise HTTPException(status_code=400, detail="Trailing stop percentage must be between 0 and 100")
+        
         # URL decode in case it was double-encoded
         from urllib.parse import unquote
         position_id = unquote(position_id)
+        
+        if not position_id or len(position_id.strip()) == 0:
+            raise HTTPException(status_code=400, detail="Position ID cannot be empty")
+        
         position = trading_service.set_trailing_stop(position_id, data.trailing_stop_percent)
         return PositionResponse(**position)
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
