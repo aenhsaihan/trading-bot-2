@@ -66,8 +66,18 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
   }, [onMessage, onConnect, onDisconnect, onError, reconnectInterval, reconnectAttempts]);
 
   const connect = useCallback(() => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      return; // Already connected
+    // Close existing connection if any (including CONNECTING state)
+    if (wsRef.current) {
+      const currentState = wsRef.current.readyState;
+      if (currentState === WebSocket.OPEN || currentState === WebSocket.CONNECTING) {
+        // Close existing connection before creating new one
+        try {
+          wsRef.current.close();
+        } catch (e) {
+          // Ignore errors when closing
+        }
+        wsRef.current = null;
+      }
     }
 
     shouldReconnectRef.current = true;
