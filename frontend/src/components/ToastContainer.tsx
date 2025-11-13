@@ -18,7 +18,11 @@ export function ToastContainer({
   voiceEnabled = true,
 }: ToastContainerProps) {
   const [displayedIds, setDisplayedIds] = useState<Set<string>>(new Set());
-  const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
+  const [dismissedIds, setDismissedIds] = useState<Set<string>>(() => {
+    // Load previously dismissed IDs from localStorage
+    const stored = localStorage.getItem("dismissedToastIds");
+    return new Set(stored ? JSON.parse(stored) : []);
+  });
 
   // Show new notifications as toasts
   useEffect(() => {
@@ -52,7 +56,15 @@ export function ToastContainer({
   }, [notifications, displayedIds, dismissedIds, voiceEnabled]);
 
   const handleDismiss = (id: string) => {
-    setDismissedIds((prev) => new Set([...prev, id]));
+    setDismissedIds((prev) => {
+      const updated = new Set([...prev, id]);
+      // Also update localStorage
+      localStorage.setItem(
+        "dismissedToastIds",
+        JSON.stringify(Array.from(updated))
+      );
+      return updated;
+    });
     onDismiss(id);
   };
 

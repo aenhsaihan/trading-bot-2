@@ -25,7 +25,19 @@ function App() {
   const [apiHealth, setApiHealth] = useState<boolean>(false);
   const [selectedNotification, setSelectedNotification] =
     useState<Notification | null>(null);
-  const [notificationsCollapsed, setNotificationsCollapsed] = useState(false);
+  const [notificationsCollapsed, setNotificationsCollapsed] = useState(() => {
+    // Load collapsed state from localStorage
+    const stored = localStorage.getItem("notificationsCollapsed");
+    return stored ? JSON.parse(stored) : false;
+  });
+
+  // Persist collapse state to localStorage
+  useEffect(() => {
+    localStorage.setItem(
+      "notificationsCollapsed",
+      JSON.stringify(notificationsCollapsed)
+    );
+  }, [notificationsCollapsed]);
 
   // Check API health
   useEffect(() => {
@@ -38,9 +50,16 @@ function App() {
     return () => clearInterval(interval);
   }, []);
 
-  const handleDismiss = (_id: string) => {
-    // Just dismiss the toast, don't mark as read
-    // Notifications should only be marked as read when explicitly selected or clicked
+  const handleDismiss = (id: string) => {
+    // Store dismissed ID in localStorage to prevent it from showing again on refresh
+    // This keeps the notification unread but prevents toast spam
+    const dismissedIds = JSON.parse(
+      localStorage.getItem("dismissedToastIds") || "[]"
+    );
+    if (!dismissedIds.includes(id)) {
+      dismissedIds.push(id);
+      localStorage.setItem("dismissedToastIds", JSON.stringify(dismissedIds));
+    }
   };
 
   const handleNotificationSelect = async (notification: Notification) => {
