@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { TrendingUp, TrendingDown, DollarSign, Target, Shield } from 'lucide-react';
 import { Notification } from '../types/notification';
+import { tradingAPI, Position as APIPosition, Balance } from '../services/api';
 
 interface Position {
   id: string;
@@ -11,8 +12,9 @@ interface Position {
   currentPrice: number;
   pnl: number;
   pnlPercent: number;
-  stopLoss?: number;
-  trailingStop?: number;
+  stopLoss?: number;  // Stop loss price
+  stopLossPercent?: number;  // Stop loss percentage
+  trailingStop?: number;  // Trailing stop percentage
 }
 
 interface WarRoomProps {
@@ -33,7 +35,10 @@ export function WarRoom({
   onSetTrailingStop,
 }: WarRoomProps) {
   const [positions, setPositions] = useState<Position[]>([]);
-  const [balance] = useState<number>(10000); // TODO: Fetch from API in Phase 2
+  const [balance, setBalance] = useState<number>(10000);
+  const [totalPnl, setTotalPnl] = useState<number>(0);
+  const [totalPnlPercent, setTotalPnlPercent] = useState<number>(0);
+  const [loading, setLoading] = useState<boolean>(true);
   const [showOrderForm, setShowOrderForm] = useState(false);
   const [orderForm, setOrderForm] = useState({
     symbol: 'BTC/USDT',
@@ -74,9 +79,49 @@ export function WarRoom({
     'COMP/USDT',
   ];
 
-  // TODO: Replace with actual API call in Phase 2
-  // Positions are now managed via handleOpenPosition and handleClosePosition
-  // Removed mock data - positions start empty and are added when orders are executed
+  // Fetch positions and balance on mount and periodically
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      const [balanceData, positionsData] = await Promise.all([
+        tradingAPI.getBalance(),
+        tradingAPI.getPositions(),
+      ]);
+      
+      setBalance(balanceData.balance);
+      setTotalPnl(balanceData.total_pnl);
+      setTotalPnlPercent(balanceData.total_pnl_percent);
+      
+      // Map API positions to component Position format
+      const mappedPositions: Position[] = positionsData.positions.map((pos: APIPosition) => ({
+        id: pos.id,
+        symbol: pos.symbol,
+        side: pos.side as 'long' | 'short',
+        amount: pos.amount,
+        entryPrice: pos.entry_price,
+        currentPrice: pos.current_price,
+        pnl: pos.pnl,
+        pnlPercent: pos.pnl_percent,
+        stopLoss: pos.stop_loss,
+        stopLossPercent: pos.stop_loss_percent,
+        trailingStop: pos.trailing_stop,
+      }));
+      
+      setPositions(mappedPositions);
+    } catch (error) {
+      console.error('Failed to fetch trading data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+    
+    // Refresh data every 5 seconds
+    const interval = setInterval(fetchData, 5000);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     if (selectedNotification?.symbol) {
@@ -98,86 +143,111 @@ export function WarRoom({
     }
   }, [prefillSymbol]);
 
-  const handleOpenPosition = () => {
+  const handleOpenPosition = async () => {
     if (!orderForm.symbol || !orderForm.amount) return;
 
     const amount = parseFloat(orderForm.amount);
     if (isNaN(amount) || amount <= 0) return;
 
-    // Mock entry price (TODO: Get real price from API in Phase 2)
-    // For now, use a mock price based on symbol
-    const mockPrices: Record<string, number> = {
-      'BTC/USDT': 46500,
-      'ETH/USDT': 2500,
-      'BNB/USDT': 320,
-      'SOL/USDT': 100,
-      'DOGE/USDT': 0.08,
-      'ADA/USDT': 0.5,
-      'MATIC/USDT': 0.8,
-      'AVAX/USDT': 35,
-      'XRP/USDT': 0.6,
-      'DOT/USDT': 7,
-      'LINK/USDT': 15,
-      'UNI/USDT': 6,
-      'ATOM/USDT': 10,
-      'ALGO/USDT': 0.2,
-      'LTC/USDT': 70,
-      'BCH/USDT': 250,
-      'ETC/USDT': 20,
-      'XLM/USDT': 0.12,
-      'FIL/USDT': 5,
-      'AAVE/USDT': 90,
-      'SUSHI/USDT': 1.5,
-      'COMP/USDT': 50,
-    };
-    const entryPrice = mockPrices[orderForm.symbol] || 1000;
-    const currentPrice = entryPrice; // New position, so current = entry
+    try {
+      // Parse stop loss and trailing stop, only include if valid numbers
+      const stopLossPercent = orderForm.stopLoss 
+        ? (isNaN(parseFloat(orderForm.stopLoss)) ? undefined : parseFloat(orderForm.stopLoss))
+        : undefined;
+      const trailingStopPercent = orderForm.trailingStop
+        ? (isNaN(parseFloat(orderForm.trailingStop)) ? undefined : parseFloat(orderForm.trailingStop))
+        : undefined;
 
-    // Create new position
-    const newPosition: Position = {
-      id: `${orderForm.symbol}_${Date.now()}`,
-      symbol: orderForm.symbol,
-      side: orderForm.side,
-      amount: amount,
-      entryPrice: entryPrice,
-      currentPrice: currentPrice,
-      pnl: 0, // New position has no P&L yet
-      pnlPercent: 0,
-      stopLoss: orderForm.stopLoss ? entryPrice * (1 - parseFloat(orderForm.stopLoss) / 100) : undefined,
-      trailingStop: orderForm.trailingStop ? parseFloat(orderForm.trailingStop) : undefined,
-    };
+      const position = await tradingAPI.openPosition({
+        symbol: orderForm.symbol,
+        side: orderForm.side,
+        amount: amount,
+        stop_loss_percent: stopLossPercent,
+        trailing_stop_percent: trailingStopPercent,
+      });
 
-    // Add position to state
-    setPositions((prev) => [...prev, newPosition]);
+      // Map API position to component format
+      const newPosition: Position = {
+        id: position.id,
+        symbol: position.symbol,
+        side: position.side as 'long' | 'short',
+        amount: position.amount,
+        entryPrice: position.entry_price,
+        currentPrice: position.current_price,
+        pnl: position.pnl,
+        pnlPercent: position.pnl_percent,
+        stopLoss: position.stop_loss,
+        trailingStop: position.trailing_stop,
+      };
 
-    // Call callback for API integration (Phase 2)
-    if (onOpenPosition) {
-      onOpenPosition(orderForm.symbol, orderForm.side, amount);
-    }
+      // Refresh data to get updated balance
+      await fetchData();
 
-    // Reset form
-    setOrderForm({
-      symbol: 'BTC/USDT',
-      side: 'long',
-      amount: '',
-      stopLoss: '',
-      trailingStop: '',
-    });
-    setShowOrderForm(false);
-  };
+      // Call callback
+      if (onOpenPosition) {
+        onOpenPosition(orderForm.symbol, orderForm.side, amount);
+      }
 
-  const handleClosePosition = (positionId: string) => {
-    // Remove position from state
-    setPositions((prev) => prev.filter((p) => p.id !== positionId));
-    
-    // Call callback for API integration (Phase 2)
-    if (onClosePosition) {
-      onClosePosition(positionId);
+      // Reset form
+      setOrderForm({
+        symbol: 'BTC/USDT',
+        side: 'long',
+        amount: '',
+        stopLoss: '',
+        trailingStop: '',
+      });
+      setShowOrderForm(false);
+    } catch (error) {
+      console.error('Failed to open position:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      alert(`Failed to open position: ${errorMessage}`);
     }
   };
 
-  const totalPnl = positions.reduce((sum, pos) => sum + pos.pnl, 0);
-  const totalPnlPercent = balance > 0 ? (totalPnl / balance) * 100 : 0;
+  const handleClosePosition = async (positionId: string) => {
+    try {
+      await tradingAPI.closePosition(positionId);
+      
+      // Refresh data to get updated positions and balance
+      await fetchData();
+      
+      // Call callback
+      if (onClosePosition) {
+        onClosePosition(positionId);
+      }
+    } catch (error) {
+      console.error('Failed to close position:', error);
+      alert(`Failed to close position: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  const handleSetStopLoss = async (positionId: string, stopLossPercent: number) => {
+    try {
+      await tradingAPI.setStopLoss(positionId, stopLossPercent);
+      await fetchData();
+      
+      if (onSetStopLoss) {
+        onSetStopLoss(positionId, stopLossPercent);
+      }
+    } catch (error) {
+      console.error('Failed to set stop loss:', error);
+      alert(`Failed to set stop loss: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  const handleSetTrailingStop = async (positionId: string, trailingStopPercent: number) => {
+    try {
+      await tradingAPI.setTrailingStop(positionId, trailingStopPercent);
+      await fetchData();
+      
+      if (onSetTrailingStop) {
+        onSetTrailingStop(positionId, trailingStopPercent);
+      }
+    } catch (error) {
+      console.error('Failed to set trailing stop:', error);
+      alert(`Failed to set trailing stop: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
 
   return (
     <div className="flex flex-col h-full bg-gradient-to-br from-[#0a0a1a] to-[#1a1a2e]">
@@ -187,6 +257,9 @@ export function WarRoom({
           <div className="w-3 h-3 bg-green-500 rounded-full" />
           <h2 className="text-xl font-bold text-white">🎯 War Room</h2>
           <span className="text-xs text-gray-400 ml-auto">Tactical Operations</span>
+        </div>
+        <div className="mt-2 text-xs text-yellow-400/70 bg-yellow-400/10 border border-yellow-400/20 rounded px-2 py-1 inline-block">
+          ⚠️ Using mock prices for development
         </div>
       </div>
 
@@ -308,7 +381,11 @@ export function WarRoom({
       {/* Positions List */}
       <div className="flex-1 overflow-y-auto p-4">
         <h3 className="text-sm font-semibold text-white mb-3">Open Positions</h3>
-        {positions.length === 0 ? (
+        {loading ? (
+          <div className="text-center py-8 text-gray-500">
+            <div>Loading positions...</div>
+          </div>
+        ) : positions.length === 0 ? (
           <div className="text-center py-8 text-gray-500">
             <Target size={48} className="mx-auto mb-2 opacity-50" />
             <div>No open positions</div>
@@ -335,8 +412,13 @@ export function WarRoom({
                         {position.side.toUpperCase()}
                       </span>
                     </div>
-                    <div className="text-xs text-gray-400">
-                      {position.amount} @ ${position.entryPrice.toLocaleString()}
+                    <div className="text-xs text-gray-400 space-y-0.5">
+                      <div>
+                        {position.amount} @ Entry: ${position.entryPrice.toLocaleString()}
+                      </div>
+                      <div className="text-gray-500">
+                        Current: ${position.currentPrice.toLocaleString()}
+                      </div>
                     </div>
                   </div>
                   <div className={`text-right ${position.pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
@@ -367,13 +449,29 @@ export function WarRoom({
                 </div>
                 <div className="flex gap-2 mt-3">
                   <button
-                    onClick={() => onSetStopLoss?.(position.id, position.entryPrice * 0.97)}
+                    onClick={() => {
+                      const percent = prompt('Enter stop loss percentage (0 to remove):', position.stopLossPercent ? String(position.stopLossPercent) : '3.0');
+                      if (percent !== null) {
+                        const stopLossPercent = parseFloat(percent);
+                        if (!isNaN(stopLossPercent) && stopLossPercent >= 0) {
+                          handleSetStopLoss(position.id, stopLossPercent);
+                        }
+                      }
+                    }}
                     className="flex-1 px-3 py-1.5 bg-yellow-600/20 hover:bg-yellow-600/30 text-yellow-400 rounded text-xs font-medium transition-colors"
                   >
                     Set Stop Loss
                   </button>
                   <button
-                    onClick={() => onSetTrailingStop?.(position.id, 2.5)}
+                    onClick={() => {
+                      const percent = prompt('Enter trailing stop percentage (0 to remove):', position.trailingStop ? String(position.trailingStop) : '2.5');
+                      if (percent !== null) {
+                        const trailingStopPercent = parseFloat(percent);
+                        if (!isNaN(trailingStopPercent) && trailingStopPercent >= 0) {
+                          handleSetTrailingStop(position.id, trailingStopPercent);
+                        }
+                      }
+                    }}
                     className="flex-1 px-3 py-1.5 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 rounded text-xs font-medium transition-colors"
                   >
                     Set Trailing

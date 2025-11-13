@@ -122,3 +122,176 @@ export class NotificationAPI {
 
 export const notificationAPI = new NotificationAPI();
 
+// Trading API
+export interface Position {
+  id: string;
+  symbol: string;
+  side: 'long' | 'short';
+  amount: number;
+  entry_price: number;
+  current_price: number;
+  pnl: number;
+  pnl_percent: number;
+  stop_loss?: number;  // Stop loss price
+  stop_loss_percent?: number;  // Stop loss percentage
+  trailing_stop?: number;  // Trailing stop percentage
+  entry_time: string;
+  created_at: string;
+}
+
+export interface Balance {
+  balance: number;
+  currency: string;
+  total_value: number;
+  total_pnl: number;
+  total_pnl_percent: number;
+}
+
+export interface PositionList {
+  positions: Position[];
+  total: number;
+  total_pnl: number;
+  total_pnl_percent: number;
+}
+
+export class TradingAPI {
+  private baseUrl: string;
+
+  constructor(baseUrl: string = API_BASE_URL) {
+    this.baseUrl = baseUrl.replace(/\/$/, '');
+  }
+
+  async getBalance(): Promise<Balance> {
+    const response = await fetch(`${this.baseUrl}/trading/balance`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch balance: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  async getPositions(): Promise<PositionList> {
+    const response = await fetch(`${this.baseUrl}/trading/positions`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch positions: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  async getPosition(positionId: string): Promise<Position> {
+    // URL encode the position ID to handle special characters like '/' in symbols
+    const encodedPositionId = encodeURIComponent(positionId);
+    const response = await fetch(`${this.baseUrl}/trading/positions/${encodedPositionId}`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch position: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  async openPosition(data: {
+    symbol: string;
+    side: 'long' | 'short';
+    amount: number;
+    stop_loss_percent?: number;
+    trailing_stop_percent?: number;
+  }): Promise<Position> {
+    const response = await fetch(`${this.baseUrl}/trading/positions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      // Try to get detailed error message from response
+      let errorMessage = response.statusText;
+      try {
+        const errorData = await response.json();
+        if (errorData.detail) {
+          if (Array.isArray(errorData.detail)) {
+            errorMessage = errorData.detail.map((e: any) => `${e.field}: ${e.message}`).join(', ');
+          } else {
+            errorMessage = errorData.detail;
+          }
+        }
+      } catch {
+        // If we can't parse the error, use statusText
+      }
+      throw new Error(`Failed to open position: ${errorMessage}`);
+    }
+    return response.json();
+  }
+
+  async closePosition(positionId: string): Promise<void> {
+    // URL encode the position ID to handle special characters like '/' in symbols
+    const encodedPositionId = encodeURIComponent(positionId);
+    const response = await fetch(`${this.baseUrl}/trading/positions/${encodedPositionId}`, {
+      method: 'DELETE',
+    });
+    if (!response.ok) {
+      // Try to get detailed error message from response
+      let errorMessage = response.statusText;
+      try {
+        const errorData = await response.json();
+        if (errorData.detail) {
+          errorMessage = errorData.detail;
+        }
+      } catch {
+        // If we can't parse the error, use statusText
+      }
+      throw new Error(`Failed to close position: ${errorMessage}`);
+    }
+  }
+
+  async setStopLoss(positionId: string, stopLossPercent: number): Promise<Position> {
+    // URL encode the position ID to handle special characters like '/' in symbols
+    const encodedPositionId = encodeURIComponent(positionId);
+    const response = await fetch(`${this.baseUrl}/trading/positions/${encodedPositionId}/stop-loss`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ stop_loss_percent: stopLossPercent }),
+    });
+    if (!response.ok) {
+      let errorMessage = response.statusText;
+      try {
+        const errorData = await response.json();
+        if (errorData.detail) {
+          errorMessage = errorData.detail;
+        }
+      } catch {
+        // If we can't parse the error, use statusText
+      }
+      throw new Error(`Failed to set stop loss: ${errorMessage}`);
+    }
+    return response.json();
+  }
+
+  async setTrailingStop(positionId: string, trailingStopPercent: number): Promise<Position> {
+    // URL encode the position ID to handle special characters like '/' in symbols
+    const encodedPositionId = encodeURIComponent(positionId);
+    const response = await fetch(`${this.baseUrl}/trading/positions/${encodedPositionId}/trailing-stop`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ trailing_stop_percent: trailingStopPercent }),
+    });
+    if (!response.ok) {
+      let errorMessage = response.statusText;
+      try {
+        const errorData = await response.json();
+        if (errorData.detail) {
+          errorMessage = errorData.detail;
+        }
+      } catch {
+        // If we can't parse the error, use statusText
+      }
+      throw new Error(`Failed to set trailing stop: ${errorMessage}`);
+    }
+    return response.json();
+  }
+}
+
+export const tradingAPI = new TradingAPI();
+

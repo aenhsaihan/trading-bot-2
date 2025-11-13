@@ -1,8 +1,10 @@
 """FastAPI application main file"""
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from .routes import notifications, websocket
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+from .routes import notifications, websocket, trading
 
 # Create FastAPI app
 app = FastAPI(
@@ -23,6 +25,24 @@ app.add_middleware(
 # Include routers
 app.include_router(notifications.router)
 app.include_router(websocket.router)
+app.include_router(trading.router)
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """Handle validation errors with detailed messages"""
+    errors = exc.errors()
+    error_details = []
+    for error in errors:
+        error_details.append({
+            "field": ".".join(str(loc) for loc in error["loc"]),
+            "message": error["msg"],
+            "type": error["type"]
+        })
+    return JSONResponse(
+        status_code=422,
+        content={"detail": error_details, "message": "Validation error"}
+    )
 
 
 @app.get("/")
@@ -33,6 +53,7 @@ async def root():
         "version": "1.0.0",
         "endpoints": {
             "notifications": "/notifications",
+            "trading": "/trading",
             "websocket": "/ws/notifications",
             "docs": "/docs"
         }
