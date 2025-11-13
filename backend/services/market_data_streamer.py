@@ -72,6 +72,9 @@ class MarketDataStreamer:
                     await asyncio.sleep(self.update_interval * 2)
                     continue
                 
+                # Log periodically that we're processing subscriptions
+                self.logger.debug(f"Processing {len(subscribed_symbols)} subscribed symbol(s): {list(subscribed_symbols)}")
+                
                 # Fetch data for all subscribed symbols
                 for symbol in subscribed_symbols:
                     try:
@@ -90,6 +93,14 @@ class MarketDataStreamer:
     
     async def _update_symbol_data(self, symbol: str):
         """Update and broadcast data for a single symbol"""
+        # Helper function to convert Decimal to float for JSON serialization
+        def to_float(value):
+            if isinstance(value, Decimal):
+                return float(value)
+            elif value is None:
+                return 0.0
+            return float(value)
+        
         try:
             # Get current price/ticker
             current_price = self.price_service.get_current_price(symbol)
@@ -113,15 +124,8 @@ class MarketDataStreamer:
                             "timestamp": datetime.now().timestamp()
                         }
                     
-                    # Helper function to convert Decimal to float for JSON serialization
-                    def to_float(value):
-                        if isinstance(value, Decimal):
-                            return float(value)
-                        elif value is None:
-                            return 0.0
-                        return float(value)
-                    
                     # Broadcast price update
+                    self.logger.debug(f"Broadcasting price update for {symbol}: {to_float(current_price)}")
                     await self.ws_manager.broadcast(
                         {
                             "type": "price_update",

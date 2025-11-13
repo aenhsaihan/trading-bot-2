@@ -1,6 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { websocketSingleton, WebSocketCallbacks } from "../utils/websocketSingleton";
 
+// Global connection registry for StrictMode protection
+const globalConnections = new Map<string, WebSocket>();
+const connectionLocks = new Map<string, Promise<WebSocket>>();
+
 export type WebSocketStatus = "connecting" | "connected" | "disconnected" | "error";
 
 export interface UseWebSocketOptions {
@@ -309,9 +313,10 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
   const send = useCallback((data: string | object) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       const message = typeof data === "string" ? data : JSON.stringify(data);
+      console.log("Sending WebSocket message:", message);
       wsRef.current.send(message);
     } else {
-      console.warn("WebSocket is not connected. Cannot send message.");
+      console.warn("WebSocket is not connected. Cannot send message. ReadyState:", wsRef.current?.readyState);
     }
   }, []);
 

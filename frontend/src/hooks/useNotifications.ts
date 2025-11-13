@@ -116,6 +116,11 @@ export function useNotifications() {
 
     ws.onmessage = (event) => {
       try {
+        // Handle pong
+        if (event.data === "pong") {
+          return;
+        }
+        
         const data = JSON.parse(event.data);
         console.log("WebSocket message received:", data);
 

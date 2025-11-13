@@ -18,12 +18,18 @@ from src.utils.logger import setup_logger
 class WebSocketManager:
     """Manages WebSocket connections with health monitoring and subscription support"""
     
-    def __init__(self):
-        """Initialize WebSocket manager"""
+    def __init__(self, max_clients: int = 1000):
+        """
+        Initialize WebSocket manager.
+        
+        Args:
+            max_clients: Maximum number of concurrent clients (safety limit)
+        """
         self.clients: Dict[WebSocket, Dict[str, Any]] = {}
         self.logger = setup_logger(f"{__name__}.WebSocketManager")
         self._health_check_task: Optional[asyncio.Task] = None
         self._is_running = False
+        self.max_clients = max_clients
     
     def add_client(self, websocket: WebSocket, client_type: str = "market_data") -> str:
         """
@@ -36,6 +42,27 @@ class WebSocketManager:
         Returns:
             Client ID string
         """
+        # Check if this WebSocket is already registered (prevent duplicates)
+        if websocket in self.clients:
+            existing_id = self.clients[websocket]["id"]
+            self.logger.warning(f"WebSocket already registered: {existing_id}. Skipping duplicate add.")
+            return existing_id
+        
+        # Safety check: prevent runaway connection growth
+        if len(self.clients) >= self.max_clients:
+            self.logger.warning(f"Maximum client limit reached ({self.max_clients}). Attempting cleanup...")
+            # Quick cleanup: remove connections that haven't pinged in 2 minutes
+            now = datetime.now()
+            timeout = timedelta(seconds=120)
+            stale = [ws for ws, info in list(self.clients.items()) if (now - info["last_ping"]) > timeout]
+            for ws in stale:
+                if ws in self.clients:
+                    self.remove_client(ws)
+            
+            if len(self.clients) >= self.max_clients:
+                self.logger.error(f"Maximum client limit ({self.max_clients}) reached even after cleanup. Rejecting connection.")
+                raise Exception(f"Maximum client limit ({self.max_clients}) reached")
+        
         client_id = f"{client_type}_{id(websocket)}_{datetime.now().timestamp()}"
         self.clients[websocket] = {
             "id": client_id,
@@ -73,13 +100,13 @@ class WebSocketManager:
         """Subscribe client to a symbol"""
         if websocket in self.clients:
             self.clients[websocket]["subscriptions"].add(symbol)
-            self.logger.debug(f"Client {self.clients[websocket]['id']} subscribed to {symbol}")
+            self.logger.info(f"Client {self.clients[websocket]['id']} subscribed to {symbol}. Total subscriptions: {len(self.get_all_subscriptions())}")
     
     def unsubscribe(self, websocket: WebSocket, symbol: str):
         """Unsubscribe client from a symbol"""
         if websocket in self.clients:
             self.clients[websocket]["subscriptions"].discard(symbol)
-            self.logger.debug(f"Client {self.clients[websocket]['id']} unsubscribed from {symbol}")
+            self.logger.info(f"Client {self.clients[websocket]['id']} unsubscribed from {symbol}. Total subscriptions: {len(self.get_all_subscriptions())}")
     
     def get_subscriptions(self, websocket: WebSocket) -> Set[str]:
         """Get all subscriptions for a client"""
@@ -115,7 +142,14 @@ class WebSocketManager:
         disconnected = []
         sent_count = 0
         
-        for websocket, client_info in self.clients.items():
+        # Create a list copy to avoid modification during iteration
+        clients_to_check = list(self.clients.items())
+        
+        for websocket, client_info in clients_to_check:
+            # Skip if already removed
+            if websocket not in self.clients:
+                continue
+            
             # Filter by client type if specified
             if client_type and client_info["type"] != client_type:
                 continue
@@ -127,18 +161,35 @@ class WebSocketManager:
                     continue
             
             try:
+                # Check WebSocket state before sending
+                try:
+                    ws_state = getattr(websocket, 'client_state', None)
+                    if ws_state is not None:
+                        state_name = getattr(ws_state, 'name', None)
+                        if state_name == 'DISCONNECTED':
+                            disconnected.append(websocket)
+                            continue
+                except (AttributeError, Exception):
+                    pass  # Can't check state, try to send anyway
+                
                 await websocket.send_json(message)
                 sent_count += 1
             except Exception as e:
-                self.logger.warning(f"Error sending message to client {client_info['id']}: {e}")
-                disconnected.append(websocket)
+                error_str = str(e).lower()
+                self.logger.debug(f"Error sending message to client {client_info['id']}: {e}")
+                # Mark as disconnected if it's a connection error
+                if "disconnect" in error_str or "closed" in error_str or "connection" in error_str:
+                    disconnected.append(websocket)
         
         # Remove disconnected clients
         for ws in disconnected:
-            self.remove_client(ws)
+            if ws in self.clients:
+                self.remove_client(ws)
         
         if sent_count > 0:
             self.logger.debug(f"Broadcast message to {sent_count} client(s)")
+        elif client_type or symbols:
+            self.logger.debug(f"No clients matched filters (type={client_type}, symbols={symbols})")
     
     def start_health_check(self):
         """Start health check task"""

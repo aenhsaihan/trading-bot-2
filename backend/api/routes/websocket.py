@@ -14,11 +14,11 @@ from backend.services.price_update_service import get_price_update_service
 from backend.services.trading_service import TradingService
 from backend.services.websocket_manager import get_websocket_manager
 from backend.services.market_data_streamer import get_market_data_streamer
+from src.utils.logger import setup_logger
 import json
-import logging
 
 router = APIRouter()
-logger = logging.getLogger(__name__)
+logger = setup_logger(f"{__name__}.websocket")
 
 # Global service instances
 notification_service = NotificationService()
@@ -69,13 +69,17 @@ async def websocket_market_data(websocket: WebSocket):
     
     # Add client to WebSocket manager
     client_id = ws_manager.add_client(websocket, client_type="market_data")
+    print(f"[WEBSOCKET] New market data client connected: {client_id}")
+    logger.info(f"New market data client connected: {client_id}")
     
     # Start streaming if not already running
     if not market_data_streamer.is_running:
         market_data_streamer.start_streaming()
+        print(f"[WEBSOCKET] Started market data streamer")
     
     try:
         # Send initial connection message
+        print(f"[WEBSOCKET] Sending connection message to client {client_id}")
         await websocket.send_json({
             "type": "connected",
             "message": "Connected to market data stream",
@@ -87,6 +91,8 @@ async def websocket_market_data(websocket: WebSocket):
             # Wait for any message from client
             try:
                 data = await websocket.receive_text()
+                print(f"[WEBSOCKET] Received message from client {client_id}: {data[:100]}")
+                logger.info(f"Received message from client {client_id}: {data[:100]}")
                 
                 # Handle ping/pong
                 if data == "ping":
@@ -97,17 +103,24 @@ async def websocket_market_data(websocket: WebSocket):
                     try:
                         message = json.loads(data)
                         message_type = message.get("type")
+                        print(f"[WEBSOCKET] Parsed message type: {message_type}, full message: {message}")
+                        logger.info(f"Parsed message type: {message_type}, full message: {message}")
                         
                         if message_type == "subscribe":
                             # Subscribe to symbol(s)
                             symbols = message.get("symbols", [])
                             if isinstance(symbols, str):
                                 symbols = [symbols]
+                            print(f"[WEBSOCKET] Received subscribe request for symbols: {symbols}")
+                            logger.info(f"Received subscribe request for symbols: {symbols}")
                             for symbol in symbols:
                                 ws_manager.subscribe(websocket, symbol)
+                            subscribed = list(ws_manager.get_subscriptions(websocket))
+                            print(f"[WEBSOCKET] Client {ws_manager.get_client_info(websocket)['id']} now subscribed to: {subscribed}")
+                            logger.info(f"Client {ws_manager.get_client_info(websocket)['id']} now subscribed to: {subscribed}")
                             await websocket.send_json({
                                 "type": "subscribed",
-                                "symbols": list(ws_manager.get_subscriptions(websocket))
+                                "symbols": subscribed
                             })
                         
                         elif message_type == "unsubscribe":
@@ -132,25 +145,35 @@ async def websocket_market_data(websocket: WebSocket):
                         else:
                             logger.warning(f"Unknown message type: {message_type}")
                     
-                    except json.JSONDecodeError:
-                        logger.warning(f"Received non-JSON message: {data}")
+                    except json.JSONDecodeError as e:
+                        logger.warning(f"Received non-JSON message from client {client_id}: {data[:200]}. Error: {e}")
             
             except WebSocketDisconnect:
                 # Break out of loop immediately on disconnect
+                print(f"[WEBSOCKET] Client {client_id} disconnected (WebSocketDisconnect)")
+                logger.info(f"Client {client_id} disconnected (WebSocketDisconnect)")
                 break
             except Exception as e:
                 logger.error(f"Error handling WebSocket message: {e}", exc_info=True)
+                # Check if it's a connection error
+                error_str = str(e).lower()
+                if "disconnect" in error_str or "closed" in error_str or "connection" in error_str:
+                    print(f"[WEBSOCKET] Client {client_id} disconnected (error: {e})")
+                    break
                 # Continue loop for non-disconnect errors
     
     except WebSocketDisconnect:
         # Client disconnected
-        ws_manager.remove_client(websocket)
+        print(f"[WEBSOCKET] Client {client_id} disconnected (outer WebSocketDisconnect)")
         logger.info(f"Market data WebSocket client {client_id} disconnected")
+        ws_manager.remove_client(websocket)
     except Exception as e:
         # Error occurred, remove client
-        ws_manager.remove_client(websocket)
+        error_str = str(e).lower()
+        print(f"[WEBSOCKET] Client {client_id} error/disconnect: {e}")
         logger.error(f"Error in market data WebSocket: {e}", exc_info=True)
-        raise
+        ws_manager.remove_client(websocket)
+        # Don't raise - just log and clean up
 
 
 @router.websocket("/ws/prices")

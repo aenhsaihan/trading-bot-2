@@ -99,25 +99,50 @@ export function useMarketDataStream(
     url: wsUrl,
     autoConnect: autoConnectMemo,
     onMessage: (data: any) => {
+      console.log("[useMarketDataStream] Received message:", data, "Type:", typeof data);
+      
       // Handle connection message
-      if (data.type === "connected") {
-        console.log("Market data stream connected:", data.message);
+      // Check if data is a string that needs parsing, or already an object
+      let messageData = data;
+      if (typeof data === "string") {
+        try {
+          messageData = JSON.parse(data);
+        } catch (e) {
+          console.warn("[useMarketDataStream] Failed to parse message as JSON:", data);
+          return;
+        }
+      }
+      
+      if (messageData && messageData.type === "connected") {
+        console.log("[useMarketDataStream] Market data stream connected:", messageData.message);
         // Subscribe to initial symbols if provided (using ref)
-        if (symbolsRef.current.length > 0 && subscribeRef.current) {
-          subscribeRef.current(symbolsRef.current);
+        // Use setTimeout to ensure subscribeRef is set and WebSocket is ready
+        if (symbolsRef.current.length > 0) {
+          console.log("[useMarketDataStream] Will subscribe to:", symbolsRef.current);
+          setTimeout(() => {
+            if (subscribeRef.current) {
+              console.log("[useMarketDataStream] Auto-subscribing to symbols on connect:", symbolsRef.current);
+              subscribeRef.current(symbolsRef.current);
+            } else {
+              console.warn("[useMarketDataStream] subscribeRef.current is null, will retry via status effect");
+            }
+          }, 200);
+        } else {
+          console.log("[useMarketDataStream] No symbols to subscribe to");
         }
         return;
       }
 
       // Handle subscription confirmation
-      if (data.type === "subscribed" || data.type === "subscriptions") {
-        setSubscriptions(data.symbols || []);
+      if (messageData && (messageData.type === "subscribed" || messageData.type === "subscriptions")) {
+        console.log("[useMarketDataStream] Subscription confirmed:", messageData.symbols);
+        setSubscriptions(messageData.symbols || []);
         return;
       }
 
       // Handle price updates
-      if (data.type === "price_update") {
-        const update = data as PriceUpdate;
+      if (messageData && messageData.type === "price_update") {
+        const update = messageData as PriceUpdate;
         setLatestPrice((prev) => ({
           ...prev,
           [update.symbol]: update.price,
@@ -131,8 +156,8 @@ export function useMarketDataStream(
       }
 
       // Handle OHLCV updates
-      if (data.type === "ohlcv_update") {
-        const update = data as OHLCVUpdate;
+      if (messageData && messageData.type === "ohlcv_update") {
+        const update = messageData as OHLCVUpdate;
         setLatestOHLCV((prev) => ({
           ...prev,
           [update.symbol]: update.candles,
@@ -155,6 +180,7 @@ export function useMarketDataStream(
         ? symbolsToSubscribe
         : [symbolsToSubscribe];
 
+      console.log("Subscribing to symbols:", symbolArray);
       send({
         type: "subscribe",
         symbols: symbolArray,
@@ -185,7 +211,12 @@ export function useMarketDataStream(
   // Subscribe to initial symbols when connected (using refs)
   useEffect(() => {
     if (status === "connected" && symbolsRef.current.length > 0) {
-      subscribe(symbolsRef.current);
+      console.log("Status changed to connected, subscribing to:", symbolsRef.current);
+      // Use a small delay to ensure WebSocket is fully ready
+      const timer = setTimeout(() => {
+        subscribe(symbolsRef.current);
+      }, 100);
+      return () => clearTimeout(timer);
     }
   }, [status, subscribe]);
 
