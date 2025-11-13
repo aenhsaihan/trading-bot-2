@@ -154,20 +154,23 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
     setStatus("connecting");
 
     try {
-      const ws = new WebSocket(currentUrl);
-      wsRef.current = ws;
-      
-      // Register in global connections map (for StrictMode protection)
-      globalConnections.set(currentUrl, ws);
-      
-      // Create connection lock promise for race condition protection
+      // Create connection lock promise FIRST (before creating WebSocket)
+      // This prevents race conditions where multiple components try to connect simultaneously
       let resolveLock: (ws: WebSocket) => void;
       let rejectLock: (error: any) => void;
       const connectionPromise = new Promise<WebSocket>((resolve, reject) => {
         resolveLock = resolve;
         rejectLock = reject;
       });
+      
+      // Set lock BEFORE creating WebSocket to prevent race conditions
       connectionLocks.set(currentUrl, connectionPromise);
+      
+      const ws = new WebSocket(currentUrl);
+      wsRef.current = ws;
+      
+      // Register in global connections map (for StrictMode protection)
+      globalConnections.set(currentUrl, ws);
 
       ws.onopen = () => {
         console.log("WebSocket connected:", currentUrl);
