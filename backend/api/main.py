@@ -19,7 +19,7 @@ try:
 except ImportError:
     pass  # python-dotenv not installed, skip
 
-from .routes import notifications, websocket, trading, ai, market_data, alerts, signals
+from .routes import notifications, websocket, trading, ai, market_data, alerts, signals, system
 from backend.services.alert_service import get_alert_service
 from backend.services.notification_source_service import get_notification_source_service
 
@@ -47,6 +47,7 @@ app.include_router(ai.router)
 app.include_router(market_data.router)
 app.include_router(alerts.router)
 app.include_router(signals.router)
+app.include_router(system.router)
 
 
 @app.exception_handler(RequestValidationError)
@@ -134,18 +135,22 @@ async def startup_event():
     asyncio.create_task(alert_evaluation_loop())
     print("✅ Started alert evaluation background task (evaluates every 30 seconds)")
     
-    # Start notification source monitoring service
-    try:
-        notification_source_service = get_notification_source_service()
-        if not notification_source_service.is_running():
-            notification_source_service.start()
-            print("✅ NotificationSourceService started successfully")
-        else:
-            print("ℹ️  NotificationSourceService is already running")
-    except Exception as e:
-        print(f"⚠️  Failed to start NotificationSourceService: {e}")
-        # Don't fail startup if service fails to start
-        pass
+    # Start notification source monitoring service (optional, controlled by env var)
+    enable_notification_sources = os.getenv("ENABLE_NOTIFICATION_SOURCES", "false").lower() == "true"
+    if enable_notification_sources:
+        try:
+            notification_source_service = get_notification_source_service()
+            if not notification_source_service.is_running():
+                notification_source_service.start()
+                print("✅ NotificationSourceService started successfully")
+            else:
+                print("ℹ️  NotificationSourceService is already running")
+        except Exception as e:
+            print(f"⚠️  Failed to start NotificationSourceService: {e}")
+            # Don't fail startup if service fails to start
+            pass
+    else:
+        print("ℹ️  NotificationSourceService disabled (set ENABLE_NOTIFICATION_SOURCES=true to enable)")
 
 
 @app.on_event("shutdown")

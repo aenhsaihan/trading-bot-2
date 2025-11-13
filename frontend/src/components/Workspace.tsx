@@ -41,8 +41,10 @@ export function Workspace({ selectedNotification, onActionRequest, requestedActi
     };
   }, [analysisSymbol]);
 
-  // Use analysis notification if available, otherwise use selected notification
-  const currentNotification = analysisNotification || selectedNotification;
+  // Use analysis notification if available (for symbol-only analysis from Market Intelligence)
+  // Otherwise use selected notification (for actual notification clicks)
+  // Priority: selectedNotification over analysisNotification when both exist
+  const currentNotification = selectedNotification || analysisNotification;
 
   const handleAnalyzeInCommandCenter = (symbol: string) => {
     setAnalysisSymbol(symbol);
@@ -62,10 +64,10 @@ export function Workspace({ selectedNotification, onActionRequest, requestedActi
         setActiveTab('warroom');
         onActionHandled?.();
       } else if (requestedAction === 'analyze') {
-        if (selectedNotification.symbol) {
-          setAnalysisSymbol(selectedNotification.symbol);
-        }
+        // Always switch to command tab for analysis, even without symbol
         setActiveTab('command');
+        // Clear analysisSymbol so CommandCenter uses the actual selectedNotification
+        setAnalysisSymbol(null);
         onActionHandled?.();
       }
     }

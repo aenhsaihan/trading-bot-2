@@ -107,6 +107,11 @@ class NotificationSourceService:
         """Main monitoring loop (runs in background thread)"""
         self.logger.info("Starting monitoring loop...")
         
+        # Wait before first check to avoid flooding notifications on startup
+        # This gives the app time to fully initialize and prevents spam
+        self.logger.info(f"Waiting {self.check_interval} seconds before first check...")
+        time.sleep(self.check_interval)
+        
         while self._running:
             try:
                 # Check each symbol

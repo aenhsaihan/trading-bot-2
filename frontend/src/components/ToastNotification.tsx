@@ -63,8 +63,8 @@ export function ToastNotification({
           className="bg-gradient-to-br from-dark-card to-dark-bg rounded-xl shadow-2xl border-l-4 p-4 cursor-pointer hover:shadow-3xl transition-all duration-200 hover:-translate-y-1"
           style={{ borderLeftColor: priorityColor }}
           onClick={() => {
-            onClick?.();
-            onDismiss(); // Also dismiss the toast when clicked
+            onClick?.(); // Handle click (select notification and analyze)
+            // Don't dismiss immediately - let the onClick handler manage dismissal
           }}
         >
           <div className="flex items-start justify-between gap-3">

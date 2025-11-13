@@ -596,6 +596,51 @@ export class AlertAPI {
 
 export const alertAPI = new AlertAPI();
 
+// System API
+export class SystemAPI {
+  private baseUrl: string;
+
+  constructor(baseUrl: string = API_BASE_URL) {
+    this.baseUrl = baseUrl.replace(/\/$/, "");
+  }
+
+  async getNotificationSourcesStatus(): Promise<{
+    running: boolean;
+    symbols: string[];
+    timeframe: string;
+    check_interval: number;
+    stats: any;
+  }> {
+    const response = await fetch(`${this.baseUrl}/system/notification-sources/status`);
+    if (!response.ok) {
+      throw new Error(`Failed to get notification sources status: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  async startNotificationSources(): Promise<{ message: string; running: boolean }> {
+    const response = await fetch(`${this.baseUrl}/system/notification-sources/start`, {
+      method: "POST",
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to start notification sources: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  async stopNotificationSources(): Promise<{ message: string; running: boolean }> {
+    const response = await fetch(`${this.baseUrl}/system/notification-sources/stop`, {
+      method: "POST",
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to stop notification sources: ${response.statusText}`);
+    }
+    return response.json();
+  }
+}
+
+export const systemAPI = new SystemAPI();
+
 // Price Update WebSocket (for real-time position updates)
 // The usePriceUpdates hook handles WebSocket connections
 // This is just for reference/documentation

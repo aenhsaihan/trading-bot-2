@@ -13,7 +13,6 @@ interface NotificationCenterProps {
   loading?: boolean;
   onCollapse?: () => void;
   onOpenPosition?: (notification: Notification) => void;
-  onAnalyzeInCommandCenter?: (notification: Notification) => void;
   onDismiss?: (id: string) => void;
 }
 
@@ -27,7 +26,6 @@ export function NotificationCenter({
   loading = false,
   onCollapse,
   onOpenPosition,
-  onAnalyzeInCommandCenter,
   onDismiss,
 }: NotificationCenterProps) {
   const [showUnreadOnly, setShowUnreadOnly] = useState(false);
@@ -194,7 +192,6 @@ export function NotificationCenter({
                 onSelect={onSelect}
                 isSelected={notification.id === selectedNotificationId}
                 onOpenPosition={onOpenPosition}
-                onAnalyzeInCommandCenter={onAnalyzeInCommandCenter}
                 onDismiss={onDismiss}
               />
             ))}

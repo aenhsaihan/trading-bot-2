@@ -101,8 +101,17 @@ export function ToastContainer({
           >
             <ToastNotification
               notification={notification}
-              onDismiss={() => handleDismiss(notification.id)}
-              onClick={() => onNotificationClick?.(notification)}
+              onDismiss={() => {
+                handleDismiss(notification.id);
+              }}
+              onClick={() => {
+                // Handle click: select notification and analyze
+                onNotificationClick?.(notification);
+                // Dismiss toast after a short delay to allow the click to register
+                setTimeout(() => {
+                  handleDismiss(notification.id);
+                }, 100);
+              }}
             />
           </motion.div>
         ))}

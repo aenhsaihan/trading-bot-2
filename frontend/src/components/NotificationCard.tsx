@@ -3,7 +3,7 @@ import {
   NotificationPriority,
   NotificationType,
 } from "../types/notification";
-import { Check, Clock, TrendingUp, MessageSquare, X } from "lucide-react";
+import { Check, Clock, TrendingUp, X } from "lucide-react";
 
 interface NotificationCardProps {
   notification: Notification;
@@ -12,7 +12,6 @@ interface NotificationCardProps {
   onSelect?: (notification: Notification) => void;
   isSelected?: boolean;
   onOpenPosition?: (notification: Notification) => void;
-  onAnalyzeInCommandCenter?: (notification: Notification) => void;
   onDismiss?: (id: string) => void;
 }
 
@@ -163,16 +162,6 @@ export function NotificationCard({
               Open Position
             </button>
           )}
-          {onAnalyzeInCommandCenter && (
-            <button
-              onClick={() => onAnalyzeInCommandCenter(notification)}
-              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5"
-              title="Analyze in Command Center"
-            >
-              <MessageSquare size={14} />
-              Analyze
-            </button>
-          )}
           {onDismiss && (
             <button
               onClick={() => onDismiss(notification.id)}
@@ -183,28 +172,6 @@ export function NotificationCard({
               Dismiss
             </button>
           )}
-        </div>
-      )}
-
-      {/* Legacy Actions - Show if notification has custom actions */}
-      {notification.actions.length > 0 && !notification.responded && (
-        <div className="flex gap-2 mt-2" onClick={(e) => e.stopPropagation()}>
-          {notification.actions.map((action) => (
-            <button
-              key={action}
-              onClick={() => onRespond(notification.id, action.toLowerCase())}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                action.toLowerCase() === "approve" ||
-                action.toLowerCase() === "buy"
-                  ? "bg-green-600 hover:bg-green-700 text-white"
-                  : action.toLowerCase() === "reject"
-                  ? "bg-red-600 hover:bg-red-700 text-white"
-                  : "bg-gray-700 hover:bg-gray-600 text-white"
-              }`}
-            >
-              {action}
-            </button>
-          ))}
         </div>
       )}
 

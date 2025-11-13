@@ -4,7 +4,7 @@ import { ToastContainer } from "./components/ToastContainer";
 import { NotificationCenter } from "./components/NotificationCenter";
 import { Workspace } from "./components/Workspace";
 import { ResizableSplitView } from "./components/ResizableSplitView";
-import { notificationAPI } from "./services/api";
+import { notificationAPI, systemAPI } from "./services/api";
 import { Notification } from "./types/notification";
 import { Wifi, WifiOff, Bell } from "lucide-react";
 
@@ -23,6 +23,8 @@ function App() {
 
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [apiHealth, setApiHealth] = useState<boolean>(false);
+  const [autoSignalsEnabled, setAutoSignalsEnabled] = useState(false);
+  const [autoSignalsLoading, setAutoSignalsLoading] = useState(false);
   const [selectedNotification, setSelectedNotification] =
     useState<Notification | null>(null);
   const [requestedAction, setRequestedAction] = useState<
@@ -53,6 +55,42 @@ function App() {
     return () => clearInterval(interval);
   }, []);
 
+  // Check notification sources status
+  useEffect(() => {
+    const checkStatus = async () => {
+      if (!apiHealth) return;
+      try {
+        const status = await systemAPI.getNotificationSourcesStatus();
+        setAutoSignalsEnabled(status.running);
+      } catch (e) {
+        // Service might not be available, that's okay
+        console.debug("Could not check notification sources status:", e);
+      }
+    };
+    checkStatus();
+    const interval = setInterval(checkStatus, 10000); // Check every 10 seconds
+    return () => clearInterval(interval);
+  }, [apiHealth]);
+
+  const handleToggleAutoSignals = async (enabled: boolean) => {
+    setAutoSignalsLoading(true);
+    try {
+      if (enabled) {
+        await systemAPI.startNotificationSources();
+        setAutoSignalsEnabled(true);
+      } else {
+        await systemAPI.stopNotificationSources();
+        setAutoSignalsEnabled(false);
+      }
+    } catch (e) {
+      console.error("Failed to toggle auto signals:", e);
+      // Revert on error
+      setAutoSignalsEnabled(!enabled);
+    } finally {
+      setAutoSignalsLoading(false);
+    }
+  };
+
   const handleDismiss = (id: string) => {
     // Store dismissed ID in localStorage to prevent it from showing again on refresh
     // This keeps the notification unread but prevents toast spam
@@ -66,7 +104,10 @@ function App() {
   };
 
   const handleNotificationSelect = async (notification: Notification) => {
+    console.log("App: Notification selected", notification.id, notification.title);
     setSelectedNotification(notification);
+    // Switch to Command Center and trigger analysis when notification is clicked
+    setRequestedAction("analyze");
     // Mark as read when selected
     if (!notification.read) {
       await markAsRead(notification.id);
@@ -82,12 +123,6 @@ function App() {
     // Set the notification as selected and request War Room action
     setSelectedNotification(notification);
     setRequestedAction("openPosition");
-  };
-
-  const handleAnalyzeInCommandCenter = (notification: Notification) => {
-    // Set the notification as selected and request Command Center action
-    setSelectedNotification(notification);
-    setRequestedAction("analyze");
   };
 
   const handleDismissNotification = (id: string) => {
@@ -167,6 +202,21 @@ function App() {
                 />
                 🔊 Voice Alerts
               </label>
+
+              {/* Auto Signals Toggle */}
+              <label 
+                className={`flex items-center gap-2 text-sm text-gray-300 cursor-pointer ${autoSignalsLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                title="Automatically monitor markets and generate notifications from technical signals"
+              >
+                <input
+                  type="checkbox"
+                  checked={autoSignalsEnabled}
+                  onChange={(e) => handleToggleAutoSignals(e.target.checked)}
+                  disabled={autoSignalsLoading || !apiHealth}
+                  className="rounded"
+                />
+                {autoSignalsLoading ? '⏳' : '🤖'} Auto Signals
+              </label>
             </div>
           </div>
         </div>
@@ -211,7 +261,6 @@ function App() {
               loading={loading}
               onCollapse={() => setNotificationsCollapsed(true)}
               onOpenPosition={handleOpenPosition}
-              onAnalyzeInCommandCenter={handleAnalyzeInCommandCenter}
               onDismiss={handleDismissNotification}
             />
           }

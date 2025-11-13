@@ -46,6 +46,7 @@ export function CommandCenter({ selectedNotification }: CommandCenterProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [aiEnabled, setAiEnabled] = useState<boolean | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const lastAnalyzedNotificationRef = useRef<string | null>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -66,13 +67,36 @@ export function CommandCenter({ selectedNotification }: CommandCenterProps) {
   useEffect(() => {
     const notificationId = selectedNotification?.id;
 
-    // Skip if no notification, or if we've already analyzed this exact notification
-    if (!notificationId || getAnalyzedIds().has(notificationId)) {
+    // Skip if no notification or AI not enabled
+    if (!notificationId || aiEnabled === false) {
       return;
     }
 
-    // Mark as analyzed immediately to prevent duplicate analysis
-    markAsAnalyzed(notificationId);
+    // Wait for AI status to be determined first
+    if (aiEnabled === null) {
+      console.log("CommandCenter: Waiting for AI status...");
+      return;
+    }
+    
+    // Always analyze when a notification is selected
+    // Use ref to prevent duplicate calls within 500ms (very short debounce)
+    const now = Date.now();
+    const lastAnalysisTime = lastAnalyzedNotificationRef.current 
+      ? parseInt(lastAnalyzedNotificationRef.current.split('_')[1] || '0', 10)
+      : 0;
+    
+    // Check if we recently analyzed this notification (debounce)
+    if (lastAnalyzedNotificationRef.current?.startsWith(notificationId) && 
+        (now - lastAnalysisTime) < 500) {
+      // Very recently analyzed (within 500ms), skip to prevent duplicate calls
+      console.log("CommandCenter: Skipping duplicate analysis (debounce)");
+      return;
+    }
+    
+    // Mark as analyzing with timestamp
+    lastAnalyzedNotificationRef.current = `${notificationId}_${now}`;
+    
+    console.log("CommandCenter: Analyzing notification", notificationId, selectedNotification?.title, "AI enabled:", aiEnabled);
 
     if (aiEnabled) {
       // Auto-analyze notification when selected
@@ -116,19 +140,25 @@ export function CommandCenter({ selectedNotification }: CommandCenterProps) {
             setIsLoading(false);
           })
           .catch((error) => {
+            console.error("Error analyzing notification:", error);
             const errorMessage: Message = {
               id: `error-${Date.now()}`,
-              role: "assistant",
+              role: "system",
               content: `⚠️ Error analyzing notification: ${error.message}`,
               timestamp: new Date(),
               notificationId: selectedNotification.id,
             };
             setMessages((prev) => [...prev, errorMessage]);
             setIsLoading(false);
+          })
+          .finally(() => {
+            // Keep the ref to prevent immediate re-analysis, but allow it after 500ms
+            // (The debounce check at the top handles this)
           });
       });
     } else if (aiEnabled === false) {
-      // AI not enabled, show basic info (only once)
+      // AI not enabled, show message
+      console.log("CommandCenter: AI is not enabled");
       if (!selectedNotification) return;
 
       const analysisMessage: Message = {
