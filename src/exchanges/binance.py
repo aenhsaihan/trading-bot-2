@@ -101,7 +101,17 @@ class BinanceExchange(ExchangeBase):
                 'timestamp': ticker['timestamp']
             }
         except Exception as e:
-            self.logger.error(f"Error fetching ticker for {symbol}: {e}")
+            # Log full error details for debugging
+            error_msg = str(e)
+            error_type = type(e).__name__
+            self.logger.error(f"Error fetching ticker for {symbol}: {error_type}: {error_msg}")
+            
+            # Check for rate limiting (429) or other common errors
+            if '429' in error_msg or 'rate limit' in error_msg.lower() or 'too many requests' in error_msg.lower():
+                self.logger.warning(f"Rate limited by Binance API for {symbol}. Consider reducing polling frequency.")
+            elif 'Invalid symbol' in error_msg or 'symbol' in error_msg.lower():
+                self.logger.warning(f"Invalid symbol format for Binance: {symbol}. Expected format: BASE/QUOTE (e.g., BTC/USDT)")
+            
             raise
     
     def get_ohlcv(self, symbol: str, timeframe: str = "1h", limit: int = 100, since: Optional[int] = None) -> List[Dict[str, Any]]:

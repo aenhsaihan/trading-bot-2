@@ -117,18 +117,30 @@ export function usePriceUpdates(options: UsePriceUpdatesOptions = {}) {
     wsRef.current = ws;
   }, []); // Empty deps - function is stable, uses refs for values
 
-  // Connect only on mount
+  // Track if we've already connected to prevent multiple connections
+  const hasConnectedRef = useRef(false);
+
+  // Connect only once on mount
   useEffect(() => {
-    connect();
+    // Only connect if we haven't already connected
+    if (!hasConnectedRef.current && wsRef.current?.readyState !== WebSocket.OPEN) {
+      hasConnectedRef.current = true;
+      connect();
+    }
 
     return () => {
       // Cleanup on unmount
+      hasConnectedRef.current = false;
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
         reconnectTimeoutRef.current = null;
       }
       if (wsRef.current) {
-        wsRef.current.close();
+        try {
+          wsRef.current.close();
+        } catch (e) {
+          // Ignore errors when closing
+        }
         wsRef.current = null;
       }
     };

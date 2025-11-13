@@ -20,7 +20,7 @@ from src.utils.logger import setup_logger
 class PriceUpdateService:
     """Service for managing real-time price updates for positions"""
     
-    def __init__(self, update_interval: float = 3.0):
+    def __init__(self, update_interval: float = 5.0):  # Increased from 3.0 to 5.0 to reduce API calls
         """
         Initialize price update service.
         

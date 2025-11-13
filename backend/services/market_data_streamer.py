@@ -20,7 +20,7 @@ from src.utils.logger import setup_logger
 class MarketDataStreamer:
     """Service for streaming real-time market data (prices, OHLCV) to WebSocket clients"""
     
-    def __init__(self, update_interval: float = 2.0):
+    def __init__(self, update_interval: float = 5.0):  # Increased from 2.0 to 5.0 to reduce API calls and avoid rate limiting
         """
         Initialize market data streamer.
         
