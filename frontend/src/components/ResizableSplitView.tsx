@@ -6,6 +6,7 @@ interface ResizableSplitViewProps {
   defaultLeftWidth?: number; // percentage
   minLeftWidth?: number;
   maxLeftWidth?: number;
+  rightCollapsed?: boolean;
 }
 
 export function ResizableSplitView({
@@ -14,6 +15,7 @@ export function ResizableSplitView({
   defaultLeftWidth = 60,
   minLeftWidth = 30,
   maxLeftWidth = 80,
+  rightCollapsed = false,
 }: ResizableSplitViewProps) {
   const [leftWidth, setLeftWidth] = useState(defaultLeftWidth);
   const [isDragging, setIsDragging] = useState(false);
@@ -54,27 +56,31 @@ export function ResizableSplitView({
     <div ref={containerRef} className="flex h-full relative">
       {/* Left Panel */}
       <div
-        className="h-full overflow-hidden"
-        style={{ width: `${leftWidth}%` }}
+        className="h-full overflow-hidden transition-all duration-300"
+        style={{ width: rightCollapsed ? '100%' : `${leftWidth}%` }}
       >
         {left}
       </div>
 
-      {/* Resizer */}
-      <div
-        className="w-1 bg-gray-800 hover:bg-blue-500 cursor-col-resize transition-colors relative group"
-        onMouseDown={(e) => {
-          e.preventDefault();
-          setIsDragging(true);
-        }}
-      >
-        <div className="absolute inset-y-0 left-1/2 transform -translate-x-1/2 w-8" />
-      </div>
+      {/* Resizer - Only show when not collapsed */}
+      {!rightCollapsed && (
+        <div
+          className="w-1 bg-gray-800 hover:bg-blue-500 cursor-col-resize transition-colors relative group"
+          onMouseDown={(e) => {
+            e.preventDefault();
+            setIsDragging(true);
+          }}
+        >
+          <div className="absolute inset-y-0 left-1/2 transform -translate-x-1/2 w-8" />
+        </div>
+      )}
 
       {/* Right Panel */}
       <div
-        className="h-full overflow-hidden"
-        style={{ width: `${100 - leftWidth}%` }}
+        className={`h-full overflow-hidden transition-all duration-300 ${
+          rightCollapsed ? 'w-0' : ''
+        }`}
+        style={rightCollapsed ? {} : { width: `${100 - leftWidth}%` }}
       >
         {right}
       </div>

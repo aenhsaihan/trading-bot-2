@@ -1,31 +1,31 @@
-import { useState, useEffect } from 'react';
-import { useNotifications } from './hooks/useNotifications';
-import { ToastContainer } from './components/ToastContainer';
-import { NotificationCenter } from './components/NotificationCenter';
-import { Workspace } from './components/Workspace';
-import { ResizableSplitView } from './components/ResizableSplitView';
-import { notificationAPI } from './services/api';
-import { Notification } from './types/notification';
-import { Wifi, WifiOff } from 'lucide-react';
+import { useState, useEffect } from "react";
+import { useNotifications } from "./hooks/useNotifications";
+import { ToastContainer } from "./components/ToastContainer";
+import { NotificationCenter } from "./components/NotificationCenter";
+import { Workspace } from "./components/Workspace";
+import { ResizableSplitView } from "./components/ResizableSplitView";
+import { notificationAPI } from "./services/api";
+import { Notification } from "./types/notification";
+import { Wifi, WifiOff, Bell } from "lucide-react";
 
 function App() {
-  const {
-    notifications,
-    loading,
-    connected,
-    markAsRead,
-    respond,
-    refresh,
-  } = useNotifications();
+  const { notifications, loading, connected, markAsRead, respond, refresh } =
+    useNotifications();
 
   // Debug: Log notifications
   useEffect(() => {
-    console.log('App: notifications updated', notifications.length, notifications);
+    console.log(
+      "App: notifications updated",
+      notifications.length,
+      notifications
+    );
   }, [notifications]);
 
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [apiHealth, setApiHealth] = useState<boolean>(false);
-  const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
+  const [selectedNotification, setSelectedNotification] =
+    useState<Notification | null>(null);
+  const [notificationsCollapsed, setNotificationsCollapsed] = useState(false);
 
   // Check API health
   useEffect(() => {
@@ -38,13 +38,21 @@ function App() {
     return () => clearInterval(interval);
   }, []);
 
+  const handleDismiss = (_id: string) => {
+    // Just dismiss the toast, don't mark as read
+    // Notifications should only be marked as read when explicitly selected or clicked
+  };
 
-  const handleDismiss = async (id: string) => {
-    await markAsRead(id);
+  const handleNotificationSelect = async (notification: Notification) => {
+    setSelectedNotification(notification);
+    // Mark as read when selected
+    if (!notification.read) {
+      await markAsRead(notification.id);
+    }
   };
 
   const handleActionRequest = (action: string, params: any) => {
-    console.log('Action requested:', action, params);
+    console.log("Action requested:", action, params);
     // TODO: Implement action handling in Phase 2 & 4
   };
 
@@ -63,6 +71,23 @@ function App() {
               </p>
             </div>
             <div className="flex items-center gap-4">
+              {/* Notifications Toggle - Show when collapsed */}
+              {notificationsCollapsed && (
+                <button
+                  onClick={() => setNotificationsCollapsed(false)}
+                  className="relative px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white text-sm font-medium transition-colors flex items-center gap-2"
+                  title="Show notifications panel"
+                >
+                  <Bell size={18} />
+                  Notifications
+                  {notifications.filter((n) => !n.read).length > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                      {notifications.filter((n) => !n.read).length}
+                    </span>
+                  )}
+                </button>
+              )}
+
               {/* Connection Status */}
               <div className="flex items-center gap-2 text-sm">
                 {connected ? (
@@ -106,6 +131,7 @@ function App() {
       <ToastContainer
         notifications={notifications}
         onDismiss={handleDismiss}
+        onNotificationClick={handleNotificationSelect}
         voiceEnabled={voiceEnabled}
       />
 
@@ -124,14 +150,16 @@ function App() {
               onMarkRead={markAsRead}
               onRespond={respond}
               onRefresh={refresh}
-              onSelect={setSelectedNotification}
+              onSelect={handleNotificationSelect}
               selectedNotificationId={selectedNotification?.id}
               loading={loading}
+              onCollapse={() => setNotificationsCollapsed(true)}
             />
           }
           defaultLeftWidth={60}
           minLeftWidth={40}
           maxLeftWidth={80}
+          rightCollapsed={notificationsCollapsed}
         />
       </div>
     </div>
@@ -139,4 +167,3 @@ function App() {
 }
 
 export default App;
-

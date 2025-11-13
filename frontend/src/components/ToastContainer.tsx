@@ -1,18 +1,20 @@
-import { useEffect, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { ToastNotification } from './ToastNotification';
-import { Notification } from '../types/notification';
-import { speakMessage } from '../utils/voice';
+import { useEffect, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { ToastNotification } from "./ToastNotification";
+import { Notification } from "../types/notification";
+import { speakMessage } from "../utils/voice";
 
 interface ToastContainerProps {
   notifications: Notification[];
   onDismiss: (id: string) => void;
+  onNotificationClick?: (notification: Notification) => void;
   voiceEnabled?: boolean;
 }
 
 export function ToastContainer({
   notifications,
   onDismiss,
+  onNotificationClick,
   voiceEnabled = true,
 }: ToastContainerProps) {
   const [displayedIds, setDisplayedIds] = useState<Set<string>>(new Set());
@@ -20,7 +22,7 @@ export function ToastContainer({
 
   // Show new notifications as toasts
   useEffect(() => {
-    console.log('ToastContainer: notifications changed', notifications.length);
+    console.log("ToastContainer: notifications changed", notifications.length);
     notifications.forEach((notification) => {
       // Only show unread, non-responded notifications that haven't been displayed
       if (
@@ -29,7 +31,11 @@ export function ToastContainer({
         !displayedIds.has(notification.id) &&
         !dismissedIds.has(notification.id)
       ) {
-        console.log('Showing toast for notification:', notification.id, notification.title);
+        console.log(
+          "Showing toast for notification:",
+          notification.id,
+          notification.title
+        );
         setDisplayedIds((prev) => new Set([...prev, notification.id]));
 
         // Play voice alert
@@ -56,7 +62,10 @@ export function ToastContainer({
   );
 
   return (
-    <div className="fixed top-0 right-0 z-50 pointer-events-none" style={{ zIndex: 9999 }}>
+    <div
+      className="fixed top-0 right-0 z-50 pointer-events-none"
+      style={{ zIndex: 9999 }}
+    >
       <AnimatePresence>
         {toastsToShow.map((notification, index) => (
           <motion.div
@@ -65,22 +74,23 @@ export function ToastContainer({
             animate={{ x: 0, opacity: 1 }}
             exit={{ x: 400, opacity: 0 }}
             transition={{
-              type: 'spring',
+              type: "spring",
               damping: 25,
               stiffness: 200,
               delay: index * 0.1,
             }}
             className="pointer-events-auto"
             style={{
-              position: 'absolute',
+              position: "absolute",
               top: `${70 + index * 120}px`,
-              right: '20px',
-              width: '400px',
+              right: "20px",
+              width: "400px",
             }}
           >
             <ToastNotification
               notification={notification}
               onDismiss={() => handleDismiss(notification.id)}
+              onClick={() => onNotificationClick?.(notification)}
             />
           </motion.div>
         ))}
@@ -88,4 +98,3 @@ export function ToastContainer({
     </div>
   );
 }
-

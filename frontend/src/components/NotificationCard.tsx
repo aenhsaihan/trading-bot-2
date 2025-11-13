@@ -65,7 +65,7 @@ export function NotificationCard({
     <div
       className={`bg-gradient-to-br from-dark-card to-dark-bg rounded-xl p-4 mb-4 border-l-4 shadow-lg hover:shadow-xl transition-all duration-200 cursor-pointer ${
         isSelected ? 'ring-2 ring-blue-500' : ''
-      }`}
+      } ${notification.read ? 'opacity-75' : ''}`}
       style={{ borderLeftColor: priorityColor }}
       onClick={() => onSelect?.(notification)}
     >

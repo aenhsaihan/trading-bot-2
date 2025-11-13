@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { Notification, NotificationPriority } from '../types/notification';
 import { NotificationCard } from './NotificationCard';
-import { RefreshCw, Filter } from 'lucide-react';
+import { RefreshCw, Filter, ChevronRight } from 'lucide-react';
 
 interface NotificationCenterProps {
   notifications: Notification[];
@@ -11,6 +11,7 @@ interface NotificationCenterProps {
   onSelect?: (notification: Notification) => void;
   selectedNotificationId?: string;
   loading?: boolean;
+  onCollapse?: () => void;
 }
 
 export function NotificationCenter({
@@ -21,6 +22,7 @@ export function NotificationCenter({
   onSelect,
   selectedNotificationId,
   loading = false,
+  onCollapse,
 }: NotificationCenterProps) {
   const [showUnreadOnly, setShowUnreadOnly] = useState(false);
   const [priorityFilter, setPriorityFilter] = useState<NotificationPriority | 'all'>('all');
@@ -58,10 +60,23 @@ export function NotificationCenter({
     <div className="h-full flex flex-col bg-gradient-to-br from-[#0f0f1e] via-[#1a1a2e] to-[#0f0f1e]">
       {/* Header */}
       <div className="bg-dark-card/50 border-b border-gray-800 p-4 flex-shrink-0">
-        <h1 className="text-2xl font-bold text-white mb-1">🔔 Notifications</h1>
-        <p className="text-sm text-gray-400">
-          Always watching, always listening, always notifying
-        </p>
+        <div className="flex items-center justify-between mb-1">
+          <div>
+            <h1 className="text-2xl font-bold text-white">🔔 Notifications</h1>
+            <p className="text-sm text-gray-400">
+              Always watching, always listening, always notifying
+            </p>
+          </div>
+          {onCollapse && (
+            <button
+              onClick={onCollapse}
+              className="p-2 hover:bg-gray-800 rounded-lg transition-colors text-gray-400 hover:text-white"
+              title="Collapse notifications panel"
+            >
+              <ChevronRight size={20} />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Content */}

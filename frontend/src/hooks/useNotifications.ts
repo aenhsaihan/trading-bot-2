@@ -104,12 +104,16 @@ export function useNotifications() {
 
   const markAsRead = useCallback(async (id: string) => {
     try {
-      await notificationAPI.markAsRead(id);
+      const updatedNotification = await notificationAPI.markAsRead(id);
       setNotifications((prev) =>
-        prev.map((n) => (n.id === id ? { ...n, read: true } : n))
+        prev.map((n) => (n.id === id ? updatedNotification : n))
       );
     } catch (err) {
       console.error("Error marking as read:", err);
+      // Optimistically update on error
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === id ? { ...n, read: true } : n))
+      );
     }
   }, []);
 
