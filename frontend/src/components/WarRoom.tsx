@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { TrendingUp, TrendingDown, DollarSign, Target, Shield } from 'lucide-react';
-import { Notification } from '../types/notification';
+import { Notification, NotificationType } from '../types/notification';
 import { tradingAPI, Position as APIPosition, Balance } from '../services/api';
 
 interface Position {
@@ -125,9 +125,23 @@ export function WarRoom({
 
   useEffect(() => {
     if (selectedNotification?.symbol) {
+      // Determine side based on notification type
+      // Technical breakouts and combined signals are typically bullish (long)
+      // Risk alerts might be bearish (short)
+      let suggestedSide: 'long' | 'short' = 'long';
+      if (
+        selectedNotification.type === NotificationType.RISK_ALERT ||
+        (selectedNotification.metadata?.side === 'short')
+      ) {
+        suggestedSide = 'short';
+      } else if (selectedNotification.metadata?.side === 'long') {
+        suggestedSide = 'long';
+      }
+
       setOrderForm((prev) => ({
         ...prev,
         symbol: selectedNotification.symbol || '',
+        side: suggestedSide,
       }));
       setShowOrderForm(true);
     }

@@ -1,5 +1,9 @@
-import { Notification, NotificationPriority, NotificationType } from '../types/notification';
-import { Check, Clock } from 'lucide-react';
+import {
+  Notification,
+  NotificationPriority,
+  NotificationType,
+} from "../types/notification";
+import { Check, Clock, TrendingUp, MessageSquare, X } from "lucide-react";
 
 interface NotificationCardProps {
   notification: Notification;
@@ -7,33 +11,36 @@ interface NotificationCardProps {
   onRespond: (id: string, action: string) => void;
   onSelect?: (notification: Notification) => void;
   isSelected?: boolean;
+  onOpenPosition?: (notification: Notification) => void;
+  onAnalyzeInCommandCenter?: (notification: Notification) => void;
+  onDismiss?: (id: string) => void;
 }
 
 const priorityEmojis: Record<NotificationPriority, string> = {
-  [NotificationPriority.CRITICAL]: '🔴',
-  [NotificationPriority.HIGH]: '🟠',
-  [NotificationPriority.MEDIUM]: '🟡',
-  [NotificationPriority.LOW]: '🔵',
-  [NotificationPriority.INFO]: '⚪',
+  [NotificationPriority.CRITICAL]: "🔴",
+  [NotificationPriority.HIGH]: "🟠",
+  [NotificationPriority.MEDIUM]: "🟡",
+  [NotificationPriority.LOW]: "🔵",
+  [NotificationPriority.INFO]: "⚪",
 };
 
 const typeEmojis: Record<NotificationType, string> = {
-  [NotificationType.COMBINED_SIGNAL]: '🚀',
-  [NotificationType.TECHNICAL_BREAKOUT]: '📈',
-  [NotificationType.SOCIAL_SURGE]: '💬',
-  [NotificationType.NEWS_EVENT]: '📰',
-  [NotificationType.RISK_ALERT]: '⚠️',
-  [NotificationType.SYSTEM_STATUS]: '✅',
-  [NotificationType.TRADE_EXECUTED]: '💰',
-  [NotificationType.USER_ACTION_REQUIRED]: '👤',
+  [NotificationType.COMBINED_SIGNAL]: "🚀",
+  [NotificationType.TECHNICAL_BREAKOUT]: "📈",
+  [NotificationType.SOCIAL_SURGE]: "💬",
+  [NotificationType.NEWS_EVENT]: "📰",
+  [NotificationType.RISK_ALERT]: "⚠️",
+  [NotificationType.SYSTEM_STATUS]: "✅",
+  [NotificationType.TRADE_EXECUTED]: "💰",
+  [NotificationType.USER_ACTION_REQUIRED]: "👤",
 };
 
 const priorityColors: Record<NotificationPriority, string> = {
-  [NotificationPriority.CRITICAL]: '#FF4444',
-  [NotificationPriority.HIGH]: '#FF8800',
-  [NotificationPriority.MEDIUM]: '#FFBB00',
-  [NotificationPriority.LOW]: '#4488FF',
-  [NotificationPriority.INFO]: '#888888',
+  [NotificationPriority.CRITICAL]: "#FF4444",
+  [NotificationPriority.HIGH]: "#FF8800",
+  [NotificationPriority.MEDIUM]: "#FFBB00",
+  [NotificationPriority.LOW]: "#4488FF",
+  [NotificationPriority.INFO]: "#888888",
 };
 
 function formatTimeAgo(dateString: string): string {
@@ -44,7 +51,7 @@ function formatTimeAgo(dateString: string): string {
   const diffHours = Math.floor(diffMs / 3600000);
   const diffDays = Math.floor(diffMs / 86400000);
 
-  if (diffMins < 1) return 'Just now';
+  if (diffMins < 1) return "Just now";
   if (diffMins < 60) return `${diffMins}m ago`;
   if (diffHours < 24) return `${diffHours}h ago`;
   return `${diffDays}d ago`;
@@ -56,16 +63,27 @@ export function NotificationCard({
   onRespond,
   onSelect,
   isSelected = false,
+  onOpenPosition,
+  onAnalyzeInCommandCenter,
+  onDismiss,
 }: NotificationCardProps) {
   const priorityEmoji = priorityEmojis[notification.priority];
   const typeEmoji = typeEmojis[notification.type];
   const priorityColor = priorityColors[notification.priority];
 
+  // Determine if this is a high-confidence actionable notification
+  const isHighConfidence =
+    notification.confidence_score !== undefined &&
+    notification.confidence_score >= 75;
+  const isActionable = notification.symbol && !notification.responded;
+
   return (
     <div
       className={`bg-gradient-to-br from-dark-card to-dark-bg rounded-xl p-4 mb-4 border-l-4 shadow-lg hover:shadow-xl transition-all duration-200 cursor-pointer ${
-        isSelected ? 'ring-2 ring-blue-500' : ''
-      } ${notification.read ? 'opacity-75' : ''}`}
+        isSelected ? "ring-2 ring-blue-500" : ""
+      } ${notification.read ? "opacity-75" : ""} ${
+        isHighConfidence && isActionable ? "ring-1 ring-green-500/50" : ""
+      }`}
       style={{ borderLeftColor: priorityColor }}
       onClick={() => onSelect?.(notification)}
     >
@@ -74,6 +92,11 @@ export function NotificationCard({
           <span className="text-2xl">{priorityEmoji}</span>
           <span className="text-xl">{typeEmoji}</span>
           <h3 className="font-bold text-white text-lg">{notification.title}</h3>
+          {isHighConfidence && isActionable && (
+            <span className="px-2 py-0.5 bg-green-500/20 text-green-400 text-xs font-semibold rounded-full border border-green-500/30">
+              High Confidence
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2 text-xs text-gray-500">
           <Clock size={12} />
@@ -86,20 +109,20 @@ export function NotificationCard({
       <div className="flex gap-4 text-xs text-gray-500 mb-3 flex-wrap">
         {notification.symbol && (
           <span>
-            <strong>Symbol:</strong>{' '}
+            <strong>Symbol:</strong>{" "}
             <span className="text-green-400">{notification.symbol}</span>
           </span>
         )}
         {notification.confidence_score !== undefined && (
           <span>
-            <strong>Confidence:</strong>{' '}
+            <strong>Confidence:</strong>{" "}
             <span
               className={
                 notification.confidence_score >= 75
-                  ? 'text-green-400'
+                  ? "text-green-400"
                   : notification.confidence_score >= 50
-                  ? 'text-yellow-400'
-                  : 'text-red-400'
+                  ? "text-yellow-400"
+                  : "text-red-400"
               }
             >
               {notification.confidence_score}%
@@ -108,30 +131,75 @@ export function NotificationCard({
         )}
         {notification.urgency_score !== undefined && (
           <span>
-            <strong>Urgency:</strong>{' '}
-            <span className="text-orange-400">{notification.urgency_score}%</span>
+            <strong>Urgency:</strong>{" "}
+            <span className="text-orange-400">
+              {notification.urgency_score}%
+            </span>
           </span>
         )}
         {notification.promise_score !== undefined && (
           <span>
-            <strong>Promise:</strong>{' '}
-            <span className="text-green-400">{notification.promise_score}%</span>
+            <strong>Promise:</strong>{" "}
+            <span className="text-green-400">
+              {notification.promise_score}%
+            </span>
           </span>
         )}
       </div>
 
+      {/* Quick Actions - Always show for actionable notifications */}
+      {!notification.responded && notification.symbol && (
+        <div
+          className="flex gap-2 mt-3 flex-wrap"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {onOpenPosition && (
+            <button
+              onClick={() => onOpenPosition(notification)}
+              className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5"
+              title="Open position in War Room"
+            >
+              <TrendingUp size={14} />
+              Open Position
+            </button>
+          )}
+          {onAnalyzeInCommandCenter && (
+            <button
+              onClick={() => onAnalyzeInCommandCenter(notification)}
+              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5"
+              title="Analyze in Command Center"
+            >
+              <MessageSquare size={14} />
+              Analyze
+            </button>
+          )}
+          {onDismiss && (
+            <button
+              onClick={() => onDismiss(notification.id)}
+              className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5"
+              title="Dismiss notification"
+            >
+              <X size={14} />
+              Dismiss
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Legacy Actions - Show if notification has custom actions */}
       {notification.actions.length > 0 && !notification.responded && (
-        <div className="flex gap-2 mt-3" onClick={(e) => e.stopPropagation()}>
+        <div className="flex gap-2 mt-2" onClick={(e) => e.stopPropagation()}>
           {notification.actions.map((action) => (
             <button
               key={action}
               onClick={() => onRespond(notification.id, action.toLowerCase())}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                action.toLowerCase() === 'approve' || action.toLowerCase() === 'buy'
-                  ? 'bg-green-600 hover:bg-green-700 text-white'
-                  : action.toLowerCase() === 'reject'
-                  ? 'bg-red-600 hover:bg-red-700 text-white'
-                  : 'bg-gray-700 hover:bg-gray-600 text-white'
+                action.toLowerCase() === "approve" ||
+                action.toLowerCase() === "buy"
+                  ? "bg-green-600 hover:bg-green-700 text-white"
+                  : action.toLowerCase() === "reject"
+                  ? "bg-red-600 hover:bg-red-700 text-white"
+                  : "bg-gray-700 hover:bg-gray-600 text-white"
               }`}
             >
               {action}
@@ -161,4 +229,3 @@ export function NotificationCard({
     </div>
   );
 }
-

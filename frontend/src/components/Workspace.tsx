@@ -8,11 +8,13 @@ import { Notification, NotificationType, NotificationPriority, NotificationSourc
 interface WorkspaceProps {
   selectedNotification?: Notification | null;
   onActionRequest?: (action: string, params: any) => void;
+  requestedAction?: 'openPosition' | 'analyze' | null;
+  onActionHandled?: () => void;
 }
 
 type Tab = 'command' | 'warroom' | 'intelligence';
 
-export function Workspace({ selectedNotification, onActionRequest }: WorkspaceProps) {
+export function Workspace({ selectedNotification, onActionRequest, requestedAction, onActionHandled }: WorkspaceProps) {
   const [activeTab, setActiveTab] = useState<Tab>('command');
   const [analysisSymbol, setAnalysisSymbol] = useState<string | null>(null);
   const [prefillSymbol, setPrefillSymbol] = useState<string | null>(null);
@@ -51,13 +53,22 @@ export function Workspace({ selectedNotification, onActionRequest }: WorkspacePr
     setActiveTab('warroom');
   };
 
-  // Clear analysis symbol when a real notification is selected
+  // Handle notification-based actions from App.tsx
   useEffect(() => {
-    if (selectedNotification) {
-      setAnalysisSymbol(null);
-      setPrefillSymbol(null);
+    if (requestedAction && selectedNotification) {
+      if (requestedAction === 'openPosition' && selectedNotification.symbol) {
+        setPrefillSymbol(selectedNotification.symbol);
+        setActiveTab('warroom');
+        onActionHandled?.();
+      } else if (requestedAction === 'analyze') {
+        if (selectedNotification.symbol) {
+          setAnalysisSymbol(selectedNotification.symbol);
+        }
+        setActiveTab('command');
+        onActionHandled?.();
+      }
     }
-  }, [selectedNotification]);
+  }, [requestedAction, selectedNotification, onActionHandled]);
 
   return (
     <div className="flex flex-col h-full bg-gradient-to-br from-[#0f0f1e] via-[#1a1a2e] to-[#0f0f1e]">

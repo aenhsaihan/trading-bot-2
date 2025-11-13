@@ -1,7 +1,7 @@
-import { useState, useMemo } from 'react';
-import { Notification, NotificationPriority } from '../types/notification';
-import { NotificationCard } from './NotificationCard';
-import { RefreshCw, Filter, ChevronRight } from 'lucide-react';
+import { useState, useMemo } from "react";
+import { Notification, NotificationPriority } from "../types/notification";
+import { NotificationCard } from "./NotificationCard";
+import { RefreshCw, Filter, ChevronRight } from "lucide-react";
 
 interface NotificationCenterProps {
   notifications: Notification[];
@@ -12,6 +12,9 @@ interface NotificationCenterProps {
   selectedNotificationId?: string;
   loading?: boolean;
   onCollapse?: () => void;
+  onOpenPosition?: (notification: Notification) => void;
+  onAnalyzeInCommandCenter?: (notification: Notification) => void;
+  onDismiss?: (id: string) => void;
 }
 
 export function NotificationCenter({
@@ -23,25 +26,42 @@ export function NotificationCenter({
   selectedNotificationId,
   loading = false,
   onCollapse,
+  onOpenPosition,
+  onAnalyzeInCommandCenter,
+  onDismiss,
 }: NotificationCenterProps) {
   const [showUnreadOnly, setShowUnreadOnly] = useState(false);
-  const [priorityFilter, setPriorityFilter] = useState<NotificationPriority | 'all'>('all');
+  const [priorityFilter, setPriorityFilter] = useState<
+    NotificationPriority | "all"
+  >("all");
 
   const filteredNotifications = useMemo(() => {
-    console.log('NotificationCenter: filtering notifications', {
+    // Get archived notification IDs from localStorage
+    const archivedIds = new Set(
+      JSON.parse(localStorage.getItem("archivedNotificationIds") || "[]")
+    );
+
+    console.log("NotificationCenter: filtering notifications", {
       total: notifications.length,
       showUnreadOnly,
       priorityFilter,
+      archivedCount: archivedIds.size,
     });
-    let filtered = notifications.filter((n) => !n.responded);
-    console.log('After filtering responded:', filtered.length);
+
+    // Filter out archived notifications first
+    let filtered = notifications.filter((n) => !archivedIds.has(n.id));
+    console.log("After filtering archived:", filtered.length);
+
+    // Filter out responded notifications
+    filtered = filtered.filter((n) => !n.responded);
+    console.log("After filtering responded:", filtered.length);
 
     if (showUnreadOnly) {
       filtered = filtered.filter((n) => !n.read);
-      console.log('After filtering unread:', filtered.length);
+      console.log("After filtering unread:", filtered.length);
     }
 
-    if (priorityFilter !== 'all') {
+    if (priorityFilter !== "all") {
       filtered = filtered.filter((n) => n.priority === priorityFilter);
     }
 
@@ -49,11 +69,21 @@ export function NotificationCenter({
   }, [notifications, showUnreadOnly, priorityFilter]);
 
   const stats = useMemo(() => {
-    const unread = notifications.filter((n) => !n.read).length;
-    const critical = notifications.filter(
+    // Get archived notification IDs from localStorage
+    const archivedIds = new Set(
+      JSON.parse(localStorage.getItem("archivedNotificationIds") || "[]")
+    );
+
+    // Only count non-archived notifications in stats
+    const activeNotifications = notifications.filter(
+      (n) => !archivedIds.has(n.id)
+    );
+
+    const unread = activeNotifications.filter((n) => !n.read).length;
+    const critical = activeNotifications.filter(
       (n) => n.priority === NotificationPriority.CRITICAL
     ).length;
-    return { unread, critical, total: notifications.length };
+    return { unread, critical, total: activeNotifications.length };
   }, [notifications]);
 
   return (
@@ -81,7 +111,6 @@ export function NotificationCenter({
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-4">
-
         {/* Stats */}
         <div className="grid grid-cols-3 gap-4 mb-4">
           <div className="bg-dark-card rounded-lg p-3 border border-gray-700">
@@ -90,55 +119,63 @@ export function NotificationCenter({
           </div>
           <div className="bg-dark-card rounded-lg p-3 border border-gray-700">
             <div className="text-gray-400 text-xs mb-1">Unread</div>
-            <div className="text-xl font-bold text-yellow-400">{stats.unread}</div>
+            <div className="text-xl font-bold text-yellow-400">
+              {stats.unread}
+            </div>
           </div>
           <div className="bg-dark-card rounded-lg p-3 border border-gray-700">
             <div className="text-gray-400 text-xs mb-1">Critical</div>
-            <div className="text-xl font-bold text-red-400">{stats.critical}</div>
+            <div className="text-xl font-bold text-red-400">
+              {stats.critical}
+            </div>
           </div>
         </div>
 
         {/* Filters */}
         <div className="bg-dark-card rounded-lg p-3 mb-4 flex items-center gap-4 flex-wrap">
-        <div className="flex items-center gap-2">
-          <Filter size={18} className="text-gray-400" />
-          <label className="flex items-center gap-2 text-sm text-gray-300">
-            <input
-              type="checkbox"
-              checked={showUnreadOnly}
-              onChange={(e) => setShowUnreadOnly(e.target.checked)}
-              className="rounded"
-            />
-            Show unread only
-          </label>
+          <div className="flex items-center gap-2">
+            <Filter size={18} className="text-gray-400" />
+            <label className="flex items-center gap-2 text-sm text-gray-300">
+              <input
+                type="checkbox"
+                checked={showUnreadOnly}
+                onChange={(e) => setShowUnreadOnly(e.target.checked)}
+                className="rounded"
+              />
+              Show unread only
+            </label>
+          </div>
+
+          <select
+            value={priorityFilter}
+            onChange={(e) =>
+              setPriorityFilter(e.target.value as NotificationPriority | "all")
+            }
+            className="bg-dark-bg border border-gray-700 rounded-lg px-3 py-2 text-sm text-white"
+          >
+            <option value="all">All Priorities</option>
+            <option value={NotificationPriority.CRITICAL}>Critical</option>
+            <option value={NotificationPriority.HIGH}>High</option>
+            <option value={NotificationPriority.MEDIUM}>Medium</option>
+            <option value={NotificationPriority.LOW}>Low</option>
+            <option value={NotificationPriority.INFO}>Info</option>
+          </select>
+
+          <button
+            onClick={onRefresh}
+            disabled={loading}
+            className="ml-auto flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-medium text-white transition-colors disabled:opacity-50"
+          >
+            <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+            Refresh
+          </button>
         </div>
-
-        <select
-          value={priorityFilter}
-          onChange={(e) => setPriorityFilter(e.target.value as NotificationPriority | 'all')}
-          className="bg-dark-bg border border-gray-700 rounded-lg px-3 py-2 text-sm text-white"
-        >
-          <option value="all">All Priorities</option>
-          <option value={NotificationPriority.CRITICAL}>Critical</option>
-          <option value={NotificationPriority.HIGH}>High</option>
-          <option value={NotificationPriority.MEDIUM}>Medium</option>
-          <option value={NotificationPriority.LOW}>Low</option>
-          <option value={NotificationPriority.INFO}>Info</option>
-        </select>
-
-        <button
-          onClick={onRefresh}
-          disabled={loading}
-          className="ml-auto flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-medium text-white transition-colors disabled:opacity-50"
-        >
-          <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
-          Refresh
-        </button>
-      </div>
 
         {/* Notifications List */}
         {loading && filteredNotifications.length === 0 ? (
-          <div className="text-center py-12 text-gray-400">Loading notifications...</div>
+          <div className="text-center py-12 text-gray-400">
+            Loading notifications...
+          </div>
         ) : filteredNotifications.length === 0 ? (
           <div className="text-center py-12">
             <div className="text-4xl mb-4">✨</div>
@@ -156,6 +193,9 @@ export function NotificationCenter({
                 onRespond={onRespond}
                 onSelect={onSelect}
                 isSelected={notification.id === selectedNotificationId}
+                onOpenPosition={onOpenPosition}
+                onAnalyzeInCommandCenter={onAnalyzeInCommandCenter}
+                onDismiss={onDismiss}
               />
             ))}
           </div>
@@ -164,4 +204,3 @@ export function NotificationCenter({
     </div>
   );
 }
-

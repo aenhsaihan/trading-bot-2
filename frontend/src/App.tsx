@@ -25,6 +25,9 @@ function App() {
   const [apiHealth, setApiHealth] = useState<boolean>(false);
   const [selectedNotification, setSelectedNotification] =
     useState<Notification | null>(null);
+  const [requestedAction, setRequestedAction] = useState<
+    "openPosition" | "analyze" | null
+  >(null);
   const [notificationsCollapsed, setNotificationsCollapsed] = useState(() => {
     // Load collapsed state from localStorage
     const stored = localStorage.getItem("notificationsCollapsed");
@@ -73,6 +76,38 @@ function App() {
   const handleActionRequest = (action: string, params: any) => {
     console.log("Action requested:", action, params);
     // TODO: Implement action handling in Phase 2 & 4
+  };
+
+  const handleOpenPosition = (notification: Notification) => {
+    // Set the notification as selected and request War Room action
+    setSelectedNotification(notification);
+    setRequestedAction("openPosition");
+  };
+
+  const handleAnalyzeInCommandCenter = (notification: Notification) => {
+    // Set the notification as selected and request Command Center action
+    setSelectedNotification(notification);
+    setRequestedAction("analyze");
+  };
+
+  const handleDismissNotification = (id: string) => {
+    // Archive the notification (remove from view, store in archived state)
+    const archivedIds = JSON.parse(
+      localStorage.getItem("archivedNotificationIds") || "[]"
+    );
+    if (!archivedIds.includes(id)) {
+      archivedIds.push(id);
+      localStorage.setItem(
+        "archivedNotificationIds",
+        JSON.stringify(archivedIds)
+      );
+    }
+    // Clear selection if this notification is currently selected
+    if (selectedNotification?.id === id) {
+      setSelectedNotification(null);
+    }
+    // Also mark as read
+    markAsRead(id);
   };
 
   return (
@@ -161,6 +196,8 @@ function App() {
             <Workspace
               selectedNotification={selectedNotification}
               onActionRequest={handleActionRequest}
+              requestedAction={requestedAction}
+              onActionHandled={() => setRequestedAction(null)}
             />
           }
           right={
@@ -173,6 +210,9 @@ function App() {
               selectedNotificationId={selectedNotification?.id}
               loading={loading}
               onCollapse={() => setNotificationsCollapsed(true)}
+              onOpenPosition={handleOpenPosition}
+              onAnalyzeInCommandCenter={handleAnalyzeInCommandCenter}
+              onDismiss={handleDismissNotification}
             />
           }
           defaultLeftWidth={60}
