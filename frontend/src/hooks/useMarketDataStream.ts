@@ -92,9 +92,12 @@ export function useMarketDataStream(
       "ws://localhost:8000/ws/market-data";
   }, []); // Only calculate once
 
+  // Memoize autoConnect to prevent unnecessary reconnections
+  const autoConnectMemo = useMemo(() => autoConnect, [autoConnect]);
+
   const { status, send, connect, disconnect, lastMessage } = useWebSocket({
     url: wsUrl,
-    autoConnect,
+    autoConnect: autoConnectMemo,
     onMessage: (data: any) => {
       // Handle connection message
       if (data.type === "connected") {

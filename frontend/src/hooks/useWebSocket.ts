@@ -200,25 +200,27 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
     }
   }, []);
 
-  // Track autoConnect in ref to detect changes
-  const autoConnectRef = useRef(autoConnect);
-  useEffect(() => {
-    autoConnectRef.current = autoConnect;
-  }, [autoConnect]);
+  // Track if we've already attempted to connect to prevent multiple connections
+  const hasAttemptedConnectRef = useRef(false);
 
   // Auto-connect on mount if enabled
   useEffect(() => {
-    // Only connect if autoConnect is true and we're not already connected
-    if (autoConnectRef.current && wsRef.current?.readyState !== WebSocket.OPEN) {
+    // Only connect if:
+    // 1. autoConnect is true
+    // 2. We haven't already attempted to connect
+    // 3. We're not already connected
+    if (autoConnect && !hasAttemptedConnectRef.current && wsRef.current?.readyState !== WebSocket.OPEN) {
+      hasAttemptedConnectRef.current = true;
       connect();
     }
 
     return () => {
       // Cleanup: disconnect when component unmounts
+      hasAttemptedConnectRef.current = false;
       disconnect();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Only run once on mount - use refs for values
+  }, [autoConnect]); // Only depend on autoConnect - connect/disconnect are stable
 
   return {
     status,
