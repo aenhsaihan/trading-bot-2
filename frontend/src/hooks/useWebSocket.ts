@@ -4,6 +4,10 @@ import { useState, useEffect, useRef, useCallback } from "react";
 // Maps URL to active WebSocket instance
 const globalConnections = new Map<string, WebSocket>();
 
+// Connection locks to prevent race conditions during startup
+// Maps URL to a promise that resolves when connection is ready
+const connectionLocks = new Map<string, Promise<WebSocket>>();
+
 export type WebSocketStatus = "connecting" | "connected" | "disconnected" | "error";
 
 export interface UseWebSocketOptions {
@@ -96,7 +100,23 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
       } else {
         // Connection is closed, remove from registry
         globalConnections.delete(currentUrl);
+        connectionLocks.delete(currentUrl);
       }
+    }
+
+    // Check if there's a connection in progress (race condition protection)
+    const existingLock = connectionLocks.get(currentUrl);
+    if (existingLock) {
+      console.log("WebSocket: Waiting for existing connection attempt...");
+      existingLock.then((ws) => {
+        if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+          wsRef.current = ws;
+          setStatus(ws.readyState === WebSocket.OPEN ? "connected" : "connecting");
+        }
+      }).catch(() => {
+        // Connection failed, will retry
+      });
+      return;
     }
 
     // If already connected, don't reconnect
@@ -129,6 +149,29 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
       
       // Register in global connections map (for StrictMode protection)
       globalConnections.set(currentUrl, ws);
+      
+      // Create connection lock promise for race condition protection
+      const connectionPromise = new Promise<WebSocket>((resolve, reject) => {
+        connectionLocks.set(currentUrl, connectionPromise);
+        
+        ws.onopen = () => {
+          resolve(ws);
+          connectionLocks.delete(currentUrl); // Remove lock once connected
+        };
+        
+        ws.onerror = (error) => {
+          connectionLocks.delete(currentUrl);
+          globalConnections.delete(currentUrl);
+          reject(error);
+        };
+        
+        ws.onclose = () => {
+          connectionLocks.delete(currentUrl);
+          if (globalConnections.get(currentUrl) === ws) {
+            globalConnections.delete(currentUrl);
+          }
+        };
+      });
 
       ws.onopen = () => {
         console.log("WebSocket connected:", currentUrl);
