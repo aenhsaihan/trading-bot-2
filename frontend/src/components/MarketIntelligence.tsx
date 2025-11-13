@@ -81,9 +81,17 @@ export function MarketIntelligence({
     if (update.timeframe === timeframe && update.symbol === symbol) {
       setOhlcvData((prev) => {
         if (!prev || prev.symbol !== update.symbol) return prev;
+        
+        // Merge new candles with existing ones, then sort by timestamp
+        const merged = [...prev.candles, ...update.candles];
+        // Remove duplicates by timestamp and sort
+        const uniqueCandles = Array.from(
+          new Map(merged.map(c => [c.timestamp, c])).values()
+        ).sort((a, b) => a.timestamp - b.timestamp);
+        
         return {
           ...prev,
-          candles: [...prev.candles.slice(0, -1), ...update.candles].slice(-100),
+          candles: uniqueCandles.slice(-100), // Keep last 100 candles
         };
       });
     }

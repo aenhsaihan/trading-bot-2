@@ -129,18 +129,22 @@ export function PriceChart({
       }
 
       // Prepare data - lightweight-charts expects Unix timestamp in seconds
+      // Sort by timestamp to ensure ascending order (required by lightweight-charts)
       const chartData = candles
         .filter((c) => c.timestamp && c.open && c.high && c.low && c.close)
-        .map((candle) => {
-          const time = Math.floor(candle.timestamp / 1000);
-          return {
-            time: time as Time, // Convert milliseconds to seconds
-            open: Number(candle.open),
-            high: Number(candle.high),
-            low: Number(candle.low),
-            close: Number(candle.close),
-          };
-        });
+        .map((candle) => ({
+          time: Math.floor(candle.timestamp / 1000) as Time, // Convert milliseconds to seconds
+          open: Number(candle.open),
+          high: Number(candle.high),
+          low: Number(candle.low),
+          close: Number(candle.close),
+          originalTimestamp: candle.timestamp, // Keep for sorting
+        }))
+        .sort((a, b) => {
+          // Sort by original timestamp in ascending order
+          return a.originalTimestamp - b.originalTimestamp;
+        })
+        .map(({ originalTimestamp, ...rest }) => rest); // Remove helper field
 
       if (chartData.length === 0) {
         console.warn("No valid chart data after filtering");
