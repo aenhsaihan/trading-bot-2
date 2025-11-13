@@ -205,6 +205,8 @@ class TradingService:
         # Get stop loss and trailing stop
         stop_loss_price = None
         if stop_loss_percent:
+            # Update stop loss percentage before calculating price
+            self.stop_loss.update_percent(stop_loss_percent / 100)
             stop_loss_price = float(self.stop_loss.calculate_stop_price(entry_price, side))
         
         trailing_stop_price = None
