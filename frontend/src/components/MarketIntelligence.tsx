@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   TrendingUp,
   TrendingDown,
@@ -6,10 +6,14 @@ import {
   Activity,
   Zap,
   Target,
+  Wifi,
+  WifiOff,
 } from "lucide-react";
 import { Notification } from "../types/notification";
 import { marketDataAPI, OHLCVData } from "../services/api";
 import { PriceChart } from "./PriceChart";
+import { useMarketDataStream, PriceUpdate, OHLCVUpdate } from "../hooks/useMarketDataStream";
+import { AlertManager } from "./AlertManager";
 
 interface Indicator {
   name: string;
@@ -57,6 +61,62 @@ export function MarketIntelligence({
   const [chartType, setChartType] = useState<"candles" | "line" | "area">(
     "candles"
   );
+  const [streamingEnabled, setStreamingEnabled] = useState(true);
+  const [showAlertManager, setShowAlertManager] = useState(false);
+
+  // Memoize callbacks to prevent unnecessary re-renders
+  const handlePriceUpdate = useCallback((update: PriceUpdate) => {
+    // Update market data with streaming price
+    setMarketData((prev) => {
+      if (!prev || prev.symbol !== update.symbol) return prev;
+      return {
+        ...prev,
+        price: update.price,
+      };
+    });
+  }, []);
+
+  const handleOHLCVUpdate = useCallback((update: OHLCVUpdate) => {
+    // Update OHLCV data if timeframe matches
+    if (update.timeframe === timeframe && update.symbol === symbol) {
+      setOhlcvData((prev) => {
+        if (!prev || prev.symbol !== update.symbol) return prev;
+        return {
+          ...prev,
+          candles: [...prev.candles.slice(0, -1), ...update.candles].slice(-100),
+        };
+      });
+    }
+  }, [timeframe, symbol]);
+
+  // Market data streaming hook
+  const {
+    status: streamStatus,
+    latestPrice,
+    latestTicker,
+    latestOHLCV,
+    subscribe,
+    unsubscribe,
+  } = useMarketDataStream({
+    symbols: streamingEnabled ? [symbol] : [],
+    autoConnect: streamingEnabled,
+    onPriceUpdate: handlePriceUpdate,
+    onOHLCVUpdate: handleOHLCVUpdate,
+  });
+
+  // Track previous symbol to handle subscription changes
+  const prevSymbolRef = useRef(symbol);
+  
+  // Update subscription when symbol changes
+  useEffect(() => {
+    if (streamingEnabled && streamStatus === "connected") {
+      if (prevSymbolRef.current !== symbol) {
+        unsubscribe(prevSymbolRef.current);
+        subscribe(symbol);
+        prevSymbolRef.current = symbol;
+      }
+    }
+  }, [symbol, streamingEnabled, streamStatus, subscribe, unsubscribe]);
 
   // Persist symbol to localStorage when it changes
   useEffect(() => {
@@ -403,7 +463,10 @@ export function MarketIntelligence({
             >
               Open Position
             </button>
-            <button className="px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded text-sm font-medium text-white transition-colors">
+            <button
+              onClick={() => setShowAlertManager(true)}
+              className="px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded text-sm font-medium text-white transition-colors"
+            >
               Set Alert
             </button>
           </div>
@@ -609,6 +672,31 @@ export function MarketIntelligence({
           </div>
         </div>
       </div>
+
+      {/* Alert Manager Modal */}
+      {showAlertManager && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-dark-card rounded-lg border border-gray-700 w-full max-w-2xl max-h-[90vh] overflow-y-auto m-4">
+            <div className="sticky top-0 bg-dark-card border-b border-gray-700 p-4 flex items-center justify-between">
+              <h2 className="text-xl font-bold text-white">Create Alert</h2>
+              <button
+                onClick={() => setShowAlertManager(false)}
+                className="text-gray-400 hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="p-4">
+              <AlertManager
+                symbol={symbol}
+                onAlertCreated={() => {
+                  setShowAlertManager(false);
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

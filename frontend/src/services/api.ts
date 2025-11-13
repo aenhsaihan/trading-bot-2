@@ -482,3 +482,120 @@ export class MarketDataAPI {
 }
 
 export const marketDataAPI = new MarketDataAPI();
+
+// Alert API
+import { Alert, AlertCreate, AlertUpdate, AlertListResponse } from "../types/alert";
+
+export class AlertAPI {
+  private baseUrl: string;
+
+  constructor(baseUrl: string = API_BASE_URL) {
+    this.baseUrl = baseUrl.replace(/\/$/, "");
+  }
+
+  async getAlerts(
+    symbol?: string,
+    enabledOnly: boolean = false,
+    triggeredOnly: boolean = false
+  ): Promise<AlertListResponse> {
+    const params = new URLSearchParams();
+    if (symbol) params.append("symbol", symbol);
+    if (enabledOnly) params.append("enabled_only", "true");
+    if (triggeredOnly) params.append("triggered_only", "true");
+
+    const response = await fetch(`${this.baseUrl}/alerts?${params}`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch alerts: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  async getAlert(id: string): Promise<Alert> {
+    const response = await fetch(`${this.baseUrl}/alerts/${id}`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch alert: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  async createAlert(data: AlertCreate): Promise<Alert> {
+    const response = await fetch(`${this.baseUrl}/alerts`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      let errorMessage = response.statusText;
+      try {
+        const errorData = await response.json();
+        if (errorData.detail) {
+          if (Array.isArray(errorData.detail)) {
+            errorMessage = errorData.detail
+              .map((e: any) => `${e.field}: ${e.message}`)
+              .join(", ");
+          } else {
+            errorMessage = errorData.detail;
+          }
+        }
+      } catch {
+        // If we can't parse the error, use statusText
+      }
+      throw new Error(`Failed to create alert: ${errorMessage}`);
+    }
+    return response.json();
+  }
+
+  async updateAlert(id: string, data: AlertUpdate): Promise<Alert> {
+    const response = await fetch(`${this.baseUrl}/alerts/${id}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      let errorMessage = response.statusText;
+      try {
+        const errorData = await response.json();
+        if (errorData.detail) {
+          errorMessage = errorData.detail;
+        }
+      } catch {
+        // If we can't parse the error, use statusText
+      }
+      throw new Error(`Failed to update alert: ${errorMessage}`);
+    }
+    return response.json();
+  }
+
+  async deleteAlert(id: string): Promise<void> {
+    const response = await fetch(`${this.baseUrl}/alerts/${id}`, {
+      method: "DELETE",
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to delete alert: ${response.statusText}`);
+    }
+  }
+
+  async evaluateAlerts(): Promise<{
+    evaluated: boolean;
+    triggered_count: number;
+    triggered_alerts: Alert[];
+  }> {
+    const response = await fetch(`${this.baseUrl}/alerts/evaluate`, {
+      method: "POST",
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to evaluate alerts: ${response.statusText}`);
+    }
+    return response.json();
+  }
+}
+
+export const alertAPI = new AlertAPI();
+
+// Price Update WebSocket (for real-time position updates)
+// The usePriceUpdates hook handles WebSocket connections
+// This is just for reference/documentation
