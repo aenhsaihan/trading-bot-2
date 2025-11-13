@@ -86,18 +86,14 @@ export function useMarketDataStream(
     onOHLCVUpdateRef.current = onOHLCVUpdate;
   }, [symbols, onPriceUpdate, onOHLCVUpdate]);
 
-  const wsUrl =
-    (import.meta as any).env?.VITE_WS_URL?.replace("http://", "ws://").replace("https://", "wss://") ||
-    "ws://localhost:8000/ws/market-data";
-
   // Memoize the WebSocket URL to prevent unnecessary reconnections
-  const wsUrlRef = useRef(wsUrl);
-  useEffect(() => {
-    wsUrlRef.current = wsUrl;
-  }, [wsUrl]);
+  const wsUrl = useMemo(() => {
+    return (import.meta as any).env?.VITE_WS_URL?.replace("http://", "ws://").replace("https://", "wss://") ||
+      "ws://localhost:8000/ws/market-data";
+  }, []); // Only calculate once
 
   const { status, send, connect, disconnect, lastMessage } = useWebSocket({
-    url: wsUrlRef.current, // Use ref to prevent URL changes from causing reconnections
+    url: wsUrl,
     autoConnect,
     onMessage: (data: any) => {
       // Handle connection message
