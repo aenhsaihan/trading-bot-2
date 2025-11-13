@@ -295,3 +295,77 @@ export class TradingAPI {
 
 export const tradingAPI = new TradingAPI();
 
+// AI API
+export interface ChatMessage {
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+}
+
+export interface ChatContext {
+  positions?: any[];
+  balance?: number;
+  selected_notification?: any;
+}
+
+export class AIAPI {
+  private baseUrl: string;
+
+  constructor(baseUrl: string = API_BASE_URL) {
+    this.baseUrl = baseUrl.replace(/\/$/, '');
+  }
+
+  async getStatus(): Promise<{ enabled: boolean; available: boolean }> {
+    const response = await fetch(`${this.baseUrl}/ai/status`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch AI status: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  async chat(
+    message: string,
+    conversationHistory: ChatMessage[] = [],
+    context?: ChatContext
+  ): Promise<string> {
+    const response = await fetch(`${this.baseUrl}/ai/chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        message,
+        conversation_history: conversationHistory,
+        context,
+      }),
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to chat: ${response.statusText}`);
+    }
+    const data = await response.json();
+    return data.response;
+  }
+
+  async analyzeNotification(
+    notification: any,
+    context?: ChatContext
+  ): Promise<string> {
+    const response = await fetch(`${this.baseUrl}/ai/analyze-notification`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        notification,
+        context,
+      }),
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to analyze notification: ${response.statusText}`);
+    }
+    const data = await response.json();
+    return data.analysis;
+  }
+}
+
+export const aiAPI = new AIAPI();
+

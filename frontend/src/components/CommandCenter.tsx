@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User } from 'lucide-react';
+import { Send, Bot, User, AlertCircle } from 'lucide-react';
 import { Notification } from '../types/notification';
+import { aiAPI, ChatMessage } from '../services/api';
+import { tradingAPI } from '../services/api';
 
 interface Message {
   id: string;
@@ -26,29 +28,84 @@ export function CommandCenter({ selectedNotification, onActionRequest: _onAction
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [aiEnabled, setAiEnabled] = useState<boolean | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
+  // Check AI status on mount
+  useEffect(() => {
+    aiAPI.getStatus()
+      .then(status => setAiEnabled(status.enabled))
+      .catch(() => setAiEnabled(false));
+  }, []);
+
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
 
   useEffect(() => {
-    if (selectedNotification) {
+    if (selectedNotification && aiEnabled) {
       // Auto-analyze notification when selected
+      setIsLoading(true);
+      
+      // Get context (positions, balance) for AI
+      Promise.all([
+        tradingAPI.getPositions().catch(() => ({ positions: [] })),
+        tradingAPI.getBalance().catch(() => ({ balance: 0 }))
+      ]).then(([positionsData, balanceData]) => {
+        const context = {
+          positions: positionsData.positions || [],
+          balance: balanceData.balance || 0,
+          selected_notification: {
+            id: selectedNotification.id,
+            title: selectedNotification.title,
+            type: selectedNotification.type,
+            symbol: selectedNotification.symbol,
+            confidence_score: selectedNotification.confidence_score,
+            urgency_score: selectedNotification.urgency_score,
+            message: selectedNotification.message,
+          }
+        };
+
+        aiAPI.analyzeNotification(selectedNotification, context)
+          .then(analysis => {
+            const analysisMessage: Message = {
+              id: `analysis-${Date.now()}`,
+              role: 'assistant',
+              content: analysis,
+              timestamp: new Date(),
+              notificationId: selectedNotification.id,
+            };
+            setMessages((prev) => [...prev, analysisMessage]);
+            setIsLoading(false);
+          })
+          .catch(error => {
+            const errorMessage: Message = {
+              id: `error-${Date.now()}`,
+              role: 'assistant',
+              content: `⚠️ Error analyzing notification: ${error.message}`,
+              timestamp: new Date(),
+              notificationId: selectedNotification.id,
+            };
+            setMessages((prev) => [...prev, errorMessage]);
+            setIsLoading(false);
+          });
+      });
+    } else if (selectedNotification && aiEnabled === false) {
+      // AI not enabled, show basic info
       const analysisMessage: Message = {
         id: `analysis-${Date.now()}`,
         role: 'assistant',
-        content: `Analyzing notification: "${selectedNotification.title}"\n\nSignal detected: ${selectedNotification.type}\nConfidence: ${selectedNotification.confidence_score || 'N/A'}%\nSymbol: ${selectedNotification.symbol || 'N/A'}\n\nStanding by for your orders, Commander.`,
+        content: `Analyzing notification: "${selectedNotification.title}"\n\nSignal detected: ${selectedNotification.type}\nConfidence: ${selectedNotification.confidence_score || 'N/A'}%\nSymbol: ${selectedNotification.symbol || 'N/A'}\n\n⚠️ AI analysis not available. Please configure OpenAI API key.`,
         timestamp: new Date(),
         notificationId: selectedNotification.id,
       };
       setMessages((prev) => [...prev, analysisMessage]);
     }
-  }, [selectedNotification]);
+  }, [selectedNotification, aiEnabled]);
 
   const handleSend = async () => {
     if (!input.trim() || isLoading) return;
@@ -61,21 +118,58 @@ export function CommandCenter({ selectedNotification, onActionRequest: _onAction
     };
 
     setMessages((prev) => [...prev, userMessage]);
+    const userInput = input;
     setInput('');
     setIsLoading(true);
 
-    // TODO: Replace with actual AI API call in Phase 3
-    // For now, simulate AI response
-    setTimeout(() => {
+    try {
+      // Get context for AI
+      const [positionsData, balanceData] = await Promise.all([
+        tradingAPI.getPositions().catch(() => ({ positions: [] })),
+        tradingAPI.getBalance().catch(() => ({ balance: 0 }))
+      ]);
+
+      const context = {
+        positions: positionsData.positions || [],
+        balance: balanceData.balance || 0,
+        selected_notification: selectedNotification ? {
+          id: selectedNotification.id,
+          title: selectedNotification.title,
+          type: selectedNotification.type,
+          symbol: selectedNotification.symbol,
+          confidence_score: selectedNotification.confidence_score,
+        } : undefined,
+      };
+
+      // Build conversation history
+      const conversationHistory: ChatMessage[] = messages
+        .filter(m => m.role !== 'system')
+        .map(m => ({
+          role: m.role as 'user' | 'assistant',
+          content: m.content,
+        }));
+
+      // Call AI API
+      const response = await aiAPI.chat(userInput, conversationHistory, context);
+
       const aiMessage: Message = {
         id: `ai-${Date.now()}`,
         role: 'assistant',
-        content: `Understood, Commander. Analyzing your request...\n\n[AI Integration will be added in Phase 3]\n\nFor now, this is a placeholder response. The AI will provide tactical analysis, risk assessment, and battle plans based on your notifications and market conditions.`,
+        content: response,
         timestamp: new Date(),
       };
       setMessages((prev) => [...prev, aiMessage]);
+    } catch (error) {
+      const errorMessage: Message = {
+        id: `error-${Date.now()}`,
+        role: 'assistant',
+        content: `⚠️ Error: ${error instanceof Error ? error.message : 'Failed to get AI response'}\n\nPlease check that OpenAI API key is configured.`,
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, errorMessage]);
+    } finally {
       setIsLoading(false);
-    }, 1000);
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -94,11 +188,19 @@ export function CommandCenter({ selectedNotification, onActionRequest: _onAction
           <h2 className="text-xl font-bold text-white">⚔️ Command Center</h2>
           <span className="text-xs text-gray-400 ml-auto">Tactical AI Assistant</span>
         </div>
-        {selectedNotification && (
-          <div className="mt-2 text-sm text-gray-400">
-            Analyzing: <span className="text-yellow-400">{selectedNotification.title}</span>
-          </div>
-        )}
+        <div className="flex items-center justify-between mt-2">
+          {selectedNotification && (
+            <div className="text-sm text-gray-400">
+              Analyzing: <span className="text-yellow-400">{selectedNotification.title}</span>
+            </div>
+          )}
+          {aiEnabled === false && (
+            <div className="flex items-center gap-2 text-xs text-yellow-400 bg-yellow-400/10 border border-yellow-400/20 rounded px-2 py-1">
+              <AlertCircle size={14} />
+              AI not configured
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Messages */}

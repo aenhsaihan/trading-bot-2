@@ -1,10 +1,24 @@
 """FastAPI application main file"""
 
+import os
+from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from .routes import notifications, websocket, trading
+
+# Load environment variables from .env file if it exists
+try:
+    from dotenv import load_dotenv
+    project_root = Path(__file__).parent.parent.parent.parent
+    env_file = project_root / ".env"
+    if env_file.exists():
+        load_dotenv(env_file)
+        print(f"Loaded environment variables from {env_file}")
+except ImportError:
+    pass  # python-dotenv not installed, skip
+
+from .routes import notifications, websocket, trading, ai
 
 # Create FastAPI app
 app = FastAPI(
@@ -26,6 +40,7 @@ app.add_middleware(
 app.include_router(notifications.router)
 app.include_router(websocket.router)
 app.include_router(trading.router)
+app.include_router(ai.router)
 
 
 @app.exception_handler(RequestValidationError)
@@ -54,6 +69,7 @@ async def root():
         "endpoints": {
             "notifications": "/notifications",
             "trading": "/trading",
+            "ai": "/ai",
             "websocket": "/ws/notifications",
             "docs": "/docs"
         }
