@@ -1,10 +1,12 @@
 import { Notification, NotificationPriority, NotificationType } from '../types/notification';
-import { Check, X, Clock } from 'lucide-react';
+import { Check, Clock } from 'lucide-react';
 
 interface NotificationCardProps {
   notification: Notification;
   onMarkRead: (id: string) => void;
   onRespond: (id: string, action: string) => void;
+  onSelect?: (notification: Notification) => void;
+  isSelected?: boolean;
 }
 
 const priorityEmojis: Record<NotificationPriority, string> = {
@@ -52,6 +54,8 @@ export function NotificationCard({
   notification,
   onMarkRead,
   onRespond,
+  onSelect,
+  isSelected = false,
 }: NotificationCardProps) {
   const priorityEmoji = priorityEmojis[notification.priority];
   const typeEmoji = typeEmojis[notification.type];
@@ -59,8 +63,11 @@ export function NotificationCard({
 
   return (
     <div
-      className="bg-gradient-to-br from-dark-card to-dark-bg rounded-xl p-4 mb-4 border-l-4 shadow-lg hover:shadow-xl transition-all duration-200"
+      className={`bg-gradient-to-br from-dark-card to-dark-bg rounded-xl p-4 mb-4 border-l-4 shadow-lg hover:shadow-xl transition-all duration-200 cursor-pointer ${
+        isSelected ? 'ring-2 ring-blue-500' : ''
+      }`}
       style={{ borderLeftColor: priorityColor }}
+      onClick={() => onSelect?.(notification)}
     >
       <div className="flex items-start justify-between mb-2">
         <div className="flex items-center gap-2">
@@ -114,7 +121,7 @@ export function NotificationCard({
       </div>
 
       {notification.actions.length > 0 && !notification.responded && (
-        <div className="flex gap-2 mt-3">
+        <div className="flex gap-2 mt-3" onClick={(e) => e.stopPropagation()}>
           {notification.actions.map((action) => (
             <button
               key={action}
@@ -141,7 +148,10 @@ export function NotificationCard({
 
       {!notification.read && (
         <button
-          onClick={() => onMarkRead(notification.id)}
+          onClick={(e) => {
+            e.stopPropagation();
+            onMarkRead(notification.id);
+          }}
           className="mt-2 text-xs text-gray-500 hover:text-gray-300 flex items-center gap-1"
         >
           <Check size={12} />

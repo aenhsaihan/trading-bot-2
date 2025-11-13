@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Notification } from '../types/notification';
-import { notificationAPI } from '../services/api';
+import { useState, useEffect, useCallback } from "react";
+import { Notification } from "../types/notification";
+import { notificationAPI } from "../services/api";
 
 export function useNotifications() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -11,14 +11,16 @@ export function useNotifications() {
   const fetchNotifications = useCallback(async () => {
     try {
       setLoading(true);
-      console.log('Fetching notifications from API...');
+      console.log("Fetching notifications from API...");
       const data = await notificationAPI.getNotifications();
-      console.log('Notifications fetched:', data);
+      console.log("Notifications fetched:", data);
       setNotifications(data.notifications);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch notifications');
-      console.error('Error fetching notifications:', err);
+      setError(
+        err instanceof Error ? err.message : "Failed to fetch notifications"
+      );
+      console.error("Error fetching notifications:", err);
     } finally {
       setLoading(false);
     }
@@ -26,34 +28,36 @@ export function useNotifications() {
 
   useEffect(() => {
     fetchNotifications();
-    
+
     // Set up WebSocket connection
-    const wsUrl = (import.meta as any).env?.VITE_WS_URL || 'ws://localhost:8000/ws/notifications';
-    console.log('Connecting to WebSocket:', wsUrl);
+    const wsUrl =
+      (import.meta as any).env?.VITE_WS_URL ||
+      "ws://localhost:8000/ws/notifications";
+    console.log("Connecting to WebSocket:", wsUrl);
     const ws = new WebSocket(wsUrl);
 
     ws.onopen = () => {
-      console.log('WebSocket connected');
+      console.log("WebSocket connected");
       setConnected(true);
       // Send ping to keep connection alive
-      ws.send('ping');
+      ws.send("ping");
     };
 
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        console.log('WebSocket message received:', data);
-        
+        console.log("WebSocket message received:", data);
+
         // Handle connection message
-        if (data.type === 'connected') {
-          console.log('WebSocket:', data.message);
+        if (data.type === "connected") {
+          console.log("WebSocket:", data.message);
           return;
         }
 
         // Handle notification
         if (data.id && data.type) {
           const notification = data as Notification;
-          console.log('New notification via WebSocket:', notification);
+          console.log("New notification via WebSocket:", notification);
           setNotifications((prev) => {
             // Check if notification already exists
             const exists = prev.some((n) => n.id === notification.id);
@@ -67,17 +71,17 @@ export function useNotifications() {
           });
         }
       } catch (err) {
-        console.error('Error parsing WebSocket message:', err);
+        console.error("Error parsing WebSocket message:", err);
       }
     };
 
     ws.onerror = (err) => {
-      console.error('WebSocket error:', err);
+      console.error("WebSocket error:", err);
       setConnected(false);
     };
 
     ws.onclose = () => {
-      console.log('WebSocket disconnected');
+      console.log("WebSocket disconnected");
       setConnected(false);
       // Try to reconnect after 3 seconds
       setTimeout(() => {
@@ -88,7 +92,7 @@ export function useNotifications() {
     // Ping every 30 seconds to keep connection alive
     const pingInterval = setInterval(() => {
       if (ws.readyState === WebSocket.OPEN) {
-        ws.send('ping');
+        ws.send("ping");
       }
     }, 30000);
 
@@ -105,7 +109,7 @@ export function useNotifications() {
         prev.map((n) => (n.id === id ? { ...n, read: true } : n))
       );
     } catch (err) {
-      console.error('Error marking as read:', err);
+      console.error("Error marking as read:", err);
     }
   }, []);
 
@@ -115,13 +119,11 @@ export function useNotifications() {
         await notificationAPI.respondToNotification(id, action, customMessage);
         setNotifications((prev) =>
           prev.map((n) =>
-            n.id === id
-              ? { ...n, responded: true, response_action: action }
-              : n
+            n.id === id ? { ...n, responded: true, response_action: action } : n
           )
         );
       } catch (err) {
-        console.error('Error responding to notification:', err);
+        console.error("Error responding to notification:", err);
       }
     },
     []
@@ -132,7 +134,7 @@ export function useNotifications() {
       await notificationAPI.deleteNotification(id);
       setNotifications((prev) => prev.filter((n) => n.id !== id));
     } catch (err) {
-      console.error('Error deleting notification:', err);
+      console.error("Error deleting notification:", err);
     }
   }, []);
 
@@ -147,4 +149,3 @@ export function useNotifications() {
     refresh: fetchNotifications,
   };
 }
-

@@ -8,6 +8,8 @@ interface NotificationCenterProps {
   onMarkRead: (id: string) => void;
   onRespond: (id: string, action: string) => void;
   onRefresh: () => void;
+  onSelect?: (notification: Notification) => void;
+  selectedNotificationId?: string;
   loading?: boolean;
 }
 
@@ -16,6 +18,8 @@ export function NotificationCenter({
   onMarkRead,
   onRespond,
   onRefresh,
+  onSelect,
+  selectedNotificationId,
   loading = false,
 }: NotificationCenterProps) {
   const [showUnreadOnly, setShowUnreadOnly] = useState(false);
@@ -51,33 +55,36 @@ export function NotificationCenter({
   }, [notifications]);
 
   return (
-    <div className="max-w-4xl mx-auto p-6">
+    <div className="h-full flex flex-col bg-gradient-to-br from-[#0f0f1e] via-[#1a1a2e] to-[#0f0f1e]">
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-white mb-2">🔔 Notification Center</h1>
-        <p className="text-gray-400">
+      <div className="bg-dark-card/50 border-b border-gray-800 p-4 flex-shrink-0">
+        <h1 className="text-2xl font-bold text-white mb-1">🔔 Notifications</h1>
+        <p className="text-sm text-gray-400">
           Always watching, always listening, always notifying
         </p>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
-        <div className="bg-dark-card rounded-lg p-4">
-          <div className="text-gray-400 text-sm mb-1">Total</div>
-          <div className="text-2xl font-bold text-white">{stats.total}</div>
-        </div>
-        <div className="bg-dark-card rounded-lg p-4">
-          <div className="text-gray-400 text-sm mb-1">Unread</div>
-          <div className="text-2xl font-bold text-yellow-400">{stats.unread}</div>
-        </div>
-        <div className="bg-dark-card rounded-lg p-4">
-          <div className="text-gray-400 text-sm mb-1">Critical</div>
-          <div className="text-2xl font-bold text-red-400">{stats.critical}</div>
-        </div>
-      </div>
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto p-4">
 
-      {/* Filters */}
-      <div className="bg-dark-card rounded-lg p-4 mb-6 flex items-center gap-4 flex-wrap">
+        {/* Stats */}
+        <div className="grid grid-cols-3 gap-4 mb-4">
+          <div className="bg-dark-card rounded-lg p-3 border border-gray-700">
+            <div className="text-gray-400 text-xs mb-1">Total</div>
+            <div className="text-xl font-bold text-white">{stats.total}</div>
+          </div>
+          <div className="bg-dark-card rounded-lg p-3 border border-gray-700">
+            <div className="text-gray-400 text-xs mb-1">Unread</div>
+            <div className="text-xl font-bold text-yellow-400">{stats.unread}</div>
+          </div>
+          <div className="bg-dark-card rounded-lg p-3 border border-gray-700">
+            <div className="text-gray-400 text-xs mb-1">Critical</div>
+            <div className="text-xl font-bold text-red-400">{stats.critical}</div>
+          </div>
+        </div>
+
+        {/* Filters */}
+        <div className="bg-dark-card rounded-lg p-3 mb-4 flex items-center gap-4 flex-wrap">
         <div className="flex items-center gap-2">
           <Filter size={18} className="text-gray-400" />
           <label className="flex items-center gap-2 text-sm text-gray-300">
@@ -114,28 +121,31 @@ export function NotificationCenter({
         </button>
       </div>
 
-      {/* Notifications List */}
-      {loading && filteredNotifications.length === 0 ? (
-        <div className="text-center py-12 text-gray-400">Loading notifications...</div>
-      ) : filteredNotifications.length === 0 ? (
-        <div className="text-center py-12">
-          <div className="text-4xl mb-4">✨</div>
-          <div className="text-gray-400 text-lg">
-            No notifications - Everything is calm and monitored.
+        {/* Notifications List */}
+        {loading && filteredNotifications.length === 0 ? (
+          <div className="text-center py-12 text-gray-400">Loading notifications...</div>
+        ) : filteredNotifications.length === 0 ? (
+          <div className="text-center py-12">
+            <div className="text-4xl mb-4">✨</div>
+            <div className="text-gray-400 text-lg">
+              No notifications - Everything is calm and monitored.
+            </div>
           </div>
-        </div>
-      ) : (
-        <div>
-          {filteredNotifications.map((notification) => (
-            <NotificationCard
-              key={notification.id}
-              notification={notification}
-              onMarkRead={onMarkRead}
-              onRespond={onRespond}
-            />
-          ))}
-        </div>
-      )}
+        ) : (
+          <div>
+            {filteredNotifications.map((notification) => (
+              <NotificationCard
+                key={notification.id}
+                notification={notification}
+                onMarkRead={onMarkRead}
+                onRespond={onRespond}
+                onSelect={onSelect}
+                isSelected={notification.id === selectedNotificationId}
+              />
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

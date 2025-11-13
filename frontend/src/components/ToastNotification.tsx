@@ -38,7 +38,7 @@ const priorityColors: Record<NotificationPriority, string> = {
 export function ToastNotification({
   notification,
   onDismiss,
-  duration = 5000,
+  duration: _duration = 5000, // Reserved for future use
 }: ToastNotificationProps) {
   const priorityEmoji = priorityEmojis[notification.priority];
   const typeEmoji = typeEmojis[notification.type];
