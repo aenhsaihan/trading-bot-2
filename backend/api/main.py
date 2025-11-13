@@ -1,6 +1,7 @@
 """FastAPI application main file"""
 
 import os
+import asyncio
 from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -18,7 +19,9 @@ try:
 except ImportError:
     pass  # python-dotenv not installed, skip
 
-from .routes import notifications, websocket, trading, ai, market_data, alerts
+from .routes import notifications, websocket, trading, ai, market_data, alerts, signals
+from backend.services.alert_service import get_alert_service
+from backend.services.notification_source_service import get_notification_source_service
 
 # Create FastAPI app
 app = FastAPI(
@@ -43,6 +46,7 @@ app.include_router(trading.router)
 app.include_router(ai.router)
 app.include_router(market_data.router)
 app.include_router(alerts.router)
+app.include_router(signals.router)
 
 
 @app.exception_handler(RequestValidationError)
@@ -73,6 +77,7 @@ async def root():
             "trading": "/trading",
             "ai": "/ai",
             "alerts": "/alerts",
+            "signals": "/signals",
             "websocket": "/ws/notifications",
             "docs": "/docs"
         }
@@ -83,6 +88,80 @@ async def root():
 async def health_check():
     """Health check endpoint"""
     return {"status": "healthy"}
+
+
+async def alert_evaluation_loop():
+    """
+    Background task that periodically evaluates all enabled alerts.
+    Runs every 30 seconds to check if any alerts should trigger.
+    """
+    alert_service = get_alert_service()
+    
+    while True:
+        try:
+            await asyncio.sleep(30)  # Evaluate every 30 seconds
+            
+            # Evaluate all alerts (run in thread pool to avoid blocking event loop)
+            # Using to_thread for Python 3.9+, fallback to run_in_executor for older versions
+            try:
+                triggered = await asyncio.to_thread(alert_service.evaluate_all_alerts)
+            except AttributeError:
+                # Fallback for Python < 3.9
+                loop = asyncio.get_event_loop()
+                triggered = await loop.run_in_executor(None, alert_service.evaluate_all_alerts)
+            
+            if triggered:
+                alert_service.logger.info(
+                    f"Alert evaluation: {len(triggered)} alert(s) triggered"
+                )
+        except asyncio.CancelledError:
+            # Task was cancelled, exit gracefully
+            alert_service.logger.info("Alert evaluation task cancelled")
+            break
+        except Exception as e:
+            alert_service.logger.error(
+                f"Error in alert evaluation loop: {e}",
+                exc_info=True
+            )
+            # Continue running even if there's an error
+            await asyncio.sleep(30)
+
+
+@app.on_event("startup")
+async def startup_event():
+    """Start background tasks on application startup"""
+    # Start alert evaluation background task
+    asyncio.create_task(alert_evaluation_loop())
+    print("✅ Started alert evaluation background task (evaluates every 30 seconds)")
+    
+    # Start notification source monitoring service
+    try:
+        notification_source_service = get_notification_source_service()
+        if not notification_source_service.is_running():
+            notification_source_service.start()
+            print("✅ NotificationSourceService started successfully")
+        else:
+            print("ℹ️  NotificationSourceService is already running")
+    except Exception as e:
+        print(f"⚠️  Failed to start NotificationSourceService: {e}")
+        # Don't fail startup if service fails to start
+        pass
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Cleanup on application shutdown"""
+    # Stop notification source service
+    try:
+        notification_source_service = get_notification_source_service()
+        if notification_source_service.is_running():
+            notification_source_service.stop()
+            print("✅ NotificationSourceService stopped successfully")
+    except Exception as e:
+        print(f"⚠️  Error stopping NotificationSourceService: {e}")
+    
+    # Background tasks will be cancelled automatically
+    print("Shutting down background tasks...")
 
 
 if __name__ == "__main__":
