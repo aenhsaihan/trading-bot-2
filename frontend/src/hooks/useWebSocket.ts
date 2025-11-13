@@ -108,14 +108,24 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
     const existingLock = connectionLocks.get(currentUrl);
     if (existingLock) {
       console.log("WebSocket: Waiting for existing connection attempt...");
+      // Wait for the lock and reuse the connection
       existingLock.then((ws) => {
         if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+          console.log("WebSocket: Reusing connection from lock", ws.readyState === WebSocket.OPEN ? "OPEN" : "CONNECTING");
           wsRef.current = ws;
           setStatus(ws.readyState === WebSocket.OPEN ? "connected" : "connecting");
+          isConnectingRef.current = false; // Release lock
+        } else {
+          // Connection closed, try again
+          console.log("WebSocket: Lock connection closed, will retry");
+          isConnectingRef.current = false;
         }
-      }).catch(() => {
+      }).catch((error) => {
         // Connection failed, will retry
+        console.log("WebSocket: Lock connection failed, will retry", error);
+        isConnectingRef.current = false;
       });
+      // Don't proceed with new connection - wait for lock
       return;
     }
 
