@@ -151,27 +151,13 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
       globalConnections.set(currentUrl, ws);
       
       // Create connection lock promise for race condition protection
+      let resolveLock: (ws: WebSocket) => void;
+      let rejectLock: (error: any) => void;
       const connectionPromise = new Promise<WebSocket>((resolve, reject) => {
-        connectionLocks.set(currentUrl, connectionPromise);
-        
-        ws.onopen = () => {
-          resolve(ws);
-          connectionLocks.delete(currentUrl); // Remove lock once connected
-        };
-        
-        ws.onerror = (error) => {
-          connectionLocks.delete(currentUrl);
-          globalConnections.delete(currentUrl);
-          reject(error);
-        };
-        
-        ws.onclose = () => {
-          connectionLocks.delete(currentUrl);
-          if (globalConnections.get(currentUrl) === ws) {
-            globalConnections.delete(currentUrl);
-          }
-        };
+        resolveLock = resolve;
+        rejectLock = reject;
       });
+      connectionLocks.set(currentUrl, connectionPromise);
 
       ws.onopen = () => {
         console.log("WebSocket connected:", currentUrl);
@@ -180,6 +166,10 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
         setError(null);
         reconnectCountRef.current = 0;
         onConnectRef.current?.();
+        
+        // Resolve connection lock
+        connectionLocks.delete(currentUrl);
+        resolveLock(ws);
 
         // Start ping interval (every 30 seconds)
         pingIntervalRef.current = setInterval(() => {
@@ -217,12 +207,18 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
         setError(event);
         setStatus("error");
         onErrorRef.current?.(event);
+        
+        // Reject connection lock
+        connectionLocks.delete(currentUrl);
+        globalConnections.delete(currentUrl);
+        rejectLock(event);
       };
 
       ws.onclose = () => {
         console.log("WebSocket disconnected:", currentUrl);
         isConnectingRef.current = false; // Release connection lock
-        // Remove from global connections map
+        // Remove from global connections map and locks
+        connectionLocks.delete(currentUrl);
         if (globalConnections.get(currentUrl) === ws) {
           globalConnections.delete(currentUrl);
         }
