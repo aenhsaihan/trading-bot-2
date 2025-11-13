@@ -12,12 +12,19 @@ if str(project_root) not in sys.path:
 from backend.services.notification_service import NotificationService
 from backend.services.price_update_service import get_price_update_service
 from backend.services.trading_service import TradingService
+from backend.services.websocket_manager import get_websocket_manager
+from backend.services.market_data_streamer import get_market_data_streamer
+import json
+import logging
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 # Global service instances
 notification_service = NotificationService()
 price_update_service = get_price_update_service()
+ws_manager = get_websocket_manager()
+market_data_streamer = get_market_data_streamer()
 # Use same instance pattern as trading routes
 trading_service = TradingService()
 
@@ -128,8 +135,12 @@ async def websocket_market_data(websocket: WebSocket):
                     except json.JSONDecodeError:
                         logger.warning(f"Received non-JSON message: {data}")
             
+            except WebSocketDisconnect:
+                # Re-raise to be handled by outer handler
+                raise
             except Exception as e:
                 logger.error(f"Error handling WebSocket message: {e}", exc_info=True)
+                # Continue loop for non-disconnect errors
     
     except WebSocketDisconnect:
         # Client disconnected
@@ -183,10 +194,12 @@ async def websocket_prices(websocket: WebSocket):
                         "type": "subscribed",
                         "symbols": symbols
                     })
+            except WebSocketDisconnect:
+                # Re-raise to be handled by outer handler
+                raise
             except Exception as e:
-                # Log error but keep connection alive
-                import logging
-                logging.error(f"Error handling WebSocket message: {e}")
+                # Log error but keep connection alive for non-disconnect errors
+                logger.error(f"Error handling WebSocket message: {e}", exc_info=True)
             
     except WebSocketDisconnect:
         # Client disconnected

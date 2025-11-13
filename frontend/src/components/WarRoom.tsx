@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { TrendingUp, TrendingDown, DollarSign, Target, Shield } from 'lucide-react';
 import { Notification, NotificationType } from '../types/notification';
 import { tradingAPI, Position as APIPosition, Balance } from '../services/api';
@@ -85,31 +85,34 @@ export function WarRoom({
     return positions.map(p => p.symbol);
   }, [positions]);
 
+  // Memoize the price update callback to prevent unnecessary re-renders
+  const handlePriceUpdate = useCallback((prices: Record<string, number>) => {
+    // Update positions with live prices
+    setPositions(prev => prev.map(pos => {
+      const livePrice = prices[pos.symbol];
+      if (livePrice && livePrice !== pos.currentPrice) {
+        // Recalculate P&L with live price
+        const priceDiff = livePrice - pos.entryPrice;
+        const pnl = pos.side === 'long' 
+          ? priceDiff * pos.amount
+          : -priceDiff * pos.amount;
+        const pnlPercent = (pnl / (pos.entryPrice * pos.amount)) * 100;
+        
+        return {
+          ...pos,
+          currentPrice: livePrice,
+          pnl,
+          pnlPercent,
+        };
+      }
+      return pos;
+    }));
+  }, []);
+
   // Real-time price updates via WebSocket
   const { prices: livePrices, isConnected: priceWsConnected } = usePriceUpdates({
     symbols: positionSymbols,
-    onPriceUpdate: (prices) => {
-      // Update positions with live prices
-      setPositions(prev => prev.map(pos => {
-        const livePrice = prices[pos.symbol];
-        if (livePrice && livePrice !== pos.currentPrice) {
-          // Recalculate P&L with live price
-          const priceDiff = livePrice - pos.entryPrice;
-          const pnl = pos.side === 'long' 
-            ? priceDiff * pos.amount
-            : -priceDiff * pos.amount;
-          const pnlPercent = (pnl / (pos.entryPrice * pos.amount)) * 100;
-          
-          return {
-            ...pos,
-            currentPrice: livePrice,
-            pnl,
-            pnlPercent,
-          };
-        }
-        return pos;
-      }));
-    },
+    onPriceUpdate: handlePriceUpdate,
   });
 
   // Fetch positions and balance on mount and periodically (fallback/refresh)

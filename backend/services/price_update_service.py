@@ -159,3 +159,4 @@ def get_price_update_service() -> PriceUpdateService:
         _price_update_service = PriceUpdateService()
     return _price_update_service
 
+

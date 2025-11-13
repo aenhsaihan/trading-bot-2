@@ -1,8 +1,9 @@
 import { useState, useMemo, useEffect } from 'react';
-import { MessageSquare, Target, BarChart3 } from 'lucide-react';
+import { MessageSquare, Target, BarChart3, Bell } from 'lucide-react';
 import { CommandCenter } from './CommandCenter';
 import { WarRoom } from './WarRoom';
 import { MarketIntelligence } from './MarketIntelligence';
+import { AlertManager } from './AlertManager';
 import { Notification, NotificationType, NotificationPriority, NotificationSource } from '../types/notification';
 
 interface WorkspaceProps {
@@ -12,7 +13,7 @@ interface WorkspaceProps {
   onActionHandled?: () => void;
 }
 
-type Tab = 'command' | 'warroom' | 'intelligence';
+type Tab = 'command' | 'warroom' | 'intelligence' | 'alerts';
 
 export function Workspace({ selectedNotification, onActionRequest, requestedAction, onActionHandled }: WorkspaceProps) {
   const [activeTab, setActiveTab] = useState<Tab>('command');
@@ -107,6 +108,17 @@ export function Workspace({ selectedNotification, onActionRequest, requestedActi
           <BarChart3 size={18} />
           Market Intelligence
         </button>
+        <button
+          onClick={() => setActiveTab('alerts')}
+          className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 font-medium transition-colors ${
+            activeTab === 'alerts'
+              ? 'bg-dark-card text-white border-b-2 border-yellow-500'
+              : 'text-gray-400 hover:text-white hover:bg-dark-card/50'
+          }`}
+        >
+          <Bell size={18} />
+          Alerts
+        </button>
       </div>
 
       {/* Tab Content */}
@@ -145,6 +157,14 @@ export function Workspace({ selectedNotification, onActionRequest, requestedActi
             selectedNotification={selectedNotification}
             onAnalyzeInCommandCenter={handleAnalyzeInCommandCenter}
             onOpenPosition={handleOpenPosition}
+          />
+        )}
+        {activeTab === 'alerts' && (
+          <AlertManager
+            symbol={undefined}
+            onAlertCreated={() => {
+              // Alert created, list will refresh automatically
+            }}
           />
         )}
       </div>

@@ -18,22 +18,38 @@ export function usePriceUpdates(options: UsePriceUpdatesOptions = {}) {
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null
+  );
   const symbolsRef = useRef<string[]>(symbols);
+  const onPriceUpdateRef = useRef(onPriceUpdate);
+  const reconnectIntervalRef = useRef(reconnectInterval);
 
-  // Update symbols ref when it changes
+  // Update refs when they change (without causing re-renders)
   useEffect(() => {
     symbolsRef.current = symbols;
-  }, [symbols]);
+    onPriceUpdateRef.current = onPriceUpdate;
+    reconnectIntervalRef.current = reconnectInterval;
+  }, [symbols, onPriceUpdate, reconnectInterval]);
 
   const connect = useCallback(() => {
     // Close existing connection if any
     if (wsRef.current) {
       wsRef.current.close();
+      wsRef.current = null;
     }
 
-    const apiUrl = (import.meta as any).env?.VITE_API_URL || "http://localhost:8000";
-    const wsUrl = apiUrl.replace("http://", "ws://").replace("https://", "wss://");
+    // Clear any pending reconnect
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
+
+    const apiUrl =
+      (import.meta as any).env?.VITE_API_URL || "http://localhost:8000";
+    const wsUrl = apiUrl
+      .replace("http://", "ws://")
+      .replace("https://", "wss://");
     const ws = new WebSocket(`${wsUrl}/ws/prices`);
 
     ws.onopen = () => {
@@ -61,14 +77,17 @@ export function usePriceUpdates(options: UsePriceUpdatesOptions = {}) {
           const update = data as PriceUpdate;
           setPrices((prev) => {
             const updated = { ...prev, ...update.prices };
-            // Call callback if provided
-            if (onPriceUpdate) {
-              onPriceUpdate(updated);
+            // Call callback if provided (using ref to avoid stale closure)
+            if (onPriceUpdateRef.current) {
+              onPriceUpdateRef.current(updated);
             }
             return updated;
           });
         } else if (data.type === "subscribed") {
-          console.log("Price update WebSocket: Subscribed to symbols", data.symbols);
+          console.log(
+            "Price update WebSocket: Subscribed to symbols",
+            data.symbols
+          );
         }
       } catch (err) {
         console.error("Error parsing price update message:", err);
@@ -85,19 +104,20 @@ export function usePriceUpdates(options: UsePriceUpdatesOptions = {}) {
       console.log("Price update WebSocket disconnected");
       setIsConnected(false);
 
-      // Attempt to reconnect after delay
-      if (reconnectInterval > 0) {
+      // Attempt to reconnect after delay (using ref to get latest value)
+      const interval = reconnectIntervalRef.current;
+      if (interval > 0) {
         reconnectTimeoutRef.current = setTimeout(() => {
           console.log("Attempting to reconnect price update WebSocket...");
           connect();
-        }, reconnectInterval);
+        }, interval);
       }
     };
 
     wsRef.current = ws;
-  }, [onPriceUpdate, reconnectInterval]);
+  }, []); // Empty deps - function is stable, uses refs for values
 
-  // Connect on mount and when symbols change
+  // Connect only on mount
   useEffect(() => {
     connect();
 
@@ -105,16 +125,23 @@ export function usePriceUpdates(options: UsePriceUpdatesOptions = {}) {
       // Cleanup on unmount
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
       }
       if (wsRef.current) {
         wsRef.current.close();
+        wsRef.current = null;
       }
     };
-  }, [connect]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run on mount
 
   // Update subscription when symbols change
   useEffect(() => {
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN && symbols.length > 0) {
+    if (
+      wsRef.current &&
+      wsRef.current.readyState === WebSocket.OPEN &&
+      symbols.length > 0
+    ) {
       wsRef.current.send(`subscribe:${JSON.stringify(symbols)}`);
     }
   }, [symbols]);
@@ -126,4 +153,3 @@ export function usePriceUpdates(options: UsePriceUpdatesOptions = {}) {
     reconnect: connect,
   };
 }
-
