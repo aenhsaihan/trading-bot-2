@@ -20,7 +20,7 @@ from src.utils.logger import setup_logger
 class MarketDataStreamer:
     """Service for streaming real-time market data (prices, OHLCV) to WebSocket clients"""
     
-    def __init__(self, update_interval: float = 2.0):
+    def __init__(self, update_interval: float = 5.0):  # Increased from 2.0 to 5.0 to reduce API calls and avoid rate limiting
         """
         Initialize market data streamer.
         
@@ -72,6 +72,9 @@ class MarketDataStreamer:
                     await asyncio.sleep(self.update_interval * 2)
                     continue
                 
+                # Log periodically that we're processing subscriptions
+                self.logger.debug(f"Processing {len(subscribed_symbols)} subscribed symbol(s): {list(subscribed_symbols)}")
+                
                 # Fetch data for all subscribed symbols
                 for symbol in subscribed_symbols:
                     try:
@@ -90,6 +93,14 @@ class MarketDataStreamer:
     
     async def _update_symbol_data(self, symbol: str):
         """Update and broadcast data for a single symbol"""
+        # Helper function to convert Decimal to float for JSON serialization
+        def to_float(value):
+            if isinstance(value, Decimal):
+                return float(value)
+            elif value is None:
+                return 0.0
+            return float(value)
+        
         try:
             # Get current price/ticker
             current_price = self.price_service.get_current_price(symbol)
@@ -114,16 +125,17 @@ class MarketDataStreamer:
                         }
                     
                     # Broadcast price update
+                    self.logger.debug(f"Broadcasting price update for {symbol}: {to_float(current_price)}")
                     await self.ws_manager.broadcast(
                         {
                             "type": "price_update",
                             "symbol": symbol,
-                            "price": float(current_price),
+                            "price": to_float(current_price),
                             "ticker": {
-                                "last": ticker.get("last", float(current_price)),
-                                "bid": ticker.get("bid", float(current_price)),
-                                "ask": ticker.get("ask", float(current_price)),
-                                "volume": ticker.get("volume", 0),
+                                "last": to_float(ticker.get("last", current_price)),
+                                "bid": to_float(ticker.get("bid", current_price)),
+                                "ask": to_float(ticker.get("ask", current_price)),
+                                "volume": to_float(ticker.get("volume", 0)),
                                 "timestamp": ticker.get("timestamp", datetime.now().timestamp())
                             },
                             "timestamp": datetime.now().isoformat()
@@ -149,13 +161,26 @@ class MarketDataStreamer:
                             "timestamp": datetime.now().timestamp()
                         }
                         
+                        # Convert OHLCV candles to JSON-serializable format (Decimal -> float)
+                        def convert_candle(candle):
+                            """Convert candle dict with Decimal values to float"""
+                            return {
+                                "timestamp": candle.get("timestamp", 0),
+                                "open": to_float(candle.get("open", 0)),
+                                "high": to_float(candle.get("high", 0)),
+                                "low": to_float(candle.get("low", 0)),
+                                "close": to_float(candle.get("close", 0)),
+                                "volume": to_float(candle.get("volume", 0))
+                            }
+                        
                         # Broadcast OHLCV update
+                        serializable_candles = [convert_candle(c) for c in ohlcv_data[-10:]]
                         await self.ws_manager.broadcast(
                             {
                                 "type": "ohlcv_update",
                                 "symbol": symbol,
                                 "timeframe": "1h",
-                                "candles": ohlcv_data[-10:],  # Last 10 candles
+                                "candles": serializable_candles,
                                 "timestamp": datetime.now().isoformat()
                             },
                             client_type="market_data",

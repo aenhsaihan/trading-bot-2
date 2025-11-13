@@ -93,15 +93,44 @@ class BinanceExchange(ExchangeBase):
         """Get ticker data"""
         try:
             ticker = self.exchange.fetch_ticker(symbol)
+            
+            # Helper function to safely convert to Decimal, handling None, NaN, and invalid values
+            def safe_decimal(value, default='0'):
+                if value is None:
+                    return Decimal(default)
+                # Handle NaN values
+                if isinstance(value, float) and (value != value):  # NaN check
+                    return Decimal(default)
+                try:
+                    # Try to convert to string first, then to Decimal
+                    str_value = str(value)
+                    # Check for invalid string representations
+                    if str_value.lower() in ['nan', 'none', 'null', '']:
+                        return Decimal(default)
+                    return Decimal(str_value)
+                except (ValueError, TypeError, Exception) as e:
+                    self.logger.warning(f"Could not convert {value} to Decimal, using default {default}: {e}")
+                    return Decimal(default)
+            
             return {
-                'last': Decimal(str(ticker['last'])),
-                'bid': Decimal(str(ticker['bid'])),
-                'ask': Decimal(str(ticker['ask'])),
-                'volume': Decimal(str(ticker['quoteVolume'])),
-                'timestamp': ticker['timestamp']
+                'last': safe_decimal(ticker.get('last')),
+                'bid': safe_decimal(ticker.get('bid')),
+                'ask': safe_decimal(ticker.get('ask')),
+                'volume': safe_decimal(ticker.get('quoteVolume') or ticker.get('volume')),
+                'timestamp': ticker.get('timestamp', 0)
             }
         except Exception as e:
-            self.logger.error(f"Error fetching ticker for {symbol}: {e}")
+            # Log full error details for debugging
+            error_msg = str(e)
+            error_type = type(e).__name__
+            self.logger.error(f"Error fetching ticker for {symbol}: {error_type}: {error_msg}")
+            
+            # Check for rate limiting (429) or other common errors
+            if '429' in error_msg or 'rate limit' in error_msg.lower() or 'too many requests' in error_msg.lower():
+                self.logger.warning(f"Rate limited by Binance API for {symbol}. Consider reducing polling frequency.")
+            elif 'Invalid symbol' in error_msg or 'symbol' in error_msg.lower():
+                self.logger.warning(f"Invalid symbol format for Binance: {symbol}. Expected format: BASE/QUOTE (e.g., BTC/USDT)")
+            
             raise
     
     def get_ohlcv(self, symbol: str, timeframe: str = "1h", limit: int = 100, since: Optional[int] = None) -> List[Dict[str, Any]]:

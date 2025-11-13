@@ -20,7 +20,7 @@ from src.utils.logger import setup_logger
 class PriceUpdateService:
     """Service for managing real-time price updates for positions"""
     
-    def __init__(self, update_interval: float = 3.0):
+    def __init__(self, update_interval: float = 5.0):  # Increased from 3.0 to 5.0 to reduce API calls
         """
         Initialize price update service.
         
@@ -98,9 +98,14 @@ class PriceUpdateService:
                     continue
                 
                 # Fetch prices for all monitored symbols
+                # Add small delay between requests to avoid rate limiting
                 price_updates: Dict[str, float] = {}
-                for symbol in self.monitored_symbols:
+                for idx, symbol in enumerate(self.monitored_symbols):
                     try:
+                        # Small delay between requests to respect rate limits (50ms per symbol)
+                        if idx > 0:
+                            await asyncio.sleep(0.05)
+                        
                         price = self.price_service.get_current_price(symbol)
                         if price and price > 0:
                             # Check if price changed
@@ -109,7 +114,11 @@ class PriceUpdateService:
                                 price_updates[symbol] = float(price)
                                 self.current_prices[symbol] = price
                     except Exception as e:
-                        self.logger.warning(f"Error fetching price for {symbol}: {e}")
+                        # Don't log every error to avoid spam - only log if it's a new error
+                        error_str = str(e)
+                        if 'rate limit' not in error_str.lower() and '429' not in error_str:
+                            self.logger.warning(f"Error fetching price for {symbol}: {e}")
+                        # Continue with other symbols even if one fails
                 
                 # Broadcast price updates to all connected clients
                 if price_updates and self.websocket_clients:
@@ -121,11 +130,29 @@ class PriceUpdateService:
                     
                     # Send to all clients (remove disconnected ones)
                     disconnected_clients = set()
-                    for client in self.websocket_clients:
+                    # Create a copy of the set to iterate over (since we'll be modifying it)
+                    clients_to_check = list(self.websocket_clients)
+                    
+                    for client in clients_to_check:
+                        # Check if client is still in the set (might have been removed)
+                        if client not in self.websocket_clients:
+                            continue
+                        
+                        # Check WebSocket state before sending
                         try:
+                            # Check if WebSocket is still open
+                            client_state = getattr(client, 'client_state', None)
+                            if client_state is not None:
+                                state_name = getattr(client_state, 'name', None)
+                                if state_name == 'DISCONNECTED':
+                                    disconnected_clients.add(client)
+                                    continue
+                            
+                            # Try to send
                             await client.send_json(message)
                         except Exception as e:
-                            self.logger.warning(f"Error sending price update to client: {e}")
+                            # Client disconnected or error sending
+                            self.logger.debug(f"Error sending price update to client: {e}")
                             disconnected_clients.add(client)
                     
                     # Remove disconnected clients

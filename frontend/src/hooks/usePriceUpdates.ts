@@ -1,5 +1,9 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 
+// Global connection registry to prevent duplicate connections in StrictMode
+// Maps URL to active WebSocket instance
+const globalPriceConnections = new Map<string, WebSocket>();
+
 interface PriceUpdate {
   type: "price_update";
   timestamp: string;
@@ -33,6 +37,33 @@ export function usePriceUpdates(options: UsePriceUpdatesOptions = {}) {
   }, [symbols, onPriceUpdate, reconnectInterval]);
 
   const connect = useCallback(() => {
+    const apiUrl =
+      (import.meta as any).env?.VITE_API_URL || "http://localhost:8000";
+    const wsUrl = apiUrl
+      .replace("http://", "ws://")
+      .replace("https://", "wss://");
+    const fullUrl = `${wsUrl}/ws/prices`;
+
+    // Check if there's already a global connection for this URL (StrictMode protection)
+    const existingGlobalConnection = globalPriceConnections.get(fullUrl);
+    if (existingGlobalConnection) {
+      const state = existingGlobalConnection.readyState;
+      // Reuse if OPEN or CONNECTING (don't create duplicate)
+      if (state === WebSocket.OPEN || state === WebSocket.CONNECTING) {
+        console.log("Price WebSocket: Reusing existing global connection (StrictMode protection)", state === WebSocket.OPEN ? "OPEN" : "CONNECTING");
+        wsRef.current = existingGlobalConnection;
+        setIsConnected(state === WebSocket.OPEN);
+        // Subscribe to symbols if provided
+        if (symbolsRef.current.length > 0 && state === WebSocket.OPEN) {
+          existingGlobalConnection.send(`subscribe:${JSON.stringify(symbolsRef.current)}`);
+        }
+        return;
+      } else {
+        // Connection is closed, remove from registry
+        globalPriceConnections.delete(fullUrl);
+      }
+    }
+
     // Close existing connection if any
     if (wsRef.current) {
       wsRef.current.close();
@@ -45,12 +76,10 @@ export function usePriceUpdates(options: UsePriceUpdatesOptions = {}) {
       reconnectTimeoutRef.current = null;
     }
 
-    const apiUrl =
-      (import.meta as any).env?.VITE_API_URL || "http://localhost:8000";
-    const wsUrl = apiUrl
-      .replace("http://", "ws://")
-      .replace("https://", "wss://");
-    const ws = new WebSocket(`${wsUrl}/ws/prices`);
+    const ws = new WebSocket(fullUrl);
+    
+    // Register in global connections map (for StrictMode protection)
+    globalPriceConnections.set(fullUrl, ws);
 
     ws.onopen = () => {
       console.log("Price update WebSocket connected");
@@ -103,6 +132,12 @@ export function usePriceUpdates(options: UsePriceUpdatesOptions = {}) {
     ws.onclose = () => {
       console.log("Price update WebSocket disconnected");
       setIsConnected(false);
+      
+      // Remove from global connections map (fullUrl is in closure)
+      const currentUrl = `${(import.meta as any).env?.VITE_API_URL || "http://localhost:8000"}`.replace("http://", "ws://").replace("https://", "wss://") + "/ws/prices";
+      if (globalPriceConnections.get(currentUrl) === ws) {
+        globalPriceConnections.delete(currentUrl);
+      }
 
       // Attempt to reconnect after delay (using ref to get latest value)
       const interval = reconnectIntervalRef.current;
@@ -117,20 +152,29 @@ export function usePriceUpdates(options: UsePriceUpdatesOptions = {}) {
     wsRef.current = ws;
   }, []); // Empty deps - function is stable, uses refs for values
 
-  // Connect only on mount
+  // Track if we've already connected to prevent multiple connections
+  const hasConnectedRef = useRef(false);
+
+  // Connect only once on mount
   useEffect(() => {
-    connect();
+    // Only connect if we haven't already connected
+    if (!hasConnectedRef.current && wsRef.current?.readyState !== WebSocket.OPEN) {
+      hasConnectedRef.current = true;
+      connect();
+    }
 
     return () => {
-      // Cleanup on unmount
+      // In StrictMode, components unmount and remount immediately
+      // Don't disconnect on unmount - let the global registry handle it
+      // Only cleanup reconnect timeout, but keep connection alive
+      hasConnectedRef.current = false;
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
         reconnectTimeoutRef.current = null;
       }
-      if (wsRef.current) {
-        wsRef.current.close();
-        wsRef.current = null;
-      }
+      // Don't close WebSocket on unmount - let global registry handle reuse
+      // The connection will be cleaned up when it actually closes
+      wsRef.current = null; // Clear ref, but don't close connection
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Only run on mount

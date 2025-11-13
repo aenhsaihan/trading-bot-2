@@ -123,15 +123,15 @@ export function Workspace({ selectedNotification, onActionRequest, requestedActi
         </button>
       </div>
 
-      {/* Tab Content */}
-      <div className="flex-1 overflow-hidden">
-        {activeTab === 'command' && (
+      {/* Tab Content - Keep all components mounted to prevent WebSocket reconnections */}
+      <div className="flex-1 overflow-hidden relative">
+        <div className={`absolute inset-0 ${activeTab === 'command' ? 'block' : 'hidden'}`}>
           <CommandCenter
             selectedNotification={currentNotification}
             onActionRequest={onActionRequest}
           />
-        )}
-        {activeTab === 'warroom' && (
+        </div>
+        <div className={`absolute inset-0 ${activeTab === 'warroom' ? 'block' : 'hidden'}`}>
           <WarRoom
             selectedNotification={selectedNotification}
             prefillSymbol={prefillSymbol}
@@ -153,22 +153,22 @@ export function Workspace({ selectedNotification, onActionRequest, requestedActi
               onActionRequest?.('set_trailing_stop', { positionId, trailingStop });
             }}
           />
-        )}
-        {activeTab === 'intelligence' && (
+        </div>
+        <div className={`absolute inset-0 ${activeTab === 'intelligence' ? 'block' : 'hidden'}`}>
           <MarketIntelligence
             selectedNotification={selectedNotification}
             onAnalyzeInCommandCenter={handleAnalyzeInCommandCenter}
             onOpenPosition={handleOpenPosition}
           />
-        )}
-        {activeTab === 'alerts' && (
+        </div>
+        <div className={`absolute inset-0 ${activeTab === 'alerts' ? 'block' : 'hidden'}`}>
           <AlertManager
             symbol={undefined}
             onAlertCreated={() => {
               // Alert created, list will refresh automatically
             }}
           />
-        )}
+        </div>
       </div>
     </div>
   );
