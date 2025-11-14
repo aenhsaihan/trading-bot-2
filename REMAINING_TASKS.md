@@ -1,5 +1,19 @@
 # Remaining Tasks from Parallel Development Plan V2
 
+## 🎉 Recently Completed (November 14, 2025)
+
+### News Integration & Notification Improvements ✅
+- ✅ CryptoCompare news monitoring integration
+- ✅ Notification rate limiting with priority-based cooldowns
+- ✅ Symbol normalization (SHIB → SHIB/USDT)
+- ✅ Voice/TTS improvements (emoji removal, concurrent speech prevention)
+- ✅ Toast queue management and auto-dismiss fixes
+- ✅ Critical notification interruption capability
+- ✅ Text cleaning for TTS (removes emojis, hashtags, markdown)
+- **See:** `SESSION_SUMMARY_2025-11-14.md` for full details
+
+---
+
 ## ✅ Completed Agents
 
 ### Agent 1: Backend Trading Execution Testing ✅

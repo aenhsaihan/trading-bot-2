@@ -64,6 +64,10 @@ streamlit run src/monitoring/dashboard_app.py
 - ✅ WebSocket for real-time push notifications
 - ✅ Connects to your existing NotificationManager
 - ✅ Can be used by both Streamlit AND React
+- ✅ **NEW:** News monitoring (CryptoCompare API integration)
+- ✅ **NEW:** Symbol normalization (SHIB → SHIB/USDT)
+- ✅ **NEW:** AI message summarization (StarCraft-style)
+- ✅ **NEW:** Auto-start services (news monitor, X monitor)
 
 **When to use:** Central notification hub
 
@@ -83,9 +87,13 @@ python backend/run.py
 
 - ✅ Beautiful toast notifications (slide in from top right)
 - ✅ Real-time updates via WebSocket
-- ✅ Voice alerts
+- ✅ Voice alerts with TTS (ElevenLabs/Azure/Google/Browser fallback)
 - ✅ Notification center with filters
 - ✅ Auto-dismiss, animations, etc.
+- ✅ **NEW:** Priority-based rate limiting (prevents notification overload)
+- ✅ **NEW:** Critical notifications can interrupt non-critical toasts
+- ✅ **NEW:** Queue management (one notification at a time)
+- ✅ **NEW:** Voice synchronization (waits for voice to finish)
 
 **When to use:** Best-in-class notification experience
 
@@ -289,6 +297,20 @@ curl -X POST http://localhost:8000/notifications/ \
     "message": "Hello!",
     "source": "system"
   }'
+
+# Test different priorities (see test_notification_priorities.sh)
+./test_notification_priorities.sh
+```
+
+### Check News Monitoring:
+
+```bash
+# Get news monitoring status
+curl http://localhost:8000/news/status | python3 -m json.tool
+
+# Start/stop news monitoring
+curl -X POST http://localhost:8000/news/start
+curl -X POST http://localhost:8000/news/stop
 ```
 
 ---
