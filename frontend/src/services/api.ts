@@ -406,6 +406,13 @@ export class VoiceAPI {
     voiceId?: string,
     provider?: string
   ): Promise<{ audio_base64: string; provider_used: string; format: string }> {
+    // Build request body with optional provider
+    const body: any = {
+      text,
+      priority,
+    };
+    if (voiceId) body.voice_id = voiceId;
+    if (provider) body.provider = provider; // Allow forcing a provider for testing
     const response = await fetch(`${this.baseUrl}/voice/synthesize`, {
       method: "POST",
       headers: {
