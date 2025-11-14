@@ -95,11 +95,15 @@ if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
         }
       }
       
-      // Remove all listeners once both are initialized
+      // Don't remove listeners until BOTH are initialized
+      // Keep trying even if one fails
       if (speechInitialized && audioPlaybackInitialized) {
+        console.log('✅ Both TTS and audio playback initialized, removing listeners');
         events.forEach(eventType => {
           window.removeEventListener(eventType, initSpeechOnInteraction);
         });
+      } else {
+        console.log(`📊 Initialization status: TTS=${speechInitialized}, Audio=${audioPlaybackInitialized}`);
       }
     } catch (e) {
       console.warn('⚠️ Could not initialize TTS/audio:', e);
