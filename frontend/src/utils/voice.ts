@@ -60,33 +60,47 @@ if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       // Initialize audio playback (for backend TTS)
       if (!audioPlaybackInitialized) {
         console.log('🔓 Attempting to unlock audio playback...', event?.type || 'unknown');
-        // Use a data URL with a very short silent audio to unlock playback
-        // This is more reliable than an empty Audio() object
-        const silentAudioDataUrl = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
-        const testAudio = new Audio(silentAudioDataUrl);
-        testAudio.volume = 0;
+        
+        // Create a test audio element and try to play it
+        // This "unlocks" audio playback for the page
+        const testAudio = new Audio();
+        testAudio.volume = 0.01; // Very low but not 0 (some browsers require > 0)
+        testAudio.preload = 'auto';
+        
+        // Set a very short data URL (1 sample of silence)
+        // This is a minimal WAV file that's just silence
+        testAudio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
         
         // Try to play and immediately pause to unlock audio playback
         const playPromise = testAudio.play();
         
         if (playPromise !== undefined) {
           playPromise.then(() => {
+            console.log('🎵 Test audio played successfully, pausing...');
             testAudio.pause();
             testAudio.currentTime = 0;
-            audioPlaybackInitialized = true;
-            console.log('✅ Audio playback initialized via user interaction:', event?.type || 'unknown');
-            
-            // Process queue if there are messages waiting
-            if (waitingForUserInteraction && voiceQueue.length > 0) {
-              waitingForUserInteraction = false;
-              console.log('✅ User interaction detected, processing queued audio...');
-              setTimeout(() => {
-                processQueue();
-              }, 100);
-            }
+            // Wait a tiny bit to ensure the unlock is registered
+            setTimeout(() => {
+              audioPlaybackInitialized = true;
+              console.log('✅ Audio playback initialized via user interaction:', event?.type || 'unknown');
+              
+              // Process queue if there are messages waiting
+              if (waitingForUserInteraction && voiceQueue.length > 0) {
+                waitingForUserInteraction = false;
+                console.log('✅ User interaction detected, processing queued audio...');
+                setTimeout(() => {
+                  processQueue();
+                }, 100);
+              }
+            }, 50);
           }).catch((error) => {
             // If it fails, we'll try again on next interaction
             console.warn('⚠️ Could not initialize audio playback:', error, event?.type || 'unknown');
+            console.warn('💡 Error details:', {
+              name: error?.name,
+              message: error?.message,
+              stack: error?.stack
+            });
           });
         } else {
           // Fallback: if play() doesn't return a promise, assume it worked
