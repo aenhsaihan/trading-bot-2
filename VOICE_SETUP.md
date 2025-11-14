@@ -238,7 +238,7 @@ If ElevenLabs is not configured, the system will automatically fallback to:
 |----------|-------------|-----------|---------------------|
 | **ElevenLabs** | [elevenlabs.io](https://elevenlabs.io/) → Profile → API Keys | 10,000 chars/month | $5/month for 30,000 chars |
 | **Azure** | [portal.azure.com](https://portal.azure.com/) → Create Speech Services | 5,000 chars/month | $4 per 1M characters |
-| **Google** | [console.cloud.google.com](https://console.cloud.google.com/) → APIs → Text-to-Speech | 0-4M chars/month | $4 per 1M characters |
+| **Google** | [console.cloud.google.com](https://console.cloud.google.com/) → APIs → Text-to-Speech | 1M chars/month (Neural) | $16 per 1M (Neural) - **Optional, expensive** |
 
 ## Troubleshooting
 
