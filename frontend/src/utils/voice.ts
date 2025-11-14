@@ -124,12 +124,8 @@ function playWithBrowserTTS(message: string, priority: string): Promise<void> {
     // If not initialized, try to initialize now (might work if called from user interaction)
     if (!speechInitialized) {
       console.warn('⚠️ Browser TTS not initialized yet. Attempting initialization...');
-      const initialized = initializeBrowserTTS();
-      if (!initialized) {
-        // If initialization fails, reject with a clear error
-        reject(new Error('Browser TTS requires user interaction. Please interact with the page first (click, type, etc.)'));
-        return;
-      }
+      initializeBrowserTTS(); // Try to initialize, but don't fail if it doesn't work
+      // Continue anyway - if it fails, we'll get "not-allowed" error which we handle by re-queuing
     }
     
     const utterance = new SpeechSynthesisUtterance(message);
