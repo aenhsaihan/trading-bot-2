@@ -146,7 +146,10 @@ You can change the voice in `backend/services/voice_service.py` line 229.
 
 5. **Restart the backend server**
 
-**Note:** Google Cloud TTS free tier: 0-4 million characters/month free, then $4 per 1 million characters.
+**Note:** Google Cloud TTS free tier:
+- **Standard voices**: 4 million characters/month free, then $4 per 1M characters
+- **Neural voices** (like `en-US-Neural2-F`): 1 million characters/month free, then $16 per 1M characters
+- New accounts get $300 free credit (90 days)
 
 ### Option B: Using Service Account (More Secure - For Production)
 
