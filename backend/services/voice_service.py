@@ -226,7 +226,8 @@ class VoiceService:
             # ElevenLabs voice IDs (female, calm, professional)
             # Default: "21m00Tcm4TlvDq8ikWAM" (Rachel - calm, professional)
             # Alternative: "EXAVITQu4vr4xnSDxMaL" (Bella - calm, soothing)
-            elevenlabs_voice_id = "21m00Tcm4TlvDq8ikWAM"  # Rachel
+            # Use provided voice_id or default
+            elevenlabs_voice_id = voice_id if voice_id else "21m00Tcm4TlvDq8ikWAM"  # Rachel
             
             url = f"https://api.elevenlabs.io/v1/text-to-speech/{elevenlabs_voice_id}"
             
@@ -236,9 +237,10 @@ class VoiceService:
                 "xi-api-key": api_key
             }
             
+            # Match the JavaScript SDK format
             data = {
                 "text": text,
-                "model_id": "eleven_monolingual_v1",  # Fast, high quality
+                "model_id": "eleven_multilingual_v2",  # Updated to match SDK example
                 "voice_settings": {
                     "stability": 0.5,  # Balanced stability
                     "similarity_boost": 0.75,  # Good voice similarity
@@ -247,8 +249,19 @@ class VoiceService:
                 }
             }
             
-            response = requests.post(url, json=data, headers=headers, timeout=10)
-            response.raise_for_status()
+            # output_format as query parameter (matches SDK behavior)
+            params = {
+                "output_format": "mp3_44100_128"  # MP3, 44.1kHz, 128kbps - matches SDK example
+            }
+            
+            self.logger.debug(f"Calling ElevenLabs API: voice_id={elevenlabs_voice_id}, model=eleven_multilingual_v2")
+            response = requests.post(url, json=data, headers=headers, params=params, timeout=30)
+            
+            # Better error handling
+            if response.status_code != 200:
+                error_detail = response.text
+                self.logger.error(f"ElevenLabs API error {response.status_code}: {error_detail}")
+                raise Exception(f"ElevenLabs API returned {response.status_code}: {error_detail}")
             
             return response.content
             
