@@ -255,7 +255,14 @@ class VoiceService:
             }
             
             self.logger.debug(f"Calling ElevenLabs API: voice_id={elevenlabs_voice_id}, model=eleven_multilingual_v2")
-            response = requests.post(url, json=data, headers=headers, params=params, timeout=30)
+            
+            # Try with SSL verification first
+            try:
+                response = requests.post(url, json=data, headers=headers, params=params, timeout=30, verify=True)
+            except requests.exceptions.SSLError as ssl_error:
+                # If SSL verification fails, try without verification (development mode)
+                self.logger.warning(f"SSL verification failed, retrying without verification (development mode): {ssl_error}")
+                response = requests.post(url, json=data, headers=headers, params=params, timeout=30, verify=False)
             
             # Better error handling
             if response.status_code != 200:
