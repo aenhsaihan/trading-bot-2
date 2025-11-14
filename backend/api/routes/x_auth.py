@@ -94,12 +94,41 @@ async def oauth_callback(
         error: Error message if OAuth failed
         
     Returns:
-        Redirect to frontend with success/error
+        HTML page with success/error message, or redirect to frontend if available
     """
+    from fastapi.responses import HTMLResponse
+    
     if error:
-        # Redirect to frontend with error
-        frontend_url = "http://localhost:5173/settings?x_auth_error=" + error
-        return RedirectResponse(url=frontend_url)
+        # Try to redirect to frontend, fallback to error page
+        try:
+            import requests
+            response = requests.get("http://localhost:5173", timeout=1)
+            if response.status_code == 200:
+                frontend_url = f"http://localhost:5173/settings?x_auth_error={error}"
+                return RedirectResponse(url=frontend_url)
+        except:
+            pass
+        
+        # Fallback: Show error page
+        html_content = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>X Connection Error</title>
+            <style>
+                body {{ font-family: Arial, sans-serif; text-align: center; padding: 50px; }}
+                .error {{ color: #d32f2f; }}
+                .success {{ color: #2e7d32; }}
+            </style>
+        </head>
+        <body>
+            <h1 class="error">❌ X Connection Failed</h1>
+            <p>Error: {error}</p>
+            <p><a href="/x/auth/authorize">Try again</a></p>
+        </body>
+        </html>
+        """
+        return HTMLResponse(content=html_content)
     
     try:
         # Extract user_id from state (format: "user_id:random_state")
@@ -111,17 +140,107 @@ async def oauth_callback(
         # Store tokens
         x_auth_service.store_user_tokens(user_id, tokens)
         
-        # Redirect to frontend with success
-        frontend_url = "http://localhost:5173/settings?x_auth_success=true"
-        return RedirectResponse(url=frontend_url)
+        # Try to redirect to frontend, fallback to success page
+        try:
+            import requests
+            response = requests.get("http://localhost:5173", timeout=1)
+            if response.status_code == 200:
+                frontend_url = "http://localhost:5173/settings?x_auth_success=true"
+                return RedirectResponse(url=frontend_url)
+        except:
+            pass
+        
+        # Fallback: Show success page
+        html_content = """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>X Connected Successfully</title>
+            <style>
+                body { font-family: Arial, sans-serif; text-align: center; padding: 50px; background: #f5f5f5; }
+                .container { background: white; padding: 40px; border-radius: 10px; max-width: 500px; margin: 0 auto; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+                .success { color: #2e7d32; font-size: 48px; margin-bottom: 20px; }
+                h1 { color: #2e7d32; margin: 0; }
+                p { color: #666; margin: 20px 0; }
+                .info { background: #e3f2fd; padding: 15px; border-radius: 5px; margin: 20px 0; text-align: left; }
+                .info code { background: #fff; padding: 2px 6px; border-radius: 3px; }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="success">✅</div>
+                <h1>X Account Connected!</h1>
+                <p>Your X account has been successfully connected to the trading bot.</p>
+                <div class="info">
+                    <strong>Next steps:</strong><br>
+                    1. Start monitoring: <code>curl -X POST http://localhost:8000/x/monitoring/start</code><br>
+                    2. View followed accounts: <code>curl http://localhost:8000/x/monitoring/accounts</code><br>
+                    3. Check status: <code>curl http://localhost:8000/x/monitoring/status</code>
+                </div>
+                <p><a href="/x/auth/authorize" style="color: #1976d2;">Reconnect</a> | <a href="/x/auth/status" style="color: #1976d2;">Check Status</a></p>
+            </div>
+        </body>
+        </html>
+        """
+        return HTMLResponse(content=html_content)
         
     except ValueError as e:
         # Invalid state or token exchange failed
-        frontend_url = f"http://localhost:5173/settings?x_auth_error={str(e)}"
-        return RedirectResponse(url=frontend_url)
+        try:
+            import requests
+            response = requests.get("http://localhost:5173", timeout=1)
+            if response.status_code == 200:
+                frontend_url = f"http://localhost:5173/settings?x_auth_error={str(e)}"
+                return RedirectResponse(url=frontend_url)
+        except:
+            pass
+        
+        html_content = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>X Connection Error</title>
+            <style>
+                body {{ font-family: Arial, sans-serif; text-align: center; padding: 50px; }}
+                .error {{ color: #d32f2f; }}
+            </style>
+        </head>
+        <body>
+            <h1 class="error">❌ Connection Failed</h1>
+            <p>{str(e)}</p>
+            <p><a href="/x/auth/authorize">Try again</a></p>
+        </body>
+        </html>
+        """
+        return HTMLResponse(content=html_content)
     except Exception as e:
-        frontend_url = f"http://localhost:5173/settings?x_auth_error=unknown_error"
-        return RedirectResponse(url=frontend_url)
+        try:
+            import requests
+            response = requests.get("http://localhost:5173", timeout=1)
+            if response.status_code == 200:
+                frontend_url = "http://localhost:5173/settings?x_auth_error=unknown_error"
+                return RedirectResponse(url=frontend_url)
+        except:
+            pass
+        
+        html_content = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>X Connection Error</title>
+            <style>
+                body {{ font-family: Arial, sans-serif; text-align: center; padding: 50px; }}
+                .error {{ color: #d32f2f; }}
+            </style>
+        </head>
+        <body>
+            <h1 class="error">❌ Unknown Error</h1>
+            <p>An unexpected error occurred: {str(e)}</p>
+            <p><a href="/x/auth/authorize">Try again</a></p>
+        </body>
+        </html>
+        """
+        return HTMLResponse(content=html_content)
 
 
 @router.post("/auth/disconnect")
