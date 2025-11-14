@@ -226,8 +226,12 @@ class VoiceService:
             # ElevenLabs voice IDs (female, calm, professional)
             # Default: "21m00Tcm4TlvDq8ikWAM" (Rachel - calm, professional)
             # Alternative: "EXAVITQu4vr4xnSDxMaL" (Bella - calm, soothing)
-            # Use provided voice_id or default
-            elevenlabs_voice_id = voice_id if voice_id else "21m00Tcm4TlvDq8ikWAM"  # Rachel
+            # Map generic voice IDs to ElevenLabs-specific IDs
+            if voice_id and voice_id not in ["default_female_calm", "default"]:
+                elevenlabs_voice_id = voice_id
+            else:
+                # Use default ElevenLabs voice (Rachel - calm, professional)
+                elevenlabs_voice_id = "21m00Tcm4TlvDq8ikWAM"
             
             url = f"https://api.elevenlabs.io/v1/text-to-speech/{elevenlabs_voice_id}"
             
