@@ -271,8 +271,9 @@ async function processQueue() {
     // Try backend TTS first if enabled
     if (useBackendTTS) {
       try {
-        // For testing Azure: uncomment the line below to force Azure provider
-        const forcedProvider = "azure"; // Options: "azure", "google", "elevenlabs"
+        // For testing: uncomment to force a specific provider
+        // const forcedProvider = "azure"; // Options: "azure", "google", "elevenlabs", undefined for auto-fallback
+        const forcedProvider = undefined; // Auto-fallback: ElevenLabs → Azure → Google → Browser
         const response = await voiceAPI.synthesize(
           next.message,
           next.priority,
