@@ -65,13 +65,38 @@ You can change the voice in `backend/services/voice_service.py` line 229.
    ```env
    AZURE_TTS_KEY=your_azure_key_here
    AZURE_TTS_REGION=your_region_here  # e.g., eastus, westus2
+   AZURE_TTS_VOICE=en-US-AriaNeural  # Optional: Change voice (see below for options)
    ```
    
    **Example:**
    ```env
    AZURE_TTS_KEY=abc123def456ghi789jkl012mno345pqr678stu901vwx234yz
    AZURE_TTS_REGION=eastus
+   AZURE_TTS_VOICE=en-US-AriaNeural
    ```
+   
+   **To find "Ada" voice (or any specific voice):**
+   1. Visit: https://speech.microsoft.com/portal/voicegallery
+   2. Filter by:
+      - Language: English (United States) or your preferred locale
+      - Gender: Female
+      - Neural: Yes
+   3. Search for "Ada" or browse the list
+   4. Click on the voice to hear samples
+   5. Copy the exact voice name (e.g., `en-US-AdaNeural` or `en-GB-AdaNeural`)
+   6. Add to `.env`: `AZURE_TTS_VOICE=en-US-AdaNeural`
+   
+   **Popular Azure Neural Voices (Female):**
+   - `en-US-AriaNeural` - Calm, professional (default)
+   - `en-US-JennyNeural` - Friendly, warm
+   - `en-US-MichelleNeural` - Energetic, clear
+   - `en-US-NancyNeural` - Gentle, soothing
+   - `en-US-SaraNeural` - Confident, articulate
+   - `en-US-AnaNeural` - Young, cheerful
+   - `en-US-AshleyNeural` - Mature, authoritative
+   - `en-US-CoraNeural` - Warm, conversational
+   - `en-US-ElizabethNeural` - Professional, clear
+   - `en-US-JaneNeural` - Friendly, approachable
 
 3. **Restart the backend server**
 
