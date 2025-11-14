@@ -166,15 +166,25 @@ function App() {
 
   // Initialize browser TTS and audio playback on any user interaction with the app
   useEffect(() => {
-    const handleUserInteraction = () => {
+    // The initialization in voice.ts will handle both browser TTS and audio playback
+    // We just need to ensure the event listeners are set up
+    // They're already set up in voice.ts module initialization, but we can add additional ones here
+    
+    const handleUserInteraction = (event: Event) => {
+      console.log('👆 User interaction detected in App.tsx:', event.type);
       initializeBrowserTTS();
       // Audio playback initialization is handled in voice.ts via event listeners
     };
     
     // Listen for any interaction (this will trigger the initialization in voice.ts)
+    // Use capture phase and don't use once - let voice.ts handle cleanup
     const events = ['click', 'keydown', 'touchstart', 'mousedown'];
     events.forEach(eventType => {
-      document.addEventListener(eventType, handleUserInteraction, { once: true, passive: true });
+      document.addEventListener(eventType, handleUserInteraction, { 
+        once: false,  // Don't use once - voice.ts will handle cleanup
+        passive: true,
+        capture: true  // Capture phase to catch early
+      });
     });
     
     return () => {

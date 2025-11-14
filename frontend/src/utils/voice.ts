@@ -59,26 +59,40 @@ if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       
       // Initialize audio playback (for backend TTS)
       if (!audioPlaybackInitialized) {
-        const testAudio = new Audio();
+        console.log('🔓 Attempting to unlock audio playback...', event?.type || 'unknown');
+        // Use a data URL with a very short silent audio to unlock playback
+        // This is more reliable than an empty Audio() object
+        const silentAudioDataUrl = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
+        const testAudio = new Audio(silentAudioDataUrl);
         testAudio.volume = 0;
+        
         // Try to play and immediately pause to unlock audio playback
-        testAudio.play().then(() => {
-          testAudio.pause();
+        const playPromise = testAudio.play();
+        
+        if (playPromise !== undefined) {
+          playPromise.then(() => {
+            testAudio.pause();
+            testAudio.currentTime = 0;
+            audioPlaybackInitialized = true;
+            console.log('✅ Audio playback initialized via user interaction:', event?.type || 'unknown');
+            
+            // Process queue if there are messages waiting
+            if (waitingForUserInteraction && voiceQueue.length > 0) {
+              waitingForUserInteraction = false;
+              console.log('✅ User interaction detected, processing queued audio...');
+              setTimeout(() => {
+                processQueue();
+              }, 100);
+            }
+          }).catch((error) => {
+            // If it fails, we'll try again on next interaction
+            console.warn('⚠️ Could not initialize audio playback:', error, event?.type || 'unknown');
+          });
+        } else {
+          // Fallback: if play() doesn't return a promise, assume it worked
           audioPlaybackInitialized = true;
-          console.log('✅ Audio playback initialized via user interaction:', event?.type || 'unknown');
-          
-          // Process queue if there are messages waiting
-          if (waitingForUserInteraction && voiceQueue.length > 0) {
-            waitingForUserInteraction = false;
-            console.log('✅ User interaction detected, processing queued audio...');
-            setTimeout(() => {
-              processQueue();
-            }, 100);
-          }
-        }).catch(() => {
-          // If it fails, we'll try again on next interaction
-          console.warn('⚠️ Could not initialize audio playback:', event?.type || 'unknown');
-        });
+          console.log('✅ Audio playback initialized (no promise returned):', event?.type || 'unknown');
+        }
       }
       
       // Remove all listeners once both are initialized
