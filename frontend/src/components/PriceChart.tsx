@@ -36,68 +36,123 @@ export function PriceChart({
       return;
     }
 
-    console.log("PriceChart: Creating chart instance");
+    // Ensure container has width before creating chart
+    const container = chartContainerRef.current;
+    let chart: IChartApi | null = null;
+    let timeoutId: NodeJS.Timeout | null = null;
 
-    try {
-      setChartError(null);
+    const createChartInstance = (width: number) => {
+      console.log("PriceChart: Creating chart instance with width", width);
 
-      // Create chart
-      const chart = createChart(chartContainerRef.current, {
-        layout: {
-          background: { type: ColorType.Solid, color: "#0f0f1e" },
-          textColor: "#d1d5db",
-        },
-        grid: {
-          vertLines: { color: "#1f2937" },
-          horzLines: { color: "#1f2937" },
-        },
-        width: chartContainerRef.current.clientWidth,
-        height: height,
-        timeScale: {
-          timeVisible: true,
-          secondsVisible: false,
-          borderColor: "#374151",
-        },
-        rightPriceScale: {
-          borderColor: "#374151",
-        },
-      });
+      try {
+        setChartError(null);
 
-      console.log("PriceChart: Chart created successfully", chart);
-      console.log("PriceChart: Chart methods check", {
-        hasAddCandlestickSeries:
-          typeof (chart as any).addCandlestickSeries === "function",
-        hasAddLineSeries: typeof (chart as any).addLineSeries === "function",
-        hasAddAreaSeries: typeof (chart as any).addAreaSeries === "function",
-      });
+        // Create chart
+        chart = createChart(container, {
+          layout: {
+            background: { type: ColorType.Solid, color: "#0f0f1e" },
+            textColor: "#d1d5db",
+          },
+          grid: {
+            vertLines: { color: "#1f2937" },
+            horzLines: { color: "#1f2937" },
+          },
+          width: width,
+          height: height,
+          timeScale: {
+            timeVisible: true,
+            secondsVisible: false,
+            borderColor: "#374151",
+          },
+          rightPriceScale: {
+            borderColor: "#374151",
+          },
+        });
 
-      chartRef.current = chart;
+        console.log("PriceChart: Chart created successfully", chart);
 
-      // Handle resize
-      const handleResize = () => {
-        if (chartContainerRef.current && chart) {
-          chart.applyOptions({
-            width: chartContainerRef.current.clientWidth,
-          });
+        chartRef.current = chart;
+
+        // Use ResizeObserver for better container size tracking
+        const resizeObserver = new ResizeObserver((entries) => {
+          for (const entry of entries) {
+            const newWidth = entry.contentRect.width;
+            if (newWidth > 0 && chart) {
+              chart.applyOptions({
+                width: newWidth,
+              });
+            }
+          }
+        });
+
+        resizeObserver.observe(container);
+
+        // Also handle window resize as fallback
+        const handleResize = () => {
+          if (container && chart) {
+            const newWidth = container.clientWidth || container.offsetWidth;
+            if (newWidth > 0) {
+              chart.applyOptions({
+                width: newWidth,
+              });
+            }
+          }
+        };
+
+        window.addEventListener("resize", handleResize);
+
+        // Store cleanup function
+        return () => {
+          resizeObserver.disconnect();
+          window.removeEventListener("resize", handleResize);
+          try {
+            if (chart) {
+              chart.remove();
+            }
+          } catch (e) {
+            console.warn("Error removing chart:", e);
+          }
+        };
+      } catch (error) {
+        console.error("Error creating chart:", error);
+        setChartError(
+          error instanceof Error ? error.message : "Failed to create chart"
+        );
+        return () => {}; // Return empty cleanup on error
+      }
+    };
+
+    const containerWidth = container.clientWidth || container.offsetWidth || 800;
+    let cleanupFn: (() => void) | null = null;
+    
+    if (containerWidth === 0) {
+      console.log("PriceChart: Container width is 0, waiting for layout");
+      // Use a small timeout to wait for layout
+      timeoutId = setTimeout(() => {
+        const width = container.clientWidth || container.offsetWidth || 800;
+        if (width > 0) {
+          cleanupFn = createChartInstance(width);
         }
-      };
+      }, 100);
+    } else {
+      cleanupFn = createChartInstance(containerWidth);
+    }
 
-      window.addEventListener("resize", handleResize);
-
-      return () => {
-        window.removeEventListener("resize", handleResize);
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      if (cleanupFn) {
+        cleanupFn();
+      }
+      if (chart) {
         try {
           chart.remove();
         } catch (e) {
           console.warn("Error removing chart:", e);
         }
-      };
-    } catch (error) {
-      console.error("Error creating chart:", error);
-      setChartError(
-        error instanceof Error ? error.message : "Failed to create chart"
-      );
-    }
+      }
+    };
   }, [height]);
 
   useEffect(() => {
@@ -235,11 +290,11 @@ export function PriceChart({
   return (
     <div
       ref={chartContainerRef}
-      className="w-full"
-      style={{ height: `${height}px` }}
+      className="w-full relative overflow-hidden"
+      style={{ height: `${height}px`, minWidth: '100px', width: '100%' }}
     >
       {(!candles || candles.length === 0) && (
-        <div className="flex items-center justify-center h-full text-gray-500">
+        <div className="flex items-center justify-center h-full text-gray-500 absolute inset-0">
           <div className="text-center">
             <div className="text-sm">No chart data available</div>
           </div>

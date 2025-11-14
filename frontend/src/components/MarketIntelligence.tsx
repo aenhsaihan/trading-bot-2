@@ -154,7 +154,19 @@ export function MarketIntelligence({
         const ticker = await marketDataAPI.getTicker(symbol);
 
         // Fetch OHLCV data for chart and indicators
-        const ohlcv = await marketDataAPI.getOHLCV(symbol, timeframe, 100);
+        // Calculate limit based on timeframe to get more history
+        // For 1h: 500 candles = ~21 days, for 1d: 365 candles = ~1 year
+        const getLimitForTimeframe = (tf: string): number => {
+          if (tf.includes('1m')) return 500; // ~8 hours
+          if (tf.includes('5m')) return 500; // ~2 days
+          if (tf.includes('15m')) return 500; // ~5 days
+          if (tf.includes('1h')) return 500; // ~21 days
+          if (tf.includes('4h')) return 500; // ~83 days
+          if (tf.includes('1d')) return 365; // ~1 year
+          return 500; // default
+        };
+        const limit = getLimitForTimeframe(timeframe);
+        const ohlcv = await marketDataAPI.getOHLCV(symbol, timeframe, limit);
         setOhlcvData(ohlcv);
 
         // Calculate 24h change from OHLCV data
@@ -523,7 +535,7 @@ export function MarketIntelligence({
                   </button>
                 </div>
               </div>
-              <div className="bg-dark-bg rounded border border-gray-800 min-h-[400px]">
+              <div className="bg-dark-bg rounded border border-gray-800 min-h-[400px] w-full overflow-hidden">
                 {loading ? (
                   <div className="flex items-center justify-center h-96 text-gray-500">
                     <div className="text-center">
