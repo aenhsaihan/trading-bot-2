@@ -17,6 +17,7 @@ interface QueuedMessage {
 
 let voiceQueue: QueuedMessage[] = [];
 let isSpeaking = false;
+let isProcessingQueue = false; // Lock to prevent concurrent queue processing
 let currentAudio: HTMLAudioElement | null = null;
 let waitingForUserInteraction = false; // Flag to prevent re-queue loops
 let audioPlaybackInitialized = false; // Flag to track if audio playback is unlocked
@@ -162,27 +163,100 @@ function playAudioFromBase64(base64Audio: string, format: string = 'mp3'): Promi
       const audio = new Audio(URL.createObjectURL(blob));
       currentAudio = audio;
       
+      // Set volume to ensure it's audible
+      audio.volume = 1.0;
+      
+      // Add event listeners
       audio.onended = () => {
-        URL.revokeObjectURL(audio.src);
-        currentAudio = null;
+        console.log('✅ Audio playback ended');
+        const url = audio.src;
+        URL.revokeObjectURL(url);
+        if (currentAudio === audio) {
+          currentAudio = null;
+        }
         resolve();
       };
       
       audio.onerror = (error) => {
-        URL.revokeObjectURL(audio.src);
-        currentAudio = null;
+        console.error('❌ Audio playback error:', error, {
+          error: audio.error,
+          networkState: audio.networkState,
+          readyState: audio.readyState
+        });
+        const url = audio.src;
+        URL.revokeObjectURL(url);
+        if (currentAudio === audio) {
+          currentAudio = null;
+        }
         reject(error);
       };
       
-      audio.play().catch((playError: any) => {
-        // If play fails, it might be a NotAllowedError
-        if (playError?.name === 'NotAllowedError' || playError?.message?.includes('user didn\'t interact')) {
-          console.warn('⚠️ Audio playback blocked - requires user interaction');
-          reject(new Error('Audio playback requires user interaction'));
+      // Wait for audio to be ready before playing
+      const playAudio = () => {
+        console.log('🔊 Attempting to play audio:', {
+          duration: audio.duration,
+          readyState: audio.readyState,
+          networkState: audio.networkState,
+          volume: audio.volume,
+          paused: audio.paused
+        });
+        
+        // Play audio and handle promise
+        const playPromise = audio.play();
+        
+        if (playPromise !== undefined) {
+          playPromise
+            .then(() => {
+              console.log('✅ Audio playback started successfully');
+              // Verify it's actually playing
+              setTimeout(() => {
+                if (audio.paused) {
+                  console.warn('⚠️ Audio is paused after play() - may need user interaction');
+                } else {
+                  console.log('✅ Audio is playing:', {
+                    currentTime: audio.currentTime,
+                    duration: audio.duration,
+                    paused: audio.paused
+                  });
+                }
+              }, 100);
+            })
+            .catch((playError: any) => {
+              console.error('❌ Audio play() failed:', playError);
+              // If play fails, it might be a NotAllowedError
+              if (playError?.name === 'NotAllowedError' || playError?.message?.includes('user didn\'t interact')) {
+                console.warn('⚠️ Audio playback blocked - requires user interaction');
+                reject(new Error('Audio playback requires user interaction'));
+              } else {
+                reject(playError);
+              }
+            });
         } else {
-          reject(playError);
+          // For older browsers that don't return a promise
+          console.log('ℹ️ Audio play() called (no promise returned)');
         }
-      });
+      };
+      
+      // Wait for audio to be ready
+      if (audio.readyState >= 2) { // HAVE_CURRENT_DATA
+        // Audio is ready, play immediately
+        playAudio();
+      } else {
+        // Wait for audio to load
+        console.log('⏳ Waiting for audio to load...');
+        audio.addEventListener('canplay', () => {
+          console.log('✅ Audio can play now');
+          playAudio();
+        }, { once: true });
+        
+        audio.addEventListener('error', (error) => {
+          console.error('❌ Audio load error:', error);
+          reject(error);
+        }, { once: true });
+        
+        // Also try to load it explicitly
+        audio.load();
+      }
       
     } catch (error) {
       reject(error);
@@ -249,13 +323,21 @@ function playWithBrowserTTS(message: string, priority: string): Promise<void> {
  * Process the voice queue - plays next message
  */
 async function processQueue() {
-  if (isSpeaking || voiceQueue.length === 0) {
+  // Prevent concurrent execution with a lock
+  if (isProcessingQueue || isSpeaking || voiceQueue.length === 0) {
+    if (isProcessingQueue) {
+      console.log('🔒 Queue processing already in progress, skipping...');
+    }
     return;
   }
+
+  // Set processing lock immediately to prevent race conditions
+  isProcessingQueue = true;
 
   // Get next message from queue
   const next = voiceQueue.shift();
   if (!next) {
+    isProcessingQueue = false;
     return;
   }
 
@@ -307,6 +389,8 @@ async function processQueue() {
             next.requeued = true;
             voiceQueue.unshift(next);
           }
+          isSpeaking = false;
+          isProcessingQueue = false; // Release lock
           return; // Don't fallback to browser TTS, just wait for user interaction
         } else if (isServiceUnavailable) {
           console.info('ℹ️ Backend TTS not available, using browser TTS');
@@ -343,8 +427,10 @@ async function processQueue() {
     }
     // Otherwise, just log and continue - don't block the queue
   } finally {
+    // Don't clear currentAudio here - let it be cleared by onended/onerror
+    // Only clear the flags
     isSpeaking = false;
-    currentAudio = null;
+    isProcessingQueue = false; // Release processing lock
     
     // Small delay before next message to avoid overlap
     setTimeout(() => {
@@ -354,19 +440,90 @@ async function processQueue() {
 }
 
 /**
+ * Clean text for voice synthesis - remove emojis and markdown
+ */
+function cleanTextForVoice(text: string): string {
+  if (!text) return text;
+  
+  let cleaned = text;
+  
+  // Remove emojis (Unicode emoji ranges)
+  // This regex covers most emoji ranges
+  cleaned = cleaned.replace(/[\u{1F600}-\u{1F64F}]/gu, ''); // Emoticons
+  cleaned = cleaned.replace(/[\u{1F300}-\u{1F5FF}]/gu, ''); // Misc Symbols and Pictographs
+  cleaned = cleaned.replace(/[\u{1F680}-\u{1F6FF}]/gu, ''); // Transport and Map
+  cleaned = cleaned.replace(/[\u{1F1E0}-\u{1F1FF}]/gu, ''); // Flags
+  cleaned = cleaned.replace(/[\u{2600}-\u{26FF}]/gu, ''); // Misc symbols (includes ⚔️ U+2694)
+  cleaned = cleaned.replace(/[\u{2700}-\u{27BF}]/gu, ''); // Dingbats
+  cleaned = cleaned.replace(/[\u{1F900}-\u{1F9FF}]/gu, ''); // Supplemental Symbols and Pictographs
+  cleaned = cleaned.replace(/[\u{1FA00}-\u{1FA6F}]/gu, ''); // Chess Symbols
+  cleaned = cleaned.replace(/[\u{1FA70}-\u{1FAFF}]/gu, ''); // Symbols and Pictographs Extended-A
+  cleaned = cleaned.replace(/[\u{FE00}-\u{FE0F}]/gu, ''); // Variation Selectors (removes variation selector from ⚔️)
+  
+  // Remove specific problematic emojis that TTS engines might misread
+  cleaned = cleaned.replace(/⚔️/g, ''); // Crossed swords emoji (often read as "HASH")
+  cleaned = cleaned.replace(/⚔/g, ''); // Crossed swords without variation selector
+  
+  // Remove markdown syntax
+  cleaned = cleaned.replace(/\*\*(.*?)\*\*/g, '$1'); // Bold **text**
+  cleaned = cleaned.replace(/\*(.*?)\*/g, '$1'); // Italic *text*
+  cleaned = cleaned.replace(/__(.*?)__/g, '$1'); // Bold __text__
+  cleaned = cleaned.replace(/_(.*?)_/g, '$1'); // Italic _text_
+  cleaned = cleaned.replace(/~~(.*?)~~/g, '$1'); // Strikethrough ~~text~~
+  cleaned = cleaned.replace(/`(.*?)`/g, '$1'); // Inline code `text`
+  cleaned = cleaned.replace(/```[\s\S]*?```/g, ''); // Code blocks
+  cleaned = cleaned.replace(/#{1,6}\s+/g, ''); // Headers # ## ###
+  cleaned = cleaned.replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1'); // Links [text](url)
+  cleaned = cleaned.replace(/!\[([^\]]*)\]\([^\)]+\)/g, '$1'); // Images ![alt](url)
+  cleaned = cleaned.replace(/^\s*[-*+]\s+/gm, ''); // List items
+  cleaned = cleaned.replace(/^\s*\d+\.\s+/gm, ''); // Numbered list items
+  cleaned = cleaned.replace(/^>\s+/gm, ''); // Blockquotes
+  
+  // Remove ALL hashtags and # symbols completely
+  // TTS engines often read "#" as "hash", so we need to remove it entirely
+  // Handle various formats: #word, # word, standalone #, # in middle of text
+  cleaned = cleaned.replace(/#\s*\w+/g, ''); // Hashtags like #bitcoin or # bitcoin -> remove entirely (including the word)
+  cleaned = cleaned.replace(/#/g, ''); // Remove ALL remaining # symbols (catches standalone #, # with spaces, etc.)
+  
+  // Remove the word "HASH" if it appears (in case TTS already converted # to "HASH")
+  cleaned = cleaned.replace(/\bHASH\b/gi, ''); // Remove standalone "HASH" word (case insensitive)
+  
+  // Clean up extra whitespace
+  cleaned = cleaned.replace(/\s+/g, ' '); // Multiple spaces to single space
+  cleaned = cleaned.replace(/\n\s*\n/g, '\n'); // Multiple newlines to single
+  cleaned = cleaned.trim();
+  
+  return cleaned;
+}
+
+/**
  * Speak a message (adds to queue)
  */
 export function speakMessage(message: string, priority: string = 'info') {
-  console.log('🎤 speakMessage called:', { message, priority, useBackend: useBackendTTS });
+  console.log('🎤 speakMessage called:', { 
+    originalMessage: message, 
+    priority, 
+    useBackend: useBackendTTS 
+  });
   
   if (!message || message.trim().length === 0) {
     console.warn('⚠️ Empty message, skipping speech');
     return;
   }
 
+  // Clean text before speaking (remove emojis and markdown)
+  const cleanedMessage = cleanTextForVoice(message);
+  
+  console.log('🧹 Text cleaned for voice:', {
+    original: message.substring(0, 100),
+    cleaned: cleanedMessage.substring(0, 100),
+    originalLength: message.length,
+    cleanedLength: cleanedMessage.length
+  });
+
   // Add to queue
   const queuedMessage: QueuedMessage = {
-    message: message.trim(),
+    message: cleanedMessage.trim(),
     priority,
     timestamp: Date.now(),
   };
@@ -414,6 +571,35 @@ export function stopSpeaking() {
  */
 export function clearVoiceQueue() {
   voiceQueue = [];
+}
+
+/**
+ * Check if voice is currently speaking
+ */
+export function getIsSpeaking(): boolean {
+  // Check our flag first
+  if (isSpeaking) {
+    return true;
+  }
+  
+  // Check browser TTS speaking state
+  if (synth?.speaking) {
+    return true;
+  }
+  
+  // Check if audio is playing
+  if (currentAudio) {
+    const isPlaying = !currentAudio.paused && 
+                     currentAudio.currentTime > 0 && 
+                     currentAudio.currentTime < currentAudio.duration &&
+                     currentAudio.readyState >= 2; // HAVE_CURRENT_DATA or higher
+    
+    if (isPlaying) {
+      return true;
+    }
+  }
+  
+  return false;
 }
 
 /**

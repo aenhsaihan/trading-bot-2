@@ -14,6 +14,7 @@ from backend.services.price_update_service import get_price_update_service
 from backend.services.trading_service import TradingService
 from backend.services.websocket_manager import get_websocket_manager
 from backend.services.market_data_streamer import get_market_data_streamer
+from backend.services.symbol_normalizer import normalize_symbol
 from src.utils.logger import setup_logger
 import json
 
@@ -114,7 +115,9 @@ async def websocket_market_data(websocket: WebSocket):
                             print(f"[WEBSOCKET] Received subscribe request for symbols: {symbols}")
                             logger.info(f"Received subscribe request for symbols: {symbols}")
                             for symbol in symbols:
-                                ws_manager.subscribe(websocket, symbol)
+                                # Normalize symbol to BASE/QUOTE format (e.g., "SHIB" -> "SHIB/USDT")
+                                normalized_symbol = normalize_symbol(symbol)
+                                ws_manager.subscribe(websocket, normalized_symbol)
                             subscribed = list(ws_manager.get_subscriptions(websocket))
                             print(f"[WEBSOCKET] Client {ws_manager.get_client_info(websocket)['id']} now subscribed to: {subscribed}")
                             logger.info(f"Client {ws_manager.get_client_info(websocket)['id']} now subscribed to: {subscribed}")
@@ -129,7 +132,9 @@ async def websocket_market_data(websocket: WebSocket):
                             if isinstance(symbols, str):
                                 symbols = [symbols]
                             for symbol in symbols:
-                                ws_manager.unsubscribe(websocket, symbol)
+                                # Normalize symbol to BASE/QUOTE format
+                                normalized_symbol = normalize_symbol(symbol)
+                                ws_manager.unsubscribe(websocket, normalized_symbol)
                             await websocket.send_json({
                                 "type": "unsubscribed",
                                 "symbols": list(ws_manager.get_subscriptions(websocket))
