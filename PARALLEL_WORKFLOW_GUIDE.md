@@ -387,3 +387,98 @@ git worktree remove ../trading-bot-2-agent2
 
 **This is the correct approach for parallel agents on the same machine!** ✅
 
+---
+
+## 📋 Using VibeKanban (or Kanban Board) for Coordination
+
+### Why Kanban is Perfect for Parallel Agents
+
+**VibeKanban (or any kanban board) is ideal for:**
+- ✅ **Visual task tracking** - See what each agent is working on
+- ✅ **Dependency management** - Track what's blocked, what's ready
+- ✅ **Status visibility** - Know what's in progress, done, or waiting
+- ✅ **Coordination** - Agents can see what others are doing
+- ✅ **Progress tracking** - Visual representation of overall progress
+
+### Recommended Kanban Structure
+
+**Columns:**
+1. **Backlog** - All tasks from spec document
+2. **Ready** - Tasks ready to start (dependencies met)
+3. **In Progress** - Agent actively working (with agent name)
+4. **In Review** - Agent finished, waiting for your testing
+5. **Done** - Merged to main, complete
+
+**Cards for Each Agent Task:**
+- Agent 1: Threat Detection System
+- Agent 2: AI Message Summarization ✅ (Done)
+- Agent 3: Voice Quality Improvement
+- Agent 4: Voice Queue & Priority
+- Agent 5: Notification Enrichment (Blocked: waiting for Agent 1)
+- Agent 6: Real-time Notification Streaming
+- Agent 7: Notification Display Improvements
+- Agent 8: Command Center Integration
+
+### Workflow with Kanban
+
+**When Agent Starts:**
+1. Move card from "Ready" → "In Progress"
+2. Add agent name/identifier to card
+3. Link to branch: `feature/agent-N-description`
+4. Add worktree path if using: `../trading-bot-2-agentN`
+
+**When Agent Finishes:**
+1. Move card from "In Progress" → "In Review"
+2. Add link to branch/PR
+3. Add notes: "Ready for testing"
+
+**When You Test & Approve:**
+1. Move card from "In Review" → "Done"
+2. Add completion notes
+3. Update spec document status
+
+**When Dependencies Resolve:**
+1. Move blocked cards from "Backlog" → "Ready"
+2. Example: Agent 5 moves to "Ready" when Agent 1 & 2 are "Done"
+
+### Integration with Git Worktree
+
+**Card Metadata:**
+- **Branch:** `feature/agent-1-threat-detection`
+- **Worktree:** `../trading-bot-2-agent1`
+- **Files:** List of files agent owns
+- **Dependencies:** Links to other agent cards
+- **Status:** In Progress / Blocked / Ready
+
+**Example Card:**
+```
+Agent 1: Threat Detection System
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Branch: feature/agent-1-threat-detection
+Worktree: ../trading-bot-2-agent1
+Files:
+  - backend/services/threat_detection_service.py
+  - backend/services/trading_service.py (threat parts)
+Status: In Progress
+Agent: Agent 1
+Started: 2025-01-XX
+```
+
+### Benefits
+
+1. **At-a-glance status** - See all agents' progress
+2. **Dependency tracking** - Know what's blocked
+3. **Coordination** - Agents see what others are doing
+4. **Progress visibility** - Track overall project completion
+5. **Resource management** - See how many agents are active
+
+### Best Practices
+
+1. **Update cards regularly** - Agents update status as they work
+2. **Link to branches** - Easy to checkout and test
+3. **Track dependencies** - Visual representation of blockers
+4. **Add notes** - Document issues, blockers, decisions
+5. **Sync with spec** - Keep kanban in sync with `NOTIFICATION_SYSTEM_V2_SPEC.md`
+
+**VibeKanban is perfect for managing parallel agent work!** ✅
+
