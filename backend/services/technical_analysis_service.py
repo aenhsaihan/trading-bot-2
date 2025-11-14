@@ -694,3 +694,4 @@ class TechnicalAnalysisService:
         return signals
 
 
+

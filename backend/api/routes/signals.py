@@ -207,3 +207,4 @@ async def stop_service():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to stop service: {str(e)}")
 
+

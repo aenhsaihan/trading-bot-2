@@ -67,3 +67,4 @@ class AlertListResponse(BaseModel):
     triggered: int  # Number of triggered alerts
 
 
+
