@@ -43,8 +43,10 @@ export function ToastContainer({
         setDisplayedIds((prev) => new Set([...prev, notification.id]));
 
         // Play voice alert
+        // Use summarized_message if available (AI-generated concise version), otherwise fall back to message
         if (voiceEnabled) {
-          speakMessage(notification.message, notification.priority);
+          const messageToSpeak = notification.summarized_message || notification.message;
+          speakMessage(messageToSpeak, notification.priority);
         }
 
         // Auto-dismiss after 5 seconds
