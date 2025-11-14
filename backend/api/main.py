@@ -19,9 +19,10 @@ try:
 except ImportError:
     pass  # python-dotenv not installed, skip
 
-from .routes import notifications, websocket, trading, ai, market_data, alerts, signals, system, voice
+from .routes import notifications, websocket, trading, ai, market_data, alerts, signals, system, voice, news
 from backend.services.alert_service import get_alert_service
 from backend.services.notification_source_service import get_notification_source_service
+from backend.services.news_monitor import get_news_monitor
 
 # Create FastAPI app
 app = FastAPI(
@@ -49,6 +50,7 @@ app.include_router(alerts.router)
 app.include_router(signals.router)
 app.include_router(system.router)
 app.include_router(voice.router)
+app.include_router(news.router)
 
 
 @app.exception_handler(RequestValidationError)
@@ -80,6 +82,7 @@ async def root():
             "ai": "/ai",
             "alerts": "/alerts",
             "signals": "/signals",
+            "news": "/news",
             "websocket": "/ws/notifications",
             "docs": "/docs"
         }
@@ -152,6 +155,26 @@ async def startup_event():
             pass
     else:
         print("ℹ️  NotificationSourceService disabled (set ENABLE_NOTIFICATION_SOURCES=true to enable)")
+    
+    # Start news monitor (optional, auto-starts if enabled)
+    enable_news_monitoring = os.getenv("ENABLE_NEWS_MONITORING", "true").lower() == "true"
+    
+    if enable_news_monitoring:
+        try:
+            news_monitor = get_news_monitor()
+            if not news_monitor.is_monitoring():
+                news_monitor.start()
+                categories = news_monitor.monitored_categories
+                categories_str = ", ".join(categories) if categories else "all categories"
+                print(f"✅ News Monitor started successfully (monitoring {categories_str})")
+            else:
+                print("ℹ️  News Monitor is already running")
+        except Exception as e:
+            print(f"⚠️  Failed to start News Monitor: {e}")
+            # Don't fail startup if service fails to start
+            pass
+    else:
+        print("ℹ️  News Monitor disabled (set ENABLE_NEWS_MONITORING=true to enable)")
 
 
 @app.on_event("shutdown")
@@ -165,6 +188,15 @@ async def shutdown_event():
             print("✅ NotificationSourceService stopped successfully")
     except Exception as e:
         print(f"⚠️  Error stopping NotificationSourceService: {e}")
+    
+    # Stop news monitor
+    try:
+        news_monitor = get_news_monitor()
+        if news_monitor.is_monitoring():
+            news_monitor.stop()
+            print("✅ News Monitor stopped successfully")
+    except Exception as e:
+        print(f"⚠️  Error stopping News Monitor: {e}")
     
     # Background tasks will be cancelled automatically
     print("Shutting down background tasks...")

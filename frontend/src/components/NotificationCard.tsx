@@ -146,7 +146,7 @@ export function NotificationCard({
         )}
       </div>
 
-      {/* Quick Actions - Always show for actionable notifications */}
+      {/* Quick Actions - Show for actionable notifications with symbols */}
       {!notification.responded && notification.symbol && (
         <div
           className="flex gap-2 mt-3 flex-wrap"
@@ -172,6 +172,23 @@ export function NotificationCard({
               Dismiss
             </button>
           )}
+        </div>
+      )}
+
+      {/* Dismiss button for notifications without symbols */}
+      {!notification.responded && !notification.symbol && onDismiss && (
+        <div
+          className="flex gap-2 mt-3 flex-wrap"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            onClick={() => onDismiss(notification.id)}
+            className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5"
+            title="Dismiss notification"
+          >
+            <X size={14} />
+            Dismiss
+          </button>
         </div>
       )}
 

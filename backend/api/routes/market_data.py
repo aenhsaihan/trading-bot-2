@@ -18,6 +18,7 @@ from backend.api.models.market_data import (
     PricesResponse
 )
 from backend.services.price_service import get_price_service
+from backend.services.symbol_normalizer import normalize_symbol, normalize_symbols
 
 router = APIRouter(prefix="/market-data", tags=["market-data"])
 
@@ -52,6 +53,8 @@ async def get_price(symbol: str):
     try:
         from urllib.parse import unquote
         symbol = unquote(symbol)
+        # Normalize symbol to BASE/QUOTE format (e.g., "SHIB" -> "SHIB/USDT")
+        normalized_symbol = normalize_symbol(symbol)
         price_service = get_price_service()
         if not price_service.is_connected():
             raise HTTPException(
@@ -59,7 +62,7 @@ async def get_price(symbol: str):
                 detail="Exchange connection not available. Please check your network connection."
             )
         
-        price = price_service.get_current_price(symbol)
+        price = price_service.get_current_price(normalized_symbol)
         if price == 0:
             raise HTTPException(
                 status_code=404,
@@ -92,7 +95,16 @@ async def get_prices(symbols: List[str]):
                 detail="Exchange connection not available. Please check your network connection."
             )
         
-        prices = price_service.get_current_prices(symbols)
+        # Normalize symbols to BASE/QUOTE format (e.g., "SHIB" -> "SHIB/USDT")
+        normalized_symbols = normalize_symbols(symbols)
+        prices = price_service.get_current_prices(normalized_symbols)
+        
+        # Return prices with original symbol keys (for backward compatibility)
+        # Map normalized symbols back to original if needed
+        price_map = {}
+        for i, original_symbol in enumerate(symbols):
+            normalized = normalized_symbols[i]
+            price_map[original_symbol] = prices.get(normalized, Decimal('0'))
         return {
             "prices": {
                 symbol: float(price) if price > 0 else None
@@ -119,6 +131,8 @@ async def get_ticker(symbol: str):
     try:
         from urllib.parse import unquote
         symbol = unquote(symbol)
+        # Normalize symbol to BASE/QUOTE format (e.g., "SHIB" -> "SHIB/USDT")
+        normalized_symbol = normalize_symbol(symbol)
         price_service = get_price_service()
         if not price_service.is_connected():
             raise HTTPException(
@@ -126,7 +140,7 @@ async def get_ticker(symbol: str):
                 detail="Exchange connection not available. Please check your network connection."
             )
         
-        ticker = price_service.get_ticker(symbol)
+        ticker = price_service.get_ticker(normalized_symbol)
         if not ticker:
             raise HTTPException(
                 status_code=404,
@@ -134,7 +148,7 @@ async def get_ticker(symbol: str):
             )
         
         return {
-            "symbol": symbol,
+            "symbol": symbol,  # Return original symbol (not normalized) for backward compatibility
             "last": float(ticker.get("last", 0)),
             "bid": float(ticker.get("bid", 0)),
             "ask": float(ticker.get("ask", 0)),
@@ -180,6 +194,8 @@ async def get_ohlcv(
     try:
         from urllib.parse import unquote
         symbol = unquote(symbol)
+        # Normalize symbol to BASE/QUOTE format (e.g., "SHIB" -> "SHIB/USDT")
+        normalized_symbol = normalize_symbol(symbol)
         price_service = get_price_service()
         if not price_service.is_connected():
             raise HTTPException(
@@ -187,7 +203,7 @@ async def get_ohlcv(
                 detail="Exchange connection not available. Please check your network connection."
             )
         
-        ohlcv_data = price_service.get_ohlcv(symbol, timeframe, limit)
+        ohlcv_data = price_service.get_ohlcv(normalized_symbol, timeframe, limit)
         if not ohlcv_data:
             raise HTTPException(
                 status_code=404,
