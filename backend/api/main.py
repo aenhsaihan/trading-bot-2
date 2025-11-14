@@ -19,9 +19,10 @@ try:
 except ImportError:
     pass  # python-dotenv not installed, skip
 
-from .routes import notifications, websocket, trading, ai, market_data, alerts, signals, system, voice, x_auth
+from .routes import notifications, websocket, trading, ai, market_data, alerts, signals, system, voice, x_auth, x_simple
 from backend.services.alert_service import get_alert_service
 from backend.services.notification_source_service import get_notification_source_service
+from backend.services.x_simple_monitor import get_x_simple_monitor
 
 # Create FastAPI app
 app = FastAPI(
@@ -50,6 +51,7 @@ app.include_router(signals.router)
 app.include_router(system.router)
 app.include_router(voice.router)
 app.include_router(x_auth.router)
+app.include_router(x_simple.router)
 
 
 @app.exception_handler(RequestValidationError)
@@ -153,6 +155,33 @@ async def startup_event():
             pass
     else:
         print("ℹ️  NotificationSourceService disabled (set ENABLE_NOTIFICATION_SOURCES=true to enable)")
+    
+    # Start X simple monitor (optional, auto-starts if X_MONITOR_ACCOUNTS is set)
+    enable_x_monitoring = os.getenv("ENABLE_X_MONITORING", "true").lower() == "true"
+    x_bearer_token = os.getenv("X_BEARER_TOKEN", "")
+    x_monitor_accounts = os.getenv("X_MONITOR_ACCOUNTS", "")
+    
+    if enable_x_monitoring and x_bearer_token and x_monitor_accounts:
+        try:
+            x_monitor = get_x_simple_monitor()
+            if not x_monitor.is_monitoring():
+                # Accounts are already loaded from env var in XSimpleMonitor.__init__
+                x_monitor.start()
+                accounts = x_monitor.get_accounts()
+                print(f"✅ X Simple Monitor started successfully (monitoring {len(accounts)} accounts: {', '.join(accounts)})")
+            else:
+                print("ℹ️  X Simple Monitor is already running")
+        except Exception as e:
+            print(f"⚠️  Failed to start X Simple Monitor: {e}")
+            # Don't fail startup if service fails to start
+            pass
+    elif enable_x_monitoring and (not x_bearer_token or not x_monitor_accounts):
+        if not x_bearer_token:
+            print("ℹ️  X Simple Monitor disabled (X_BEARER_TOKEN not set)")
+        if not x_monitor_accounts:
+            print("ℹ️  X Simple Monitor disabled (X_MONITOR_ACCOUNTS not set)")
+    else:
+        print("ℹ️  X Simple Monitor disabled (set ENABLE_X_MONITORING=true to enable)")
 
 
 @app.on_event("shutdown")
@@ -166,6 +195,15 @@ async def shutdown_event():
             print("✅ NotificationSourceService stopped successfully")
     except Exception as e:
         print(f"⚠️  Error stopping NotificationSourceService: {e}")
+    
+    # Stop X simple monitor
+    try:
+        x_monitor = get_x_simple_monitor()
+        if x_monitor.is_monitoring():
+            x_monitor.stop()
+            print("✅ X Simple Monitor stopped successfully")
+    except Exception as e:
+        print(f"⚠️  Error stopping X Simple Monitor: {e}")
     
     # Background tasks will be cancelled automatically
     print("Shutting down background tasks...")

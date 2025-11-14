@@ -2,6 +2,7 @@
 
 import os
 import sys
+import time
 from pathlib import Path
 from typing import List, Dict, Optional
 from datetime import datetime
@@ -130,8 +131,25 @@ class XAPIClient:
                 self.logger.error("X API authentication failed. Token may be expired.")
                 raise ValueError("X authentication expired. Please reconnect your account.")
             elif e.response.status_code == 429:
-                self.logger.warning("X API rate limit exceeded")
-                raise ValueError("X API rate limit exceeded. Please wait before trying again.")
+                # Extract rate limit reset time from headers
+                reset_time = e.response.headers.get("x-rate-limit-reset")
+                if reset_time:
+                    reset_timestamp = int(reset_time)
+                    wait_seconds = max(0, reset_timestamp - int(time.time())) + 1  # Add 1 second buffer
+                    self.logger.warning(f"X API rate limit exceeded. Reset in {wait_seconds} seconds (at {reset_timestamp})")
+                    error_msg = f"X API rate limit exceeded. Reset in {wait_seconds} seconds."
+                else:
+                    self.logger.warning("X API rate limit exceeded (no reset time in headers)")
+                    error_msg = "X API rate limit exceeded. Please wait before trying again."
+                
+                # Store rate limit info
+                endpoint_key = endpoint.split("?")[0]  # Remove query params for endpoint key
+                self._rate_limits[endpoint_key] = {
+                    "remaining": 0,
+                    "reset": int(reset_time) if reset_time else int(time.time()) + 900  # Default 15 min if unknown
+                }
+                
+                raise ValueError(error_msg)
             else:
                 self.logger.error(f"X API request failed: {e}")
                 raise ValueError(f"X API request failed: {e}")

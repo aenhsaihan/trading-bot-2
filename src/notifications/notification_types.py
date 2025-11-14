@@ -33,6 +33,7 @@ class NotificationSource(Enum):
     """Source of the notification"""
     TECHNICAL = "technical"  # From technical indicators
     TWITTER = "twitter"
+    X = "x"  # X (formerly Twitter) - alias for TWITTER
     TELEGRAM = "telegram"
     NEWS = "news"
     REDDIT = "reddit"
