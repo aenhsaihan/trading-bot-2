@@ -209,14 +209,17 @@ async function processQueue() {
       } catch (backendError: any) {
         // Check if it's a 503 (no providers) or other error
         const isServiceUnavailable = backendError?.message?.includes('503') || 
-                                     backendError?.message?.includes('No TTS providers');
+                                     backendError?.message?.includes('No TTS providers') ||
+                                     backendError?.message?.includes('All TTS providers failed');
         
         if (isServiceUnavailable) {
-          console.info('ℹ️ Backend TTS not configured, using browser TTS');
+          console.info('ℹ️ Backend TTS not available, using browser TTS');
           // Disable backend TTS for future messages to avoid repeated failed requests
           useBackendTTS = false;
         } else {
           console.warn('⚠️ Backend TTS failed, falling back to browser TTS:', backendError);
+          // If it's a connection/API error, don't disable permanently - might be temporary
+          // Only disable if it's a clear configuration issue
         }
         
         // Fallback to browser TTS
