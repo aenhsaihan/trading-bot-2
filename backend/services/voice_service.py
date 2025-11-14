@@ -386,9 +386,74 @@ class VoiceService:
             return response.audio_content
             
         except ImportError:
-            raise Exception("google-cloud-texttospeech not installed. Install with: pip install google-cloud-texttospeech")
+            # If client library not available, try REST API
+            api_key = os.getenv("GOOGLE_TTS_KEY")
+            if api_key:
+                return self._synthesize_google_rest(text, voice_id, priority, api_key)
+            raise Exception("google-cloud-texttospeech library not installed. Install with: pip install google-cloud-texttospeech, or set GOOGLE_TTS_KEY for REST API")
         except Exception as e:
-            raise Exception(f"Google Cloud TTS synthesis failed: {e}")
+            # If client library fails, try REST API as fallback
+            api_key = os.getenv("GOOGLE_TTS_KEY")
+            if api_key:
+                self.logger.warning(f"Google Cloud client library failed, trying REST API: {e}")
+                return self._synthesize_google_rest(text, voice_id, priority, api_key)
+            raise Exception(f"Google synthesis failed: {e}")
+    
+    def _synthesize_google_rest(self, text: str, voice_id: str, priority: str, api_key: str) -> bytes:
+        """Synthesize using Google Cloud TTS REST API (alternative to client library)"""
+        try:
+            import requests
+            import base64
+            
+            # Google Cloud TTS REST API endpoint
+            url = f"https://texttospeech.googleapis.com/v1/text:synthesize?key={api_key}"
+            
+            # Voice configuration (female, calm, professional)
+            voice_name = "en-US-Neural2-F"  # Female neural voice
+            
+            data = {
+                "input": {"text": text},
+                "voice": {
+                    "languageCode": "en-US",
+                    "name": voice_name,
+                    "ssmlGender": "FEMALE"
+                },
+                "audioConfig": {
+                    "audioEncoding": "MP3",
+                    "speakingRate": 1.0,
+                    "pitch": 0.0,
+                    "volumeGainDb": 0.0
+                }
+            }
+            
+            headers = {
+                "Content-Type": "application/json"
+            }
+            
+            # Try with SSL verification first
+            try:
+                response = requests.post(url, json=data, headers=headers, timeout=30, verify=True)
+            except requests.exceptions.SSLError as ssl_error:
+                # If SSL verification fails, try without verification (development mode)
+                self.logger.warning(f"SSL verification failed, retrying without verification (development mode): {ssl_error}")
+                response = requests.post(url, json=data, headers=headers, timeout=30, verify=False)
+            
+            if response.status_code != 200:
+                error_detail = response.text
+                self.logger.error(f"Google TTS API error {response.status_code}: {error_detail}")
+                raise Exception(f"Google TTS API returned {response.status_code}: {error_detail}")
+            
+            # Response contains base64-encoded audio
+            audio_base64 = response.json().get("audioContent")
+            if not audio_base64:
+                raise Exception("No audio content in Google TTS response")
+            
+            return base64.b64decode(audio_base64)
+            
+        except ImportError:
+            raise Exception("requests library not installed. Install with: pip install requests")
+        except Exception as e:
+            raise Exception(f"Google REST API synthesis failed: {e}")
     
     def get_usage_stats(self) -> Dict:
         """Get usage statistics per provider"""
