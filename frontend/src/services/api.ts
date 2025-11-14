@@ -392,6 +392,54 @@ export class AIAPI {
 
 export const aiAPI = new AIAPI();
 
+// Voice TTS API
+export class VoiceAPI {
+  private baseUrl: string;
+
+  constructor(baseUrl: string = API_BASE_URL) {
+    this.baseUrl = baseUrl.replace(/\/$/, "");
+  }
+
+  async synthesize(
+    text: string,
+    priority: string = "medium",
+    voiceId?: string,
+    provider?: string
+  ): Promise<{ audio_base64: string; provider_used: string; format: string }> {
+    const response = await fetch(`${this.baseUrl}/voice/synthesize`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        text,
+        priority,
+        voice_id: voiceId,
+        provider,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Voice synthesis failed: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  async getAvailableProviders(): Promise<{
+    providers: Record<string, boolean>;
+    default_order: string[];
+  }> {
+    const response = await fetch(`${this.baseUrl}/voice/providers`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch providers: ${response.statusText}`);
+    }
+    return response.json();
+  }
+}
+
+export const voiceAPI = new VoiceAPI();
+
 // Market Data API
 export interface TickerData {
   symbol: string;

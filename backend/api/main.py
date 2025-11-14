@@ -19,7 +19,7 @@ try:
 except ImportError:
     pass  # python-dotenv not installed, skip
 
-from .routes import notifications, websocket, trading, ai, market_data, alerts, signals, system
+from .routes import notifications, websocket, trading, ai, market_data, alerts, signals, system, voice
 from backend.services.alert_service import get_alert_service
 from backend.services.notification_source_service import get_notification_source_service
 
@@ -48,6 +48,7 @@ app.include_router(market_data.router)
 app.include_router(alerts.router)
 app.include_router(signals.router)
 app.include_router(system.router)
+app.include_router(voice.router)
 
 
 @app.exception_handler(RequestValidationError)
