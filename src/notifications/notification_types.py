@@ -97,6 +97,7 @@ class Notification:
         self.responded = False
         self.response_action = None
         self.response_at = None
+        self.summarized_message: Optional[str] = None  # AI-generated concise message
     
     def to_dict(self) -> Dict:
         """Convert notification to dictionary"""
@@ -118,7 +119,8 @@ class Notification:
             'read': self.read,
             'responded': self.responded,
             'response_action': self.response_action,
-            'response_at': self.response_at.isoformat() if self.response_at else None
+            'response_at': self.response_at.isoformat() if self.response_at else None,
+            'summarized_message': self.summarized_message
         }
     
     def calculate_autonomy_timeout(self, base_timeout: int = 300) -> int:

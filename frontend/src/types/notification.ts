@@ -47,5 +47,6 @@ export interface Notification {
   responded: boolean;
   response_action?: string;
   response_at?: string;
+  summarized_message?: string; // AI-generated concise message (StarCraft-style)
 }
 
