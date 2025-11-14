@@ -164,13 +164,14 @@ function App() {
     markAsRead(id);
   };
 
-  // Initialize browser TTS on any user interaction with the app
+  // Initialize browser TTS and audio playback on any user interaction with the app
   useEffect(() => {
     const handleUserInteraction = () => {
       initializeBrowserTTS();
+      // Audio playback initialization is handled in voice.ts via event listeners
     };
     
-    // Listen for any interaction
+    // Listen for any interaction (this will trigger the initialization in voice.ts)
     const events = ['click', 'keydown', 'touchstart', 'mousedown'];
     events.forEach(eventType => {
       document.addEventListener(eventType, handleUserInteraction, { once: true, passive: true });

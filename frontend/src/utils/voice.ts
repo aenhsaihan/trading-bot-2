@@ -19,6 +19,7 @@ let voiceQueue: QueuedMessage[] = [];
 let isSpeaking = false;
 let currentAudio: HTMLAudioElement | null = null;
 let waitingForUserInteraction = false; // Flag to prevent re-queue loops
+let audioPlaybackInitialized = false; // Flag to track if audio playback is unlocked
 
 // Browser TTS fallback (for when backend is unavailable)
 let synth: SpeechSynthesis | null = null;
@@ -42,23 +43,52 @@ if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
   // Initialize speech synthesis on first user interaction
   // This MUST happen before any speech is attempted
   const initSpeechOnInteraction = (event?: Event) => {
-    if (speechInitialized) return;
+    if (speechInitialized && audioPlaybackInitialized) return;
     
     try {
-      const testUtterance = new SpeechSynthesisUtterance('');
-      testUtterance.volume = 0;
-      testUtterance.rate = 0.1;
-      synth!.speak(testUtterance);
-      synth!.cancel();
-      speechInitialized = true;
-      console.log('✅ Browser TTS initialized via user interaction:', event?.type || 'unknown');
+      // Initialize browser TTS
+      if (!speechInitialized) {
+        const testUtterance = new SpeechSynthesisUtterance('');
+        testUtterance.volume = 0;
+        testUtterance.rate = 0.1;
+        synth!.speak(testUtterance);
+        synth!.cancel();
+        speechInitialized = true;
+        console.log('✅ Browser TTS initialized via user interaction:', event?.type || 'unknown');
+      }
       
-      // Remove all listeners once initialized
-      events.forEach(eventType => {
-        window.removeEventListener(eventType, initSpeechOnInteraction);
-      });
+      // Initialize audio playback (for backend TTS)
+      if (!audioPlaybackInitialized) {
+        const testAudio = new Audio();
+        testAudio.volume = 0;
+        // Try to play and immediately pause to unlock audio playback
+        testAudio.play().then(() => {
+          testAudio.pause();
+          audioPlaybackInitialized = true;
+          console.log('✅ Audio playback initialized via user interaction:', event?.type || 'unknown');
+          
+          // Process queue if there are messages waiting
+          if (waitingForUserInteraction && voiceQueue.length > 0) {
+            waitingForUserInteraction = false;
+            console.log('✅ User interaction detected, processing queued audio...');
+            setTimeout(() => {
+              processQueue();
+            }, 100);
+          }
+        }).catch(() => {
+          // If it fails, we'll try again on next interaction
+          console.warn('⚠️ Could not initialize audio playback:', event?.type || 'unknown');
+        });
+      }
+      
+      // Remove all listeners once both are initialized
+      if (speechInitialized && audioPlaybackInitialized) {
+        events.forEach(eventType => {
+          window.removeEventListener(eventType, initSpeechOnInteraction);
+        });
+      }
     } catch (e) {
-      console.warn('⚠️ Could not initialize browser TTS:', e);
+      console.warn('⚠️ Could not initialize TTS/audio:', e);
     }
   };
   
@@ -80,6 +110,13 @@ if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
 function playAudioFromBase64(base64Audio: string, format: string = 'mp3'): Promise<void> {
   return new Promise((resolve, reject) => {
     try {
+      // Check if audio playback is initialized
+      if (!audioPlaybackInitialized) {
+        console.warn('⚠️ Audio playback not initialized. Requires user interaction first.');
+        reject(new Error('Audio playback requires user interaction. Please interact with the page first.'));
+        return;
+      }
+      
       // Convert base64 to blob
       const byteCharacters = atob(base64Audio);
       const byteNumbers = new Array(byteCharacters.length);
@@ -105,7 +142,15 @@ function playAudioFromBase64(base64Audio: string, format: string = 'mp3'): Promi
         reject(error);
       };
       
-      audio.play().catch(reject);
+      audio.play().catch((playError: any) => {
+        // If play fails, it might be a NotAllowedError
+        if (playError?.name === 'NotAllowedError' || playError?.message?.includes('user didn\'t interact')) {
+          console.warn('⚠️ Audio playback blocked - requires user interaction');
+          reject(new Error('Audio playback requires user interaction'));
+        } else {
+          reject(playError);
+        }
+      });
       
     } catch (error) {
       reject(error);
@@ -212,18 +257,31 @@ async function processQueue() {
                                      backendError?.message?.includes('No TTS providers') ||
                                      backendError?.message?.includes('All TTS providers failed');
         
-        if (isServiceUnavailable) {
+        // Check if it's an audio playback error (requires user interaction)
+        const isAudioPlaybackError = backendError?.message?.includes('requires user interaction') ||
+                                     backendError?.name === 'NotAllowedError' ||
+                                     backendError?.message?.includes('user didn\'t interact');
+        
+        if (isAudioPlaybackError) {
+          // Audio playback needs user interaction - re-queue the message
+          console.warn('⚠️ Audio playback requires user interaction. Message will be played after you interact with the page.');
+          if (!next.requeued && !waitingForUserInteraction) {
+            waitingForUserInteraction = true;
+            next.requeued = true;
+            voiceQueue.unshift(next);
+          }
+          return; // Don't fallback to browser TTS, just wait for user interaction
+        } else if (isServiceUnavailable) {
           console.info('ℹ️ Backend TTS not available, using browser TTS');
           // Disable backend TTS for future messages to avoid repeated failed requests
           useBackendTTS = false;
+          // Fallback to browser TTS
+          await playWithBrowserTTS(next.message, next.priority);
         } else {
           console.warn('⚠️ Backend TTS failed, falling back to browser TTS:', backendError);
-          // If it's a connection/API error, don't disable permanently - might be temporary
-          // Only disable if it's a clear configuration issue
+          // Fallback to browser TTS
+          await playWithBrowserTTS(next.message, next.priority);
         }
-        
-        // Fallback to browser TTS
-        await playWithBrowserTTS(next.message, next.priority);
       }
     } else {
       // Use browser TTS directly
@@ -376,14 +434,7 @@ export function initializeBrowserTTS() {
     console.log('✅ Browser TTS initialized');
     
     // Clear the waiting flag and process queue if there are messages
-    if (waitingForUserInteraction) {
-      waitingForUserInteraction = false;
-      console.log('✅ User interaction detected, processing queued messages...');
-      // Process queue after a short delay to ensure initialization is complete
-      setTimeout(() => {
-        processQueue();
-      }, 100);
-    }
+    // (This is handled in initSpeechOnInteraction for audio playback)
     
     return true;
   } catch (e) {
