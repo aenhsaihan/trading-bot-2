@@ -413,17 +413,13 @@ export class VoiceAPI {
     };
     if (voiceId) body.voice_id = voiceId;
     if (provider) body.provider = provider; // Allow forcing a provider for testing
+    
     const response = await fetch(`${this.baseUrl}/voice/synthesize`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        text,
-        priority,
-        voice_id: voiceId,
-        provider,
-      }),
+      body: JSON.stringify(body),
     });
 
     if (!response.ok) {
