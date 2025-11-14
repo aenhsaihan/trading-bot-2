@@ -141,8 +141,15 @@ class XAuthService:
         }
         
         try:
-            response = requests.post(self.token_url, data=token_data, headers=headers)
-            response.raise_for_status()
+            # Try with SSL verification first
+            try:
+                response = requests.post(self.token_url, data=token_data, headers=headers, verify=True, timeout=30)
+                response.raise_for_status()
+            except requests.exceptions.SSLError as ssl_error:
+                # Retry without SSL verification (for development environments)
+                self.logger.warning(f"SSL verification failed, retrying without verification: {ssl_error}")
+                response = requests.post(self.token_url, data=token_data, headers=headers, verify=False, timeout=30)
+                response.raise_for_status()
             
             token_response = response.json()
             
@@ -156,7 +163,8 @@ class XAuthService:
         except requests.exceptions.RequestException as e:
             self.logger.error(f"Error exchanging code for tokens: {e}")
             if hasattr(e, 'response') and e.response is not None:
-                self.logger.error(f"Response: {e.response.text}")
+                self.logger.error(f"Response status: {e.response.status_code}")
+                self.logger.error(f"Response text: {e.response.text}")
             raise ValueError(f"Failed to exchange code for tokens: {e}")
     
     def refresh_access_token(self, refresh_token: str) -> Dict:
@@ -189,8 +197,15 @@ class XAuthService:
         }
         
         try:
-            response = requests.post(self.token_url, data=token_data, headers=headers)
-            response.raise_for_status()
+            # Try with SSL verification first
+            try:
+                response = requests.post(self.token_url, data=token_data, headers=headers, verify=True, timeout=30)
+                response.raise_for_status()
+            except requests.exceptions.SSLError as ssl_error:
+                # Retry without SSL verification (for development environments)
+                self.logger.warning(f"SSL verification failed, retrying without verification: {ssl_error}")
+                response = requests.post(self.token_url, data=token_data, headers=headers, verify=False, timeout=30)
+                response.raise_for_status()
             
             token_response = response.json()
             
@@ -201,7 +216,8 @@ class XAuthService:
         except requests.exceptions.RequestException as e:
             self.logger.error(f"Error refreshing access token: {e}")
             if hasattr(e, 'response') and e.response is not None:
-                self.logger.error(f"Response: {e.response.text}")
+                self.logger.error(f"Response status: {e.response.status_code}")
+                self.logger.error(f"Response text: {e.response.text}")
             raise ValueError(f"Failed to refresh access token: {e}")
     
     def store_user_tokens(self, user_id: str, tokens: Dict):
