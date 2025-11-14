@@ -22,7 +22,11 @@ function App() {
     );
   }, [notifications]);
 
-  const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const [voiceEnabled, setVoiceEnabled] = useState(() => {
+    // Check if voice was enabled previously
+    const stored = localStorage.getItem("voiceEnabled");
+    return stored ? JSON.parse(stored) : true;
+  });
   const [apiHealth, setApiHealth] = useState<boolean>(false);
   const [autoSignalsEnabled, setAutoSignalsEnabled] = useState(false);
   const [autoSignalsLoading, setAutoSignalsLoading] = useState(false);
@@ -44,6 +48,15 @@ function App() {
       JSON.stringify(notificationsCollapsed)
     );
   }, [notificationsCollapsed]);
+
+  // Persist voice enabled state
+  useEffect(() => {
+    localStorage.setItem("voiceEnabled", JSON.stringify(voiceEnabled));
+    // If voice is enabled, try to initialize TTS immediately
+    if (voiceEnabled) {
+      initializeBrowserTTS();
+    }
+  }, [voiceEnabled]);
 
   // Initialize voice system on mount
   useEffect(() => {
