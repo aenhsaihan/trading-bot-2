@@ -33,9 +33,12 @@ class XAuthService:
         self.authorize_url = "https://twitter.com/i/oauth2/authorize"
         self.token_url = "https://api.twitter.com/2/oauth2/token"
         
-        # In-memory storage for OAuth state and tokens (in production, use database)
+        # In-memory storage for OAuth state (temporary, only during OAuth flow)
         self._oauth_states: Dict[str, str] = {}  # state -> code_verifier
-        self._user_tokens: Dict[str, Dict] = {}  # user_id -> {access_token, refresh_token, expires_at}
+        
+        # File-based token storage (simple JSON file for testing)
+        self._tokens_file = Path(__file__).parent.parent.parent / ".x_tokens.json"
+        self._user_tokens: Dict[str, Dict] = self._load_tokens_from_file()
         
         if not self.client_id or not self.client_secret:
             self.logger.warning("X OAuth credentials not configured. Set X_CLIENT_ID and X_CLIENT_SECRET in .env")
@@ -220,9 +223,35 @@ class XAuthService:
                 self.logger.error(f"Response text: {e.response.text}")
             raise ValueError(f"Failed to refresh access token: {e}")
     
+    def _load_tokens_from_file(self) -> Dict[str, Dict]:
+        """Load tokens from JSON file"""
+        if self._tokens_file.exists():
+            try:
+                import json
+                with open(self._tokens_file, 'r') as f:
+                    tokens = json.load(f)
+                    self.logger.info(f"Loaded tokens from file for {len(tokens)} users")
+                    return tokens
+            except Exception as e:
+                self.logger.warning(f"Error loading tokens from file: {e}")
+                return {}
+        return {}
+    
+    def _save_tokens_to_file(self):
+        """Save tokens to JSON file"""
+        try:
+            import json
+            # Create parent directory if it doesn't exist
+            self._tokens_file.parent.mkdir(parents=True, exist_ok=True)
+            with open(self._tokens_file, 'w') as f:
+                json.dump(self._user_tokens, f, indent=2)
+            self.logger.debug("Saved tokens to file")
+        except Exception as e:
+            self.logger.error(f"Error saving tokens to file: {e}")
+    
     def store_user_tokens(self, user_id: str, tokens: Dict):
         """
-        Store user tokens (in-memory for MVP, use database in production)
+        Store user tokens (saved to JSON file for persistence)
         
         Args:
             user_id: User identifier
@@ -236,6 +265,9 @@ class XAuthService:
             "expires_at": time.time() + tokens.get("expires_in", 7200),  # Default 2 hours
             "token_type": tokens.get("token_type", "bearer")
         }
+        
+        # Save to file
+        self._save_tokens_to_file()
         
         self.logger.info(f"Stored tokens for user: {user_id[:8]}...")
     
@@ -291,6 +323,7 @@ class XAuthService:
             if refresh_token:
                 try:
                     new_tokens = self.refresh_access_token(refresh_token)
+                    # Update stored tokens (this will save to file)
                     self.store_user_tokens(user_id, new_tokens)
                     return new_tokens.get("access_token")
                 except Exception as e:
@@ -308,6 +341,8 @@ class XAuthService:
         """
         if user_id in self._user_tokens:
             del self._user_tokens[user_id]
+            # Save to file (remove from file)
+            self._save_tokens_to_file()
             self.logger.info(f"Revoked tokens for user: {user_id[:8]}...")
 
 
