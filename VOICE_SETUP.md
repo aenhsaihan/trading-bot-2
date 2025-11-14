@@ -32,11 +32,73 @@ The service uses these ElevenLabs voices by default:
 
 You can change the voice in `backend/services/voice_service.py` line 229.
 
+## Azure Neural TTS Setup (Fallback Option 1)
+
+1. **Get your Azure credentials:**
+   - Sign up at [Azure Portal](https://portal.azure.com/)
+   - Create a Speech Services resource
+   - Go to "Keys and Endpoint" → Copy your key and region
+
+2. **Add to `.env` file:**
+   ```env
+   AZURE_TTS_KEY=your_azure_key_here
+   AZURE_TTS_REGION=your_region_here  # e.g., eastus, westus2
+   ```
+
+3. **Restart the backend server**
+
+4. **Test it:**
+   ```bash
+   curl -X POST http://localhost:8000/voice/synthesize \
+     -H "Content-Type: application/json" \
+     -d '{"text": "Testing Azure voice", "priority": "medium", "provider": "azure"}'
+   ```
+
+## Google Cloud TTS Setup (Fallback Option 2)
+
+### Option A: Using API Key (Simpler)
+
+1. **Get your API key:**
+   - Go to [Google Cloud Console](https://console.cloud.google.com/)
+   - Enable the Cloud Text-to-Speech API
+   - Go to "Credentials" → Create API Key
+   - Copy your API key
+
+2. **Add to `.env` file:**
+   ```env
+   GOOGLE_TTS_KEY=your_api_key_here
+   ```
+
+3. **Restart the backend server**
+
+### Option B: Using Service Account (More Secure)
+
+1. **Create a service account:**
+   - Go to [Google Cloud Console](https://console.cloud.google.com/)
+   - Enable the Cloud Text-to-Speech API
+   - Go to "IAM & Admin" → "Service Accounts"
+   - Create a new service account with "Cloud Text-to-Speech API User" role
+   - Download the JSON key file
+
+2. **Add to `.env` file:**
+   ```env
+   GOOGLE_APPLICATION_CREDENTIALS=/path/to/your/service-account-key.json
+   ```
+
+3. **Restart the backend server**
+
+4. **Test it:**
+   ```bash
+   curl -X POST http://localhost:8000/voice/synthesize \
+     -H "Content-Type: application/json" \
+     -d '{"text": "Testing Google voice", "priority": "medium", "provider": "google"}'
+   ```
+
 ## Fallback Providers
 
 If ElevenLabs is not configured, the system will automatically fallback to:
 1. **Azure Neural TTS** (if `AZURE_TTS_KEY` and `AZURE_TTS_REGION` are set)
-2. **Google Cloud TTS** (if `GOOGLE_TTS_KEY` is set)
+2. **Google Cloud TTS** (if `GOOGLE_APPLICATION_CREDENTIALS` or `GOOGLE_TTS_KEY` is set)
 3. **Browser TTS** (always available, lowest quality)
 
 ## Testing

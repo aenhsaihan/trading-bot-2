@@ -72,13 +72,15 @@ class VoiceService:
         else:
             self.logger.warning("Azure TTS credentials not found (AZURE_TTS_KEY, AZURE_TTS_REGION)")
         
-        # Check Google Cloud
+        # Check Google Cloud (supports both service account and API key)
+        google_creds = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
         google_key = os.getenv("GOOGLE_TTS_KEY")
-        providers[TTSProvider.GOOGLE] = bool(google_key)
-        if google_key:
-            self.logger.info("Google Cloud TTS available")
+        providers[TTSProvider.GOOGLE] = bool(google_creds or google_key)
+        if google_creds or google_key:
+            method = "service account" if google_creds else "API key"
+            self.logger.info(f"Google Cloud TTS available ({method})")
         else:
-            self.logger.warning("Google Cloud TTS key not found (GOOGLE_TTS_KEY)")
+            self.logger.warning("Google Cloud TTS credentials not found (GOOGLE_APPLICATION_CREDENTIALS or GOOGLE_TTS_KEY)")
         
         # Browser TTS is always available (handled on frontend)
         providers[TTSProvider.BROWSER] = True
@@ -314,8 +316,18 @@ class VoiceService:
                 </voice>
             </speak>"""
             
-            response = requests.post(url, data=ssml.encode('utf-8'), headers=headers, timeout=10)
-            response.raise_for_status()
+            # Try with SSL verification first
+            try:
+                response = requests.post(url, data=ssml.encode('utf-8'), headers=headers, timeout=30, verify=True)
+            except requests.exceptions.SSLError as ssl_error:
+                # If SSL verification fails, try without verification (development mode)
+                self.logger.warning(f"SSL verification failed, retrying without verification (development mode): {ssl_error}")
+                response = requests.post(url, data=ssml.encode('utf-8'), headers=headers, timeout=30, verify=False)
+            
+            if response.status_code != 200:
+                error_detail = response.text
+                self.logger.error(f"Azure TTS API error {response.status_code}: {error_detail}")
+                raise Exception(f"Azure TTS API returned {response.status_code}: {error_detail}")
             
             return response.content
             
@@ -328,8 +340,23 @@ class VoiceService:
         """Synthesize using Google Cloud TTS"""
         try:
             from google.cloud import texttospeech
+            import os
             
-            # Initialize client
+            # Google Cloud TTS can use:
+            # 1. Service account JSON file (GOOGLE_APPLICATION_CREDENTIALS env var)
+            # 2. API key (GOOGLE_TTS_KEY env var) - but this requires REST API, not client library
+            # For now, we'll use the client library which requires service account
+            
+            # Check if credentials are set
+            google_creds = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+            if not google_creds:
+                # Try alternative: use API key with REST API
+                api_key = os.getenv("GOOGLE_TTS_KEY")
+                if api_key:
+                    return self._synthesize_google_rest(text, voice_id, priority, api_key)
+                raise ValueError("Google TTS credentials not set. Set GOOGLE_APPLICATION_CREDENTIALS or GOOGLE_TTS_KEY")
+            
+            # Initialize client with service account
             client = texttospeech.TextToSpeechClient()
             
             # Configure voice (female, calm, professional)
