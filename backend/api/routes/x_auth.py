@@ -322,6 +322,60 @@ async def test_user_profile(user_id: str = Query(default="default", description=
         }
 
 
+@router.get("/test/following")
+async def test_following(user_id: str = Query(default="default", description="User identifier")):
+    """
+    Test fetching followed accounts with detailed response
+    
+    Args:
+        user_id: User identifier (default: "default" for MVP)
+        
+    Returns:
+        Raw API response for debugging
+    """
+    try:
+        from backend.services.x_api_client import get_x_api_client
+        api_client = get_x_api_client(user_id)
+        
+        # Get user ID first
+        me = api_client.get_me()
+        user_id_for_api = me.get("id")
+        
+        # Make direct API call to see raw response
+        import requests
+        access_token = api_client._get_access_token()
+        url = f"https://api.twitter.com/2/users/{user_id_for_api}/following"
+        headers = {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json"
+        }
+        params = {
+            "max_results": 10,
+            "user.fields": "id,name,username,description,public_metrics"
+        }
+        
+        # Try with SSL retry
+        try:
+            response = requests.get(url, headers=headers, params=params, verify=True, timeout=30)
+        except requests.exceptions.SSLError:
+            response = requests.get(url, headers=headers, params=params, verify=False, timeout=30)
+        
+        return {
+            "success": True,
+            "status_code": response.status_code,
+            "response": response.json(),
+            "user_id": user_id_for_api,
+            "user_profile": me
+        }
+    except Exception as e:
+        import traceback
+        return {
+            "success": False,
+            "error": str(e),
+            "error_details": traceback.format_exc()
+        }
+
+
 @router.get("/monitoring/accounts")
 async def get_followed_accounts(user_id: str = Query(default="default", description="User identifier")):
     """
