@@ -14,6 +14,7 @@ from src.notifications.notification_types import (
     NotificationPriority,
     NotificationSource
 )
+from backend.services.notification_message_service import NotificationMessageService
 from typing import List, Optional, Dict
 from datetime import datetime
 
@@ -39,6 +40,8 @@ class NotificationService:
             return
         self._initialized = True
         # _websocket_clients is a class variable, shared across instances
+        # Initialize message summarization service
+        self.message_service = NotificationMessageService()
     
     def add_websocket_client(self, websocket):
         """Add a WebSocket client for real-time updates"""
@@ -123,6 +126,19 @@ class NotificationService:
             actions=actions or [],
             expires_at=expires_dt
         )
+        
+        # Generate AI-summarized message (StarCraft-style)
+        try:
+            notification_dict = notification.to_dict()
+            summarized = self.message_service.summarize(notification_dict)
+            notification.summarized_message = summarized
+        except Exception as e:
+            # Log error but don't fail notification creation
+            import traceback
+            print(f"[NotificationService] Error generating summary: {e}")
+            print(traceback.format_exc())
+            # Fallback: use title as summary
+            notification.summarized_message = title
         
         return notification
     

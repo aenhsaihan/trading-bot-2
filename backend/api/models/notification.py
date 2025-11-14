@@ -25,6 +25,7 @@ class NotificationResponse(BaseModel):
     responded: bool = False
     response_action: Optional[str] = None
     response_at: Optional[str] = None
+    summarized_message: Optional[str] = None  # AI-generated concise message
     
     class Config:
         json_schema_extra = {
@@ -43,7 +44,8 @@ class NotificationResponse(BaseModel):
                 "actions": ["approve", "reject", "custom"],
                 "created_at": "2025-11-12T10:00:00",
                 "read": False,
-                "responded": False
+                "responded": False,
+                "summarized_message": "BTC breaking resistance. High confidence. Volume surge detected."
             }
         }
 
