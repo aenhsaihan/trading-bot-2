@@ -445,6 +445,7 @@ export async function checkBackendTTS(): Promise<boolean> {
 /**
  * Initialize browser TTS (must be called from user interaction)
  * This can be called multiple times safely
+ * Also initializes audio playback if not already initialized
  */
 export function initializeBrowserTTS() {
   if (!synth) {
@@ -452,27 +453,61 @@ export function initializeBrowserTTS() {
     return false;
   }
   
-  if (speechInitialized) {
-    return true;  // Already initialized
+  let ttsInitialized = false;
+  if (!speechInitialized) {
+    try {
+      const testUtterance = new SpeechSynthesisUtterance('');
+      testUtterance.volume = 0;
+      testUtterance.rate = 0.1;
+      synth.speak(testUtterance);
+      synth.cancel();
+      speechInitialized = true;
+      ttsInitialized = true;
+      console.log('✅ Browser TTS initialized');
+    } catch (e) {
+      console.warn('⚠️ Could not initialize browser TTS:', e);
+      return false;
+    }
+  } else {
+    ttsInitialized = true;
   }
   
-  try {
-    const testUtterance = new SpeechSynthesisUtterance('');
-    testUtterance.volume = 0;
-    testUtterance.rate = 0.1;
-    synth.speak(testUtterance);
-    synth.cancel();
-    speechInitialized = true;
-    console.log('✅ Browser TTS initialized');
+  // Also initialize audio playback if not already initialized
+  if (!audioPlaybackInitialized) {
+    console.log('🔓 Also initializing audio playback from initializeBrowserTTS()...');
+    const testAudio = new Audio();
+    testAudio.volume = 0.01;
+    testAudio.preload = 'auto';
+    testAudio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
     
-    // Clear the waiting flag and process queue if there are messages
-    // (This is handled in initSpeechOnInteraction for audio playback)
-    
-    return true;
-  } catch (e) {
-    console.warn('⚠️ Could not initialize browser TTS:', e);
-    return false;
+    const playPromise = testAudio.play();
+    if (playPromise !== undefined) {
+      playPromise.then(() => {
+        testAudio.pause();
+        testAudio.currentTime = 0;
+        setTimeout(() => {
+          audioPlaybackInitialized = true;
+          console.log('✅ Audio playback initialized from initializeBrowserTTS()');
+          
+          // Process queue if there are messages waiting
+          if (waitingForUserInteraction && voiceQueue.length > 0) {
+            waitingForUserInteraction = false;
+            console.log('✅ Processing queued audio after initialization...');
+            setTimeout(() => {
+              processQueue();
+            }, 100);
+          }
+        }, 50);
+      }).catch((error) => {
+        console.warn('⚠️ Could not initialize audio playback from initializeBrowserTTS():', error);
+      });
+    } else {
+      audioPlaybackInitialized = true;
+      console.log('✅ Audio playback initialized (no promise) from initializeBrowserTTS()');
+    }
   }
+  
+  return ttsInitialized;
 }
 
 /**
