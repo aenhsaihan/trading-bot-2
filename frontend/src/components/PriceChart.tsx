@@ -122,9 +122,10 @@ export function PriceChart({
       }
     };
 
-    const containerWidth = container.clientWidth || container.offsetWidth || 800;
+    const containerWidth =
+      container.clientWidth || container.offsetWidth || 800;
     let cleanupFn: (() => void) | null = null;
-    
+
     if (containerWidth === 0) {
       console.log("PriceChart: Container width is 0, waiting for layout");
       // Use a small timeout to wait for layout
@@ -291,7 +292,7 @@ export function PriceChart({
     <div
       ref={chartContainerRef}
       className="w-full relative overflow-hidden"
-      style={{ height: `${height}px`, minWidth: '100px', width: '100%' }}
+      style={{ height: `${height}px`, minWidth: "100px", width: "100%" }}
     >
       {(!candles || candles.length === 0) && (
         <div className="flex items-center justify-center h-full text-gray-500 absolute inset-0">

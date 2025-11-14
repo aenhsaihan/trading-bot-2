@@ -124,6 +124,7 @@ Transform notifications into a **StarCraft-like tactical command center** where:
 **Actual Time:** ~6 hours
 
 **Completion Notes:**
+
 - All notifications now automatically get AI-generated summaries
 - Summaries are cached to reduce API calls
 - Fallback summarization when AI service unavailable
