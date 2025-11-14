@@ -34,6 +34,10 @@ class XAPIClient:
         # X API v2 base URL
         self.base_url = "https://api.twitter.com/2"
         
+        # API Key and Secret (Consumer Keys - for OAuth 1.0a or some endpoints)
+        self.api_key = os.getenv("X_API_KEY")
+        self.api_secret = os.getenv("X_API_SECRET")
+        
         # Bearer token (for read-only endpoints, fallback)
         # URL decode the bearer token if it's URL-encoded
         bearer_token_raw = os.getenv("X_BEARER_TOKEN", "")
@@ -65,7 +69,8 @@ class XAPIClient:
         Returns:
             API response JSON
         """
-        # Try OAuth 2.0 access token first, fallback to Bearer token for read-only endpoints
+        # Try OAuth 2.0 access token first (for user-specific endpoints)
+        # Fallback to Bearer token for read-only endpoints
         access_token = self._get_access_token()
         bearer_token = self._get_bearer_token()
         
@@ -74,13 +79,17 @@ class XAPIClient:
         
         # Use OAuth token if available (for user-specific endpoints), otherwise Bearer token
         token_to_use = access_token if access_token else bearer_token
-        token_type = "OAuth" if access_token else "Bearer"
+        token_type = "OAuth 2.0" if access_token else "Bearer"
         
         url = f"{self.base_url}/{endpoint.lstrip('/')}"
         headers = {
             "Authorization": f"Bearer {token_to_use}",
             "Content-Type": "application/json"
         }
+        
+        # Add API Key to headers if available (some endpoints might need it)
+        if self.api_key:
+            headers["X-API-Key"] = self.api_key
         
         self.logger.debug(f"Using {token_type} token for {endpoint}")
         
