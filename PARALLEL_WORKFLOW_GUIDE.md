@@ -50,48 +50,123 @@ git push origin feature/agent-1-description --force-with-lease  # If rebased
 
 ---
 
-## 🔄 Alternative: Git Worktree (When You Need Multiple Branches Simultaneously)
+## 🔄 Git Worktree: REQUIRED for Multiple Agents on Same Machine
+
+### ⚠️ Critical: If Agents Work on Same Machine
+
+**If multiple agents are working on the SAME machine simultaneously, you MUST use git worktree** to avoid:
+- ❌ File conflicts (agents editing same files)
+- ❌ Git state conflicts (multiple agents committing)
+- ❌ Service conflicts (backend/frontend can only run once per port)
+- ❌ Working directory conflicts
 
 ### What Is Git Worktree?
 
 Git worktree allows you to have **multiple working directories** from the same repository, each on a different branch.
 
-### When Would You Use It?
+### Setup for Parallel Agents on Same Machine
 
-**Use worktree if:**
-- You need to work on multiple branches **at the same time** on the **same machine**
-- You want to test different branches simultaneously
-- You're a single developer managing multiple features
-
-**Example:**
 ```bash
-# Main worktree (on main branch)
-cd /path/to/repo
+# Main worktree (on main branch) - this is your current repo
+cd /Users/anar_enhsaihan/Documents/playground/composer/trading-bot-2
 
-# Create additional worktree for Agent 1's branch
-git worktree add ../repo-agent1 feature/agent-1-threat-detection
+# Create worktree for Agent 1's branch
+git worktree add ../trading-bot-2-agent1 feature/agent-1-threat-detection
 
-# Create additional worktree for Agent 2's branch
-git worktree add ../repo-agent2 feature/agent-2-ai-summarization
+# Create worktree for Agent 2's branch  
+git worktree add ../trading-bot-2-agent2 feature/agent-2-ai-summarization
 
 # Now you have:
-# /path/to/repo              → main branch
-# /path/to/repo-agent1       → Agent 1's branch
-# /path/to/repo-agent2       → Agent 2's branch
+# /Users/.../trading-bot-2              → main branch (original)
+# /Users/.../trading-bot-2-agent1      → Agent 1's branch
+# /Users/.../trading-bot-2-agent2      → Agent 2's branch
 
-# Each can run independently:
-cd /path/to/repo-agent1 && python backend/run.py  # Terminal 1
-cd /path/to/repo-agent2 && python backend/run.py  # Terminal 2
+# Each agent works in their own directory:
+# Agent 1: cd ../trading-bot-2-agent1
+# Agent 2: cd ../trading-bot-2-agent2
 ```
 
-### For Multiple Agents (Separate Developers/AI Instances)
+### Workflow with Worktree
 
-**Worktree is NOT needed** because:
-- Each agent has their own clone of the repository
-- Each agent works on their own machine/environment
-- They don't need multiple branches active simultaneously
+**Agent 1:**
+```bash
+# Agent 1 works in their worktree
+cd ../trading-bot-2-agent1
 
-**Standard feature branch workflow is sufficient.**
+# Create/switch to their branch (if not already created)
+git checkout -b feature/agent-1-threat-detection
+
+# Work on files
+# ... edit threat_detection_service.py ...
+
+# Commit
+git add backend/services/threat_detection_service.py
+git commit -m "Agent 1: Add threat detection service"
+git push origin feature/agent-1-threat-detection
+
+# Test (in their own directory)
+python backend/run.py  # Runs on port 8000 (or different port)
+```
+
+**Agent 2 (in parallel):**
+```bash
+# Agent 2 works in their worktree
+cd ../trading-bot-2-agent2
+
+# Create/switch to their branch
+git checkout -b feature/agent-2-ai-summarization
+
+# Work on files (different files, no conflict)
+# ... edit notification_message_service.py ...
+
+# Commit
+git add backend/services/notification_message_service.py
+git commit -m "Agent 2: Add AI message summarization"
+git push origin feature/agent-2-ai-summarization
+
+# Test (in their own directory)
+# Note: Can't run backend on same port, or just test sequentially
+```
+
+### Managing Worktrees
+
+```bash
+# List all worktrees
+git worktree list
+
+# Remove a worktree when agent is done
+git worktree remove ../trading-bot-2-agent1
+
+# Or force remove if there are uncommitted changes
+git worktree remove --force ../trading-bot-2-agent1
+```
+
+### Port Conflicts
+
+**If agents need to test simultaneously:**
+
+**Option 1: Different ports**
+```bash
+# Agent 1
+cd ../trading-bot-2-agent1
+python backend/run.py  # Uses default port 8000
+
+# Agent 2 (modify backend/run.py or use env var)
+cd ../trading-bot-2-agent2
+PORT=8001 python backend/run.py  # Different port
+```
+
+**Option 2: Test sequentially**
+- Agent 1 tests, then stops
+- Agent 2 tests, then stops
+- Or use different machines/containers
+
+### For Separate Machines/Environments
+
+**If agents work on DIFFERENT machines:**
+- Each agent has their own clone
+- Standard feature branch workflow is sufficient
+- No worktree needed
 
 ---
 
@@ -264,28 +339,51 @@ git log --all --format="%h %an %ad %s" --date=short -- backend/services/voice.ts
 
 ## 📊 Summary
 
-### Standard Workflow (Recommended)
+### ⚠️ IMPORTANT: Same Machine vs Different Machines
 
-- ✅ Each agent: **Feature branch from `main`**
-- ✅ Work independently on different files
-- ✅ Push to remote for backup
-- ✅ Update branch when others finish
-- ✅ Merge to `main` when done
+**If agents work on the SAME machine:**
+- ✅ **MUST use git worktree** - Each agent gets their own directory
+- ✅ Prevents file conflicts, git state conflicts, service conflicts
+- ✅ Each agent can work independently in their own worktree
 
-### When to Use Worktree
+**If agents work on DIFFERENT machines:**
+- ✅ **Standard feature branch workflow** - Each agent has their own clone
+- ✅ No worktree needed
+- ✅ Work independently, push to remote, merge when done
 
-- ✅ Only if you need **multiple branches active simultaneously** on **same machine**
-- ✅ For testing different branches at the same time
-- ❌ **NOT needed** for separate agents (they have separate clones)
+### Recommended Workflow for Same Machine
 
-### For Our Use Case
+**Setup (once):**
+```bash
+# In main repo
+git worktree add ../trading-bot-2-agent1 feature/agent-1-threat-detection
+git worktree add ../trading-bot-2-agent2 feature/agent-2-ai-summarization
+```
 
-**Use standard feature branch workflow:**
-- Each agent creates their branch from `main`
-- They work independently
-- They push to remote
-- They merge when done
-- Other agents pull latest `main` and continue
+**Each Agent:**
+```bash
+# Agent 1
+cd ../trading-bot-2-agent1
+# Work, commit, push, test
 
-**This is what we've been doing and it works perfectly!** ✅
+# Agent 2  
+cd ../trading-bot-2-agent2
+# Work, commit, push, test
+```
+
+**Cleanup (when done):**
+```bash
+git worktree remove ../trading-bot-2-agent1
+git worktree remove ../trading-bot-2-agent2
+```
+
+### For Our Use Case (Multiple Agents on Same Machine)
+
+**✅ Use git worktree:**
+- Each agent gets their own working directory
+- No conflicts between agents
+- Can test independently (or on different ports)
+- Clean separation of work
+
+**This is the correct approach for parallel agents on the same machine!** ✅
 
