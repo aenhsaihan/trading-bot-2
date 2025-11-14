@@ -7,6 +7,7 @@ import { ResizableSplitView } from "./components/ResizableSplitView";
 import { notificationAPI, systemAPI } from "./services/api";
 import { Notification } from "./types/notification";
 import { Wifi, WifiOff, Bell } from "lucide-react";
+import { initializeVoiceSystem, initializeBrowserTTS } from "./utils/voice";
 
 function App() {
   const { notifications, loading, connected, markAsRead, respond, refresh } =
@@ -43,6 +44,11 @@ function App() {
       JSON.stringify(notificationsCollapsed)
     );
   }, [notificationsCollapsed]);
+
+  // Initialize voice system on mount
+  useEffect(() => {
+    initializeVoiceSystem();
+  }, []);
 
   // Check API health
   useEffect(() => {
@@ -199,19 +205,9 @@ function App() {
                   checked={voiceEnabled}
                   onChange={(e) => {
                     setVoiceEnabled(e.target.checked);
-                    // Initialize speech synthesis on toggle (user interaction)
-                    if (e.target.checked && typeof window !== 'undefined' && 'speechSynthesis' in window) {
-                      try {
-                        const synth = window.speechSynthesis;
-                        const testUtterance = new SpeechSynthesisUtterance('');
-                        testUtterance.volume = 0;
-                        testUtterance.rate = 0.1;
-                        synth.speak(testUtterance);
-                        synth.cancel();
-                        console.log('✅ Voice alerts enabled and initialized');
-                      } catch (err) {
-                        console.warn('⚠️ Could not initialize voice alerts:', err);
-                      }
+                    // Initialize browser TTS on toggle (user interaction)
+                    if (e.target.checked) {
+                      initializeBrowserTTS();
                     }
                   }}
                   className="rounded"

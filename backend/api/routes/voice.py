@@ -47,6 +47,19 @@ async def synthesize_voice(request: SynthesizeRequest):
         if not request.text or not request.text.strip():
             raise HTTPException(status_code=400, detail="Text cannot be empty")
         
+        # Check if any providers are available
+        available_providers = [
+            p for p, available in voice_service.providers.items()
+            if available and p != TTSProvider.BROWSER
+        ]
+        
+        if not available_providers:
+            # No providers configured - return 503 (Service Unavailable) so frontend can fallback
+            raise HTTPException(
+                status_code=503,
+                detail="No TTS providers configured. Please set ELEVENLABS_API_KEY, AZURE_TTS_KEY, or GOOGLE_TTS_KEY. Falling back to browser TTS."
+            )
+        
         # Convert provider string to enum if provided
         provider = None
         if request.provider:
@@ -75,6 +88,9 @@ async def synthesize_voice(request: SynthesizeRequest):
             format="mp3"
         )
         
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:

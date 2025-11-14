@@ -109,18 +109,11 @@ function playWithBrowserTTS(message: string, priority: string): Promise<void> {
       return;
     }
     
-    // Initialize if needed
+    // Initialize if needed - this must happen synchronously before speaking
     if (!speechInitialized) {
-      try {
-        const testUtterance = new SpeechSynthesisUtterance('');
-        testUtterance.volume = 0;
-        testUtterance.rate = 0.1;
-        synth.speak(testUtterance);
-        synth.cancel();
-        speechInitialized = true;
-      } catch (e) {
-        console.warn('⚠️ Could not initialize browser TTS');
-      }
+      console.warn('⚠️ Browser TTS not initialized yet. This may fail if not triggered by user interaction.');
+      // Don't try to initialize here - it won't work without user interaction
+      // Just proceed and hope it works (or user will need to interact first)
     }
     
     const utterance = new SpeechSynthesisUtterance(message);
@@ -199,8 +192,19 @@ async function processQueue() {
         
         console.log('✅ Speech ended:', next.message);
         
-      } catch (backendError) {
-        console.warn('⚠️ Backend TTS failed, falling back to browser TTS:', backendError);
+      } catch (backendError: any) {
+        // Check if it's a 503 (no providers) or other error
+        const isServiceUnavailable = backendError?.message?.includes('503') || 
+                                     backendError?.message?.includes('No TTS providers');
+        
+        if (isServiceUnavailable) {
+          console.info('ℹ️ Backend TTS not configured, using browser TTS');
+          // Disable backend TTS for future messages to avoid repeated failed requests
+          useBackendTTS = false;
+        } else {
+          console.warn('⚠️ Backend TTS failed, falling back to browser TTS:', backendError);
+        }
+        
         // Fallback to browser TTS
         await playWithBrowserTTS(next.message, next.priority);
       }
@@ -211,6 +215,8 @@ async function processQueue() {
     
   } catch (error) {
     console.error('❌ Voice playback error:', error);
+    // If browser TTS also fails, just log and continue
+    // Don't block the queue
   } finally {
     isSpeaking = false;
     currentAudio = null;
@@ -301,9 +307,57 @@ export async function checkBackendTTS(): Promise<boolean> {
     const providers = await voiceAPI.getAvailableProviders();
     const hasProvider = Object.values(providers.providers).some(available => available);
     console.log('🔍 Backend TTS providers:', providers);
+    
+    // If no providers, disable backend TTS
+    if (!hasProvider) {
+      useBackendTTS = false;
+      console.info('ℹ️ No backend TTS providers available, using browser TTS');
+    }
+    
     return hasProvider;
   } catch (error) {
-    console.warn('⚠️ Could not check backend TTS availability:', error);
+    console.warn('⚠️ Could not check backend TTS availability, using browser TTS:', error);
+    useBackendTTS = false;
     return false;
+  }
+}
+
+/**
+ * Initialize browser TTS (must be called from user interaction)
+ */
+export function initializeBrowserTTS() {
+  if (!synth) {
+    return false;
+  }
+  
+  if (speechInitialized) {
+    return true;
+  }
+  
+  try {
+    const testUtterance = new SpeechSynthesisUtterance('');
+    testUtterance.volume = 0;
+    testUtterance.rate = 0.1;
+    synth.speak(testUtterance);
+    synth.cancel();
+    speechInitialized = true;
+    console.log('✅ Browser TTS initialized');
+    return true;
+  } catch (e) {
+    console.warn('⚠️ Could not initialize browser TTS:', e);
+    return false;
+  }
+}
+
+/**
+ * Initialize voice system - check backend availability on startup
+ */
+export async function initializeVoiceSystem() {
+  // Check backend TTS availability
+  const backendAvailable = await checkBackendTTS();
+  
+  if (!backendAvailable) {
+    console.info('ℹ️ Using browser TTS (backend TTS not configured)');
+    useBackendTTS = false;
   }
 }
