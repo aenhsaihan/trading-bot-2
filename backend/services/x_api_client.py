@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 from typing import List, Dict, Optional
 from datetime import datetime
+from urllib.parse import unquote
 import requests
 from src.utils.logger import setup_logger
 
@@ -33,12 +34,24 @@ class XAPIClient:
         # X API v2 base URL
         self.base_url = "https://api.twitter.com/2"
         
+        # Bearer token (for read-only endpoints, fallback)
+        # URL decode the bearer token if it's URL-encoded
+        bearer_token_raw = os.getenv("X_BEARER_TOKEN", "")
+        if bearer_token_raw:
+            self.bearer_token = unquote(bearer_token_raw)
+        else:
+            self.bearer_token = None
+        
         # Rate limit tracking (simple in-memory for MVP)
         self._rate_limits: Dict[str, Dict] = {}
     
     def _get_access_token(self) -> Optional[str]:
-        """Get valid access token"""
+        """Get valid access token (OAuth 2.0)"""
         return self.auth_service.get_valid_access_token(self.user_id)
+    
+    def _get_bearer_token(self) -> Optional[str]:
+        """Get Bearer token (for read-only endpoints)"""
+        return self.bearer_token if self.bearer_token else None
     
     def _make_request(self, method: str, endpoint: str, params: Optional[Dict] = None) -> Dict:
         """
@@ -52,15 +65,24 @@ class XAPIClient:
         Returns:
             API response JSON
         """
+        # Try OAuth 2.0 access token first, fallback to Bearer token for read-only endpoints
         access_token = self._get_access_token()
-        if not access_token:
-            raise ValueError("X account not connected. Please connect your X account first.")
+        bearer_token = self._get_bearer_token()
+        
+        if not access_token and not bearer_token:
+            raise ValueError("X account not connected and no Bearer token configured. Please connect your X account or set X_BEARER_TOKEN in .env")
+        
+        # Use OAuth token if available (for user-specific endpoints), otherwise Bearer token
+        token_to_use = access_token if access_token else bearer_token
+        token_type = "OAuth" if access_token else "Bearer"
         
         url = f"{self.base_url}/{endpoint.lstrip('/')}"
         headers = {
-            "Authorization": f"Bearer {access_token}",
+            "Authorization": f"Bearer {token_to_use}",
             "Content-Type": "application/json"
         }
+        
+        self.logger.debug(f"Using {token_type} token for {endpoint}")
         
         try:
             # Try with SSL verification first
@@ -156,16 +178,24 @@ class XAPIClient:
                 self.logger.info(f"Fetching following for user {user_id} with params: {params}")
                 response = self._make_request("GET", f"/users/{user_id}/following", params)
                 
+                self.logger.info(f"API response keys: {list(response.keys())}")
                 self.logger.info(f"API response: {response}")
                 
                 following = response.get("data", [])
                 if following:
                     all_following.extend(following)
                     self.logger.info(f"Got {len(following)} accounts in this batch")
+                else:
+                    self.logger.warning(f"No accounts in response. Full response: {response}")
                 
                 # Check for next page
                 meta = response.get("meta", {})
                 next_token = meta.get("next_token")
+                
+                # If no data and no next_token, break (might be empty list or error)
+                if not following and not next_token:
+                    self.logger.warning("No accounts found and no pagination token. Breaking.")
+                    break
                 
                 if not next_token or len(all_following) >= max_results:
                     break
