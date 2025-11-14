@@ -53,6 +53,11 @@ export function useNotifications() {
         // Set up message handler for reused connection
         existingGlobalConnection.onmessage = (event) => {
           try {
+            // Handle pong (keep-alive response)
+            if (event.data === "pong") {
+              return;
+            }
+            
             const data = JSON.parse(event.data);
             console.log("WebSocket message received:", data);
 
