@@ -178,6 +178,31 @@ async def get_monitoring_status(user_id: str = Query(default="default", descript
     return status
 
 
+@router.get("/test/profile")
+async def test_user_profile(user_id: str = Query(default="default", description="User identifier")):
+    """
+    Test API connection by fetching user profile
+    
+    Args:
+        user_id: User identifier (default: "default" for MVP)
+        
+    Returns:
+        User profile data
+    """
+    try:
+        from backend.services.x_api_client import get_x_api_client
+        api_client = get_x_api_client(user_id)
+        profile = api_client.get_me()
+        return {"success": True, "profile": profile}
+    except Exception as e:
+        import traceback
+        return {
+            "success": False,
+            "error": str(e),
+            "error_details": traceback.format_exc()
+        }
+
+
 @router.get("/monitoring/accounts")
 async def get_followed_accounts(user_id: str = Query(default="default", description="User identifier")):
     """
@@ -205,9 +230,20 @@ async def refresh_followed_accounts(user_id: str = Query(default="default", desc
     Returns:
         Updated list of followed accounts
     """
-    integration_service = get_x_integration_service(user_id)
-    accounts = integration_service.refresh_followed_accounts()
-    return {"accounts": accounts, "count": len(accounts)}
+    try:
+        integration_service = get_x_integration_service(user_id)
+        accounts = integration_service.refresh_followed_accounts()
+        return {"accounts": accounts, "count": len(accounts), "success": True}
+    except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        return {
+            "accounts": [],
+            "count": 0,
+            "success": False,
+            "error": str(e),
+            "error_details": error_details
+        }
 
 
 @router.post("/monitoring/start")

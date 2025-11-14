@@ -63,14 +63,27 @@ class XAPIClient:
         }
         
         try:
-            if method.upper() == "GET":
-                response = requests.get(url, headers=headers, params=params)
-            elif method.upper() == "POST":
-                response = requests.post(url, headers=headers, json=params)
-            else:
-                raise ValueError(f"Unsupported HTTP method: {method}")
-            
-            response.raise_for_status()
+            # Try with SSL verification first
+            try:
+                if method.upper() == "GET":
+                    response = requests.get(url, headers=headers, params=params, verify=True, timeout=30)
+                elif method.upper() == "POST":
+                    response = requests.post(url, headers=headers, json=params, verify=True, timeout=30)
+                else:
+                    raise ValueError(f"Unsupported HTTP method: {method}")
+                
+                response.raise_for_status()
+            except requests.exceptions.SSLError as ssl_error:
+                # Retry without SSL verification (for development environments)
+                self.logger.warning(f"SSL verification failed, retrying without verification: {ssl_error}")
+                if method.upper() == "GET":
+                    response = requests.get(url, headers=headers, params=params, verify=False, timeout=30)
+                elif method.upper() == "POST":
+                    response = requests.post(url, headers=headers, json=params, verify=False, timeout=30)
+                else:
+                    raise ValueError(f"Unsupported HTTP method: {method}")
+                
+                response.raise_for_status()
             
             # Track rate limits from headers
             if "x-rate-limit-remaining" in response.headers:
@@ -122,6 +135,7 @@ class XAPIClient:
             # Get authenticated user's ID
             me = self.get_me()
             user_id = me.get("id")
+            self.logger.info(f"Authenticated user ID: {user_id}")
         
         if not user_id:
             raise ValueError("Could not determine user ID")
@@ -129,28 +143,37 @@ class XAPIClient:
         all_following = []
         next_token = None
         
-        while len(all_following) < max_results:
-            params = {
-                "max_results": min(100, max_results - len(all_following)),
-                "user.fields": "id,name,username,description,public_metrics"
-            }
-            
-            if next_token:
-                params["pagination_token"] = next_token
-            
-            response = self._make_request("GET", f"/users/{user_id}/following", params)
-            
-            following = response.get("data", [])
-            all_following.extend(following)
-            
-            # Check for next page
-            meta = response.get("meta", {})
-            next_token = meta.get("next_token")
-            
-            if not next_token or len(all_following) >= max_results:
-                break
+        try:
+            while len(all_following) < max_results:
+                params = {
+                    "max_results": min(100, max_results - len(all_following)),
+                    "user.fields": "id,name,username,description,public_metrics"
+                }
+                
+                if next_token:
+                    params["pagination_token"] = next_token
+                
+                self.logger.info(f"Fetching following for user {user_id} with params: {params}")
+                response = self._make_request("GET", f"/users/{user_id}/following", params)
+                
+                self.logger.info(f"API response: {response}")
+                
+                following = response.get("data", [])
+                if following:
+                    all_following.extend(following)
+                    self.logger.info(f"Got {len(following)} accounts in this batch")
+                
+                # Check for next page
+                meta = response.get("meta", {})
+                next_token = meta.get("next_token")
+                
+                if not next_token or len(all_following) >= max_results:
+                    break
+        except Exception as e:
+            self.logger.error(f"Error in get_following: {e}", exc_info=True)
+            raise
         
-        self.logger.info(f"Fetched {len(all_following)} followed accounts")
+        self.logger.info(f"Fetched {len(all_following)} followed accounts total")
         return all_following[:max_results]
     
     def get_user_timeline(self, user_id: str, since_id: Optional[str] = None, max_results: int = 10) -> List[Dict]:
