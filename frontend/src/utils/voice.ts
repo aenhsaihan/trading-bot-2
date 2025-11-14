@@ -229,10 +229,17 @@ async function processQueue() {
       await playWithBrowserTTS(next.message, next.priority);
     }
     
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ Voice playback error:', error);
-    // If browser TTS also fails, just log and continue
-    // Don't block the queue
+    
+    // If it's a "not-allowed" error, it means TTS needs user interaction
+    // Queue the message to try again after user interacts
+    if (error?.error === 'not-allowed' || error?.message?.includes('not-allowed')) {
+      console.warn('⚠️ Browser TTS requires user interaction. Message will be spoken after you interact with the page.');
+      // Re-queue the message at the front so it plays after user interaction
+      voiceQueue.unshift(next);
+    }
+    // Otherwise, just log and continue - don't block the queue
   } finally {
     isSpeaking = false;
     currentAudio = null;
