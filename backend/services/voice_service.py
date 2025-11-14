@@ -295,8 +295,15 @@ class VoiceService:
                 raise ValueError("Azure TTS credentials not set")
             
             # Azure voice (female, calm, professional)
-            # en-US-AriaNeural - calm, professional female voice
-            azure_voice = "en-US-AriaNeural"
+            # Available voices: en-US-AriaNeural, en-US-JennyNeural, en-US-MichelleNeural, 
+            # en-US-NancyNeural, en-US-SaraNeural, en-US-AnaNeural, en-US-AshleyNeural
+            # For "Ada" voice, try: en-US-AdaNeural (if available) or check Azure portal for exact name
+            # Default: en-US-AriaNeural (calm, professional female voice)
+            azure_voice = os.getenv("AZURE_TTS_VOICE", "en-US-AriaNeural")
+            
+            # If voice_id is provided and looks like an Azure voice name, use it
+            if voice_id and voice_id.startswith("en-"):
+                azure_voice = voice_id
             
             url = f"https://{region}.tts.speech.microsoft.com/cognitiveservices/v1"
             
