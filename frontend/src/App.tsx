@@ -197,7 +197,23 @@ function App() {
                 <input
                   type="checkbox"
                   checked={voiceEnabled}
-                  onChange={(e) => setVoiceEnabled(e.target.checked)}
+                  onChange={(e) => {
+                    setVoiceEnabled(e.target.checked);
+                    // Initialize speech synthesis on toggle (user interaction)
+                    if (e.target.checked && typeof window !== 'undefined' && 'speechSynthesis' in window) {
+                      try {
+                        const synth = window.speechSynthesis;
+                        const testUtterance = new SpeechSynthesisUtterance('');
+                        testUtterance.volume = 0;
+                        testUtterance.rate = 0.1;
+                        synth.speak(testUtterance);
+                        synth.cancel();
+                        console.log('✅ Voice alerts enabled and initialized');
+                      } catch (err) {
+                        console.warn('⚠️ Could not initialize voice alerts:', err);
+                      }
+                    }
+                  }}
                   className="rounded"
                 />
                 🔊 Voice Alerts

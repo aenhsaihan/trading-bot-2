@@ -16,6 +16,7 @@ interface QueuedMessage {
 let voiceQueue: QueuedMessage[] = [];
 let isSpeaking = false;
 let currentUtterance: SpeechSynthesisUtterance | null = null;
+let speechInitialized = false; // Track if speech has been initialized via user interaction
 
 // Initialize speech synthesis
 if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
@@ -30,6 +31,32 @@ if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
   if (speechSynthesis.onvoiceschanged !== undefined) {
     speechSynthesis.onvoiceschanged = loadVoices;
   }
+  
+  // Initialize speech synthesis on first user interaction
+  // Browsers require user interaction before allowing speech synthesis
+  const initSpeechOnInteraction = () => {
+    if (speechInitialized) return;
+    
+    // Try to speak a silent utterance to "unlock" speech synthesis
+    // This must happen in response to a user interaction
+    try {
+      const testUtterance = new SpeechSynthesisUtterance('');
+      testUtterance.volume = 0;
+      testUtterance.rate = 0.1;
+      synth!.speak(testUtterance);
+      synth!.cancel(); // Immediately cancel it
+      speechInitialized = true;
+      console.log('✅ Speech synthesis initialized via user interaction');
+    } catch (e) {
+      console.warn('⚠️ Could not initialize speech synthesis:', e);
+    }
+  };
+  
+  // Listen for user interactions to initialize speech
+  const events = ['click', 'keydown', 'touchstart'];
+  events.forEach(eventType => {
+    window.addEventListener(eventType, initSpeechOnInteraction, { once: true, passive: true });
+  });
 }
 
 function processQueue() {
@@ -116,7 +143,7 @@ function processQueue() {
 }
 
 export function speakMessage(message: string, priority: string = 'info') {
-  console.log('🎤 speakMessage called:', { message, priority, synthAvailable: !!synth });
+  console.log('🎤 speakMessage called:', { message, priority, synthAvailable: !!synth, speechInitialized });
   
   if (!synth) {
     console.warn('⚠️ Speech synthesis not available');
@@ -126,6 +153,24 @@ export function speakMessage(message: string, priority: string = 'info') {
   if (!message || message.trim().length === 0) {
     console.warn('⚠️ Empty message, skipping speech');
     return;
+  }
+  
+  // If speech hasn't been initialized yet, try to initialize it now
+  // This might work if called from a user interaction handler
+  if (!speechInitialized) {
+    console.warn('⚠️ Speech synthesis not initialized yet. Attempting to initialize...');
+    try {
+      const testUtterance = new SpeechSynthesisUtterance('');
+      testUtterance.volume = 0;
+      testUtterance.rate = 0.1;
+      synth.speak(testUtterance);
+      synth.cancel();
+      speechInitialized = true;
+      console.log('✅ Speech synthesis initialized');
+    } catch (e) {
+      console.warn('⚠️ Could not initialize speech synthesis. User interaction required.');
+      // Still add to queue - it might work if user interacts
+    }
   }
 
   // Add to queue
