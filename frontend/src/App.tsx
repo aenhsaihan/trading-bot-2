@@ -151,6 +151,25 @@ function App() {
     markAsRead(id);
   };
 
+  // Initialize browser TTS on any user interaction with the app
+  useEffect(() => {
+    const handleUserInteraction = () => {
+      initializeBrowserTTS();
+    };
+    
+    // Listen for any interaction
+    const events = ['click', 'keydown', 'touchstart', 'mousedown'];
+    events.forEach(eventType => {
+      document.addEventListener(eventType, handleUserInteraction, { once: true, passive: true });
+    });
+    
+    return () => {
+      events.forEach(eventType => {
+        document.removeEventListener(eventType, handleUserInteraction);
+      });
+    };
+  }, []);
+
   return (
     <div className="h-screen flex flex-col bg-gradient-to-br from-[#0f0f1e] via-[#1a1a2e] to-[#0f0f1e] overflow-hidden">
       {/* Header */}

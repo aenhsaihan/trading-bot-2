@@ -38,7 +38,8 @@ if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
   }
   
   // Initialize speech synthesis on first user interaction
-  const initSpeechOnInteraction = () => {
+  // This MUST happen before any speech is attempted
+  const initSpeechOnInteraction = (event?: Event) => {
     if (speechInitialized) return;
     
     try {
@@ -48,15 +49,26 @@ if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       synth!.speak(testUtterance);
       synth!.cancel();
       speechInitialized = true;
-      console.log('✅ Browser TTS initialized via user interaction');
+      console.log('✅ Browser TTS initialized via user interaction:', event?.type || 'unknown');
+      
+      // Remove all listeners once initialized
+      events.forEach(eventType => {
+        window.removeEventListener(eventType, initSpeechOnInteraction);
+      });
     } catch (e) {
       console.warn('⚠️ Could not initialize browser TTS:', e);
     }
   };
   
-  const events = ['click', 'keydown', 'touchstart'];
+  // Listen for ANY user interaction to initialize
+  // Use capture phase to catch interactions early
+  const events = ['click', 'keydown', 'touchstart', 'mousedown', 'pointerdown'];
   events.forEach(eventType => {
-    window.addEventListener(eventType, initSpeechOnInteraction, { once: true, passive: true });
+    window.addEventListener(eventType, initSpeechOnInteraction, { 
+      once: false,  // Don't use once - we'll remove manually
+      passive: true,
+      capture: true  // Capture in capture phase for earlier handling
+    });
   });
 }
 
@@ -109,11 +121,15 @@ function playWithBrowserTTS(message: string, priority: string): Promise<void> {
       return;
     }
     
-    // Initialize if needed - this must happen synchronously before speaking
+    // If not initialized, try to initialize now (might work if called from user interaction)
     if (!speechInitialized) {
-      console.warn('⚠️ Browser TTS not initialized yet. This may fail if not triggered by user interaction.');
-      // Don't try to initialize here - it won't work without user interaction
-      // Just proceed and hope it works (or user will need to interact first)
+      console.warn('⚠️ Browser TTS not initialized yet. Attempting initialization...');
+      const initialized = initializeBrowserTTS();
+      if (!initialized) {
+        // If initialization fails, reject with a clear error
+        reject(new Error('Browser TTS requires user interaction. Please interact with the page first (click, type, etc.)'));
+        return;
+      }
     }
     
     const utterance = new SpeechSynthesisUtterance(message);
@@ -324,14 +340,16 @@ export async function checkBackendTTS(): Promise<boolean> {
 
 /**
  * Initialize browser TTS (must be called from user interaction)
+ * This can be called multiple times safely
  */
 export function initializeBrowserTTS() {
   if (!synth) {
+    console.warn('⚠️ Browser TTS not available');
     return false;
   }
   
   if (speechInitialized) {
-    return true;
+    return true;  // Already initialized
   }
   
   try {
