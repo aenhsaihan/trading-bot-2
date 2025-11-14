@@ -12,11 +12,13 @@ interface QueuedMessage {
   message: string;
   priority: string;
   timestamp: number;
+  requeued?: boolean; // Track if message was re-queued due to "not-allowed"
 }
 
 let voiceQueue: QueuedMessage[] = [];
 let isSpeaking = false;
 let currentAudio: HTMLAudioElement | null = null;
+let waitingForUserInteraction = false; // Flag to prevent re-queue loops
 
 // Browser TTS fallback (for when backend is unavailable)
 let synth: SpeechSynthesis | null = null;
@@ -229,11 +231,17 @@ async function processQueue() {
     console.error('❌ Voice playback error:', error);
     
     // If it's a "not-allowed" error, it means TTS needs user interaction
-    // Queue the message to try again after user interacts
     if (error?.error === 'not-allowed' || error?.message?.includes('not-allowed')) {
-      console.warn('⚠️ Browser TTS requires user interaction. Message will be spoken after you interact with the page.');
-      // Re-queue the message at the front so it plays after user interaction
-      voiceQueue.unshift(next);
+      // Only re-queue once to prevent infinite loops
+      if (!next.requeued && !waitingForUserInteraction) {
+        console.warn('⚠️ Browser TTS requires user interaction. Message will be spoken after you interact with the page.');
+        waitingForUserInteraction = true;
+        // Mark as re-queued and add back to front of queue
+        next.requeued = true;
+        voiceQueue.unshift(next);
+      } else {
+        console.warn('⚠️ Message already re-queued. Waiting for user interaction...');
+      }
     }
     // Otherwise, just log and continue - don't block the queue
   } finally {
@@ -363,6 +371,17 @@ export function initializeBrowserTTS() {
     synth.cancel();
     speechInitialized = true;
     console.log('✅ Browser TTS initialized');
+    
+    // Clear the waiting flag and process queue if there are messages
+    if (waitingForUserInteraction) {
+      waitingForUserInteraction = false;
+      console.log('✅ User interaction detected, processing queued messages...');
+      // Process queue after a short delay to ensure initialization is complete
+      setTimeout(() => {
+        processQueue();
+      }, 100);
+    }
+    
     return true;
   } catch (e) {
     console.warn('⚠️ Could not initialize browser TTS:', e);
